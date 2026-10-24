@@ -1,0 +1,41 @@
+# The swap's settings. No address, key or prompt lives here: the Spark is named
+# by its key in infra's $INFRA_HOSTS, and the LiteLLM key by its name in the
+# builders' env file. Both values stay on the Mac.
+
+[spark]
+# Keys in $INFRA_HOSTS (default ~/.config/infra/hosts.env), kept by the Sponsor.
+addr_key = "SPARK_ADDR"
+user_key = "SPARK_USER"
+
+[infra]
+# A checkout of mqucifer/infra. The candidate starts from its recorded launch.
+dir = "~/Documents/git/infra"
+compose = "compose/spark/sglang/compose.yaml"
+
+[serving]
+# The 27B's container, as `docker ps` names it on the Spark (inventory/services/sglang.yaml).
+baseline_container = "qwen3.8-27b-sglang"
+# The candidate's compose project and container. The candidate serves on the
+# same port as the 27B, so LiteLLM's SGLANG_BASE_URL never changes.
+candidate_project = "sglang-candidate"
+candidate_container = "sglang-candidate"
+# The served name LiteLLM's crew-candidate alias points at (mqucifer/infra#40).
+candidate_served_name = "crew-candidate-sglang"
+# How the 27B comes back: "start-dflash" (re-run its start script, as today),
+# "container" (`docker start` the stopped container) or "compose" (infra's
+# record with its defaults). The Sponsor's call, asked on mqucifer/infra#40.
+restore = "start-dflash"
+# Run on the Spark for restore = "start-dflash". Confirmed by step 1's read of
+# the host (mqucifer/infra#40) before the first real run.
+start_dflash = "cd ~/Qwen3.8-27B-SGLang-DGX-Spark && ./start-dflash.sh"
+
+[litellm]
+# Every check goes through the proxy. Anything but the Mac's :4000 is refused.
+base_url = "http://localhost:4000"
+baseline_alias = "crew-local"
+candidate_alias = "crew-candidate"
+key_file = "~/.config/crew/builders.env"
+key_name = "CREW_LLM_API_KEY"
+# SGLang loads a model in minutes; a 27B with its draft and 262k context is the slowest.
+ready_timeout_s = 1200
+poll_s = 20
