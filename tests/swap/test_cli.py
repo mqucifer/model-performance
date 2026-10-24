@@ -17,9 +17,11 @@ REAL_INFRA_COMMIT = cli.infra_commit
 
 @pytest.fixture
 def infra(tmp_path: Path) -> Path:
-    launch = tmp_path / "compose/spark/sglang/compose.yaml"
-    launch.parent.mkdir(parents=True)
-    launch.write_text((FIXTURES / "compose.yaml").read_text())
+    """An infra checkout's layout, holding each engine's fixture launch."""
+    for engine in ("sglang", "tensorfold"):
+        launch = tmp_path / f"compose/spark/{engine}/compose.yaml"
+        launch.parent.mkdir(parents=True)
+        launch.write_text((FIXTURES / f"{engine}.yaml").read_text())
     return tmp_path
 
 
@@ -48,14 +50,14 @@ def test_dry_run_prints_every_step_in_order(
         "has crew-candidate",
         "swap 1/3: stop the 27B",
         "docker stop qwen3.8-27b-sglang",
-        "swap 2/3: start Qwen/Qwen3.8-8B",
-        "MODEL_PATH=Qwen/Qwen3.8-8B SERVED_MODEL_NAME=crew-candidate-sglang SPECULATIVE_ARGS=''",
+        "swap 2/3: start Qwen/Qwen3.8-8B on sglang",
+        "MODEL_PATH=Qwen/Qwen3.8-8B SERVED_MODEL_NAME=crew-candidate SPECULATIVE_ARGS=''",
         "up -d   < compose/spark/sglang/compose.yaml",
         "swap 3/3: wait until crew-candidate answers",
         "model=crew-candidate",
-        "[dry-run] bench -x",
+        "SWAP_SEED_REQUIRED=0 bench -x",
         "restore 1/3: remove the candidate",
-        "restore 2/3: bring the 27B back (start-dflash)",
+        "restore 2/3: bring the 27B back on sglang (start-dflash)",
         "./start-dflash.sh",
         "restore 3/3: wait until crew-local answers",
         "the 27B answers again; exiting 0",
@@ -66,6 +68,24 @@ def test_dry_run_prints_every_step_in_order(
         assert found >= 0, f"missing, or out of order: {line}"
         position = found + len(line)
     assert "8888" not in err
+
+
+def test_dry_run_of_a_tensorfold_arm(infra: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    argv = ["nvidia/Bolt", "--engine", "tensorfold", "--dry-run", "--infra-dir", str(infra)]
+    assert cli.main([*argv, "--", "bench"]) == 0
+    err = capsys.readouterr().err
+    assert "up -d   < compose/spark/tensorfold/compose.yaml" in err
+    assert "SPECULATIVE_ARGS" not in err
+    assert "model=crew-candidate with a seed" in err
+    assert "SWAP_ENGINE=tensorfold" in err and "SWAP_SEED_REQUIRED=1" in err
+    assert "restore 2/3: bring the 27B back on sglang" in err
+    assert "8888" not in err
+
+
+def test_unknown_engine_is_refused(infra: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    argv = ["m", "--engine", "vllm", "--dry-run", "--infra-dir", str(infra), "--", "x"]
+    assert cli.main(argv) == core.REFUSED
+    assert "no engine 'vllm'" in capsys.readouterr().err
 
 
 def test_dry_run_refuses_while_a_tick_runs(
@@ -81,7 +101,7 @@ def test_missing_infra_record_is_refused(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     assert cli.main(["m", "--dry-run", "--infra-dir", str(tmp_path), "--", "x"]) == core.REFUSED
-    assert "mqucifer/infra#40" in capsys.readouterr().err
+    assert "sglang launch isn't at" in capsys.readouterr().err
 
 
 def test_real_run_without_the_spark_address_is_refused(

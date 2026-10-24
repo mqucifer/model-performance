@@ -10,9 +10,11 @@ from urllib.parse import urlparse
 DEFAULT_CONFIG = Path(__file__).with_name("config.toml")
 RESTORE_MODES = ("start-dflash", "container", "compose")
 
-# The variables infra's recorded launch must take, so a candidate differs from
-# the 27B only in its model (mqucifer/infra#40).
+# The variables a recorded launch may take. Every engine's must take the
+# required ones, so a candidate differs from the 27B only in its model, and
+# takes its own served name and container (mqucifer/infra#40).
 LAUNCH_VARIABLES = ("MODEL_PATH", "SERVED_MODEL_NAME", "SPECULATIVE_ARGS", "CONTAINER_NAME")
+REQUIRED_VARIABLES = ("MODEL_PATH", "SERVED_MODEL_NAME", "CONTAINER_NAME")
 
 
 class ConfigError(Exception):
@@ -20,11 +22,20 @@ class ConfigError(Exception):
 
 
 @dataclass(frozen=True)
+class Engine:
+    name: str
+    compose: Path
+    variables: tuple[str, ...]
+    seed: bool
+
+
+@dataclass(frozen=True)
 class Config:
     addr_key: str
     user_key: str
     infra_dir: Path
-    compose: Path
+    engines: dict[str, Engine]
+    baseline_engine: str
     baseline_container: str
     candidate_project: str
     candidate_container: str
@@ -39,9 +50,17 @@ class Config:
     ready_timeout_s: float
     poll_s: float
 
+    def engine(self, name: str) -> Engine:
+        if name not in self.engines:
+            raise ConfigError(f"no engine {name!r}; known: {', '.join(sorted(self.engines))}")
+        return self.engines[name]
+
     @property
-    def compose_path(self) -> Path:
-        return self.infra_dir / self.compose
+    def baseline(self) -> Engine:
+        return self.engine(self.baseline_engine)
+
+    def launch_path(self, engine: Engine) -> Path:
+        return self.infra_dir / engine.compose
 
 
 def load(path: Path = DEFAULT_CONFIG, infra_dir: Path | None = None) -> Config:
@@ -51,7 +70,16 @@ def load(path: Path = DEFAULT_CONFIG, infra_dir: Path | None = None) -> Config:
         addr_key=spark["addr_key"],
         user_key=spark["user_key"],
         infra_dir=(infra_dir or Path(infra["dir"])).expanduser(),
-        compose=Path(infra["compose"]),
+        engines={
+            name: Engine(
+                name=name,
+                compose=Path(engine["compose"]),
+                variables=tuple(engine["variables"]),
+                seed=bool(engine["seed"]),
+            )
+            for name, engine in raw["engines"].items()
+        },
+        baseline_engine=serving["baseline_engine"],
         baseline_container=serving["baseline_container"],
         candidate_project=serving["candidate_project"],
         candidate_container=serving["candidate_container"],
@@ -76,10 +104,19 @@ def check(config: Config) -> None:
     if url.hostname not in ("localhost", "127.0.0.1") or url.port != 4000:
         raise ConfigError(
             f"litellm.base_url must be the Mac's LiteLLM on :4000, not {config.base_url}: "
-            "every check goes through the proxy, never to SGLang"
+            "every check goes through the proxy, never to the Spark's engine"
         )
     if config.restore not in RESTORE_MODES:
         raise ConfigError(f"serving.restore must be one of {RESTORE_MODES}, not {config.restore!r}")
+    config.engine(config.baseline_engine)
+    for engine in config.engines.values():
+        unknown = set(engine.variables) - set(LAUNCH_VARIABLES)
+        missing = set(REQUIRED_VARIABLES) - set(engine.variables)
+        if unknown or missing:
+            raise ConfigError(
+                f"engine {engine.name}: variables must take {', '.join(REQUIRED_VARIABLES)}"
+                f" and only {', '.join(LAUNCH_VARIABLES)}"
+            )
     if config.candidate_container == config.baseline_container:
         raise ConfigError("the candidate's container must not take the 27B's name")
     if config.candidate_alias == config.baseline_alias:

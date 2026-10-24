@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import os
+import secrets
 import shlex
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 import httpx
@@ -67,17 +68,22 @@ class RealRunner:
             return 124
         return done.returncode
 
-    def answers(self, alias: str) -> bool:
-        """One short completion through LiteLLM. Only its status is shown."""
+    def answers(self, alias: str, seed: bool) -> bool:
+        """One short completion through LiteLLM, seeded when the engine needs it.
+
+        A completion, not a health endpoint: an engine has answered `/health`
+        with 200 while failing every request (mqucifer/model-performance#4).
+        Only the status is shown.
+        """
+        body: dict[str, object] = {
+            "model": alias,
+            "messages": [{"role": "user", "content": "Reply with OK."}],
+            "max_tokens": 1,
+        }
+        if seed:
+            body["seed"] = secrets.randbelow(2**31)
         try:
-            response = self.client.post(
-                "/v1/chat/completions",
-                json={
-                    "model": alias,
-                    "messages": [{"role": "user", "content": "Reply with OK."}],
-                    "max_tokens": 1,
-                },
-            )
+            response = self.client.post("/v1/chat/completions", json=body)
         except httpx.HTTPError as error:
             say(f"  {alias} through LiteLLM: {type(error).__name__}")
             return False
@@ -93,8 +99,8 @@ class RealRunner:
             return False
         return alias in {model["id"] for model in response.json().get("data", [])}
 
-    def run(self, argv: Sequence[str]) -> int:
-        child = subprocess.Popen(list(argv))
+    def run(self, argv: Sequence[str], env: Mapping[str, str]) -> int:
+        child = subprocess.Popen(list(argv), env={**os.environ, **env})
         try:
             return child.wait()
         except BaseException as interrupt:
@@ -122,8 +128,15 @@ class DryRunner:
     The tick check is real: it only reads, and it's the one a dry run should catch.
     """
 
-    def __init__(self, config: Config, ticks: Callable[[], bool] | None = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        launches: Mapping[str, Path],
+        ticks: Callable[[], bool] | None = None,
+    ) -> None:
+        """`launches` maps each launch's text to its path in infra, to name what is sent."""
         self.config = config
+        self.launches = launches
         self._ticks = ticks
         self._now = 0.0
 
@@ -133,20 +146,22 @@ class DryRunner:
         return (self._ticks or ticks_running)()
 
     def remote(self, command: str, stdin: bytes | None = None) -> int:
-        fed = f"   < {self.config.compose}" if stdin is not None else ""
+        fed = f"   < {self.launches.get(stdin.decode(), '?')}" if stdin is not None else ""
         say(f"  [dry-run] ssh ${self.config.user_key}@${self.config.addr_key}: {command}{fed}")
         return 0
 
-    def answers(self, alias: str) -> bool:
-        say(f"  [dry-run] POST {self.config.base_url}/v1/chat/completions model={alias}")
+    def answers(self, alias: str, seed: bool) -> bool:
+        seeded = " with a seed" if seed else ""
+        say(f"  [dry-run] POST {self.config.base_url}/v1/chat/completions model={alias}{seeded}")
         return True
 
     def lists(self, alias: str) -> bool:
         say(f"  [dry-run] GET {self.config.base_url}/v1/models has {alias}")
         return True
 
-    def run(self, argv: Sequence[str]) -> int:
-        say(f"  [dry-run] {shlex.join(argv)}")
+    def run(self, argv: Sequence[str], env: Mapping[str, str]) -> int:
+        assignments = " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
+        say(f"  [dry-run] {assignments} {shlex.join(argv)}")
         return 0
 
     def sleep(self, seconds: float) -> None:

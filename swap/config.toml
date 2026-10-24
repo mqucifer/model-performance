@@ -10,20 +10,39 @@ user_key = "SPARK_USER"
 [infra]
 # A checkout of mqucifer/infra. The candidate starts from its recorded launch.
 dir = "~/Documents/git/infra"
+
+# The engines the Spark can serve with, each from its launch recorded in infra
+# (mqucifer/infra#40). Each serves an OpenAI-compatible API on the 27B's port,
+# so LiteLLM's SGLANG_BASE_URL never changes. `variables` are the ones its
+# launch takes, so a candidate differs only in its model; `seed` says whether
+# every request needs one (TensorFold is deterministic without it).
+[engines.sglang]
 compose = "compose/spark/sglang/compose.yaml"
+variables = ["MODEL_PATH", "SERVED_MODEL_NAME", "SPECULATIVE_ARGS", "CONTAINER_NAME"]
+seed = false
+
+# The comparison arm on mqucifer/model-performance#4: an engine that replaces
+# SGLang. Its launch is recorded in infra before the arm runs.
+[engines.tensorfold]
+compose = "compose/spark/tensorfold/compose.yaml"
+variables = ["MODEL_PATH", "SERVED_MODEL_NAME", "CONTAINER_NAME"]
+seed = true
 
 [serving]
+# The 27B's engine. The restore always starts the 27B on it, whatever the candidate ran on.
+baseline_engine = "sglang"
 # The 27B's container, as `docker ps` names it on the Spark (inventory/services/sglang.yaml).
 baseline_container = "qwen3.8-27b-sglang"
-# The candidate's compose project and container. The candidate serves on the
+# The candidate's compose project and container, whatever its engine. It serves on the
 # same port as the 27B, so LiteLLM's SGLANG_BASE_URL never changes.
-candidate_project = "sglang-candidate"
-candidate_container = "sglang-candidate"
+candidate_project = "spark-candidate"
+candidate_container = "spark-candidate"
 # The served name LiteLLM's crew-candidate alias points at (mqucifer/infra#40).
-candidate_served_name = "crew-candidate-sglang"
+candidate_served_name = "crew-candidate"
 # How the 27B comes back: "start-dflash" (re-run its start script, as today),
-# "container" (`docker start` the stopped container) or "compose" (infra's
-# record with its defaults). The Sponsor's call, asked on mqucifer/infra#40.
+# "container" (`docker start` the stopped container) or "compose" (the
+# baseline engine's record with its defaults). The Sponsor's call, asked on
+# mqucifer/infra#40.
 restore = "start-dflash"
 # Run on the Spark for restore = "start-dflash". Confirmed by step 1's read of
 # the host (mqucifer/infra#40) before the first real run.

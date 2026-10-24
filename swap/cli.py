@@ -20,13 +20,17 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
     own, command = argv[:split], argv[split + 1 :]
     parser = argparse.ArgumentParser(
         prog="swap",
-        usage="swap MODEL [--dry-run] [options] -- COMMAND...",
+        usage="swap MODEL [--engine ENGINE] [--dry-run] [options] -- COMMAND...",
         description=(
-            "Stop the Spark's 27B, serve MODEL from infra's recorded launch, run COMMAND, "
-            "and always bring the 27B back. Every check goes through LiteLLM on :4000."
+            "Stop the Spark's 27B, serve MODEL on ENGINE from infra's recorded launch, "
+            "run COMMAND, and always bring the 27B back. Every check goes through LiteLLM "
+            "on :4000."
         ),
     )
     parser.add_argument("model", help="the candidate's model path, as SGLang's --model-path has it")
+    parser.add_argument(
+        "--engine", default="sglang", help="the engine in config.toml's [engines] (sglang)"
+    )
     parser.add_argument("--dry-run", action="store_true", help="print every step, change nothing")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--infra-dir", type=Path, help="a checkout of mqucifer/infra")
@@ -69,20 +73,26 @@ def main(argv: list[str] | None = None) -> int:
     args = parse(argv)
     try:
         config = load(args.config, infra_dir=args.infra_dir)
+        engine = config.engine(args.engine)
     except ConfigError as error:
         say(f"swap: refused: {error}")
         return core.REFUSED
-    if not config.compose_path.is_file():
-        say(
-            f"swap: refused: infra's recorded launch isn't at {config.compose_path} "
-            "(recorded by mqucifer/infra#40)"
-        )
-        return core.REFUSED
-    compose_text = config.compose_path.read_text(encoding="utf-8")
-    say(f"swap: {args.model}, launch from infra {infra_commit(config.infra_dir)}")
+    texts = []
+    for each in (engine, config.baseline):
+        path = config.launch_path(each)
+        if not path.is_file():
+            say(
+                f"swap: refused: infra's {each.name} launch isn't at {path}"
+                " (recorded by mqucifer/infra#40)"
+            )
+            return core.REFUSED
+        texts.append(path.read_text(encoding="utf-8"))
+    launch_text, baseline_text = texts
+    say(f"swap: {args.model} on {engine.name}, launch from infra {infra_commit(config.infra_dir)}")
 
     if args.dry_run:
-        runner: core.Runner = DryRunner(config)
+        launches = {launch_text: engine.compose, baseline_text: config.baseline.compose}
+        runner: core.Runner = DryRunner(config, launches)
     else:
         try:
             hosts, key = read_secrets(config, args.hosts)
@@ -90,4 +100,4 @@ def main(argv: list[str] | None = None) -> int:
             say(f"swap: refused: {error}")
             return core.REFUSED
         runner = RealRunner(config, hosts, key)
-    return core.swap(runner, config, args.model, args.command, compose_text)
+    return core.swap(runner, config, engine, args.model, args.command, launch_text, baseline_text)
