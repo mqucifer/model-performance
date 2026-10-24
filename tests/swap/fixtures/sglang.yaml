@@ -1,0 +1,15 @@
+# A test fixture, not the Spark's launch: the shape infra's record takes
+# (mqucifer/infra#40), with the variables the swap sets.
+name: sglang
+
+services:
+  sglang:
+    image: lmsysorg/sglang:v0.5.20-cu130
+    container_name: ${CONTAINER_NAME:-qwen3.8-27b-sglang}
+    network_mode: host
+    command: >-
+      python3 -m sglang.launch_server
+      --model-path ${MODEL_PATH:-RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead}
+      --served-model-name ${SERVED_MODEL_NAME:-qwen3.8-27b-sglang}
+      --host 0.0.0.0 --port 8888
+      ${SPECULATIVE_ARGS---speculative-algorithm DFLASH}
