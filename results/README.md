@@ -57,4 +57,5 @@ one crew's argument rule refuses, here over the evaluation's own tools.
 | `writes`, `runs`, `inspects` | calls to each tool, well formed or not |
 | `compiles`, `closed_mesh`, `within_tolerance` | the part at `done`, checked: null without a `done` |
 | `checks_passed`, `checks_total` | the dimension checks behind `within_tolerance`, named in the run's `checks.json` |
-| `calls` | model calls. A part stops at its cap (20, or `--cap`) as `interrupted` with `call_cap` |
+| `calls` | model calls. A part stops at its cap (40, or `--cap`; the first run's was 20) as `interrupted` with `call_cap` |
+| `calls_to_done` | the calls a part took to reach `done`, or null without one: what the next run's cap is set from |

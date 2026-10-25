@@ -63,7 +63,7 @@ class Run:
         self.send = Sender(
             self.settings,
             "k",
-            cap=20,
+            cap=cad.CAP_PER_PART,
             transport=httpx.MockTransport(reply),
             tick=lambda: False,
         )
@@ -95,6 +95,7 @@ def test_a_part_made_to_spec_is_done_and_passes_every_check(tmp_path: Path) -> N
     assert (row["compiles"], row["closed_mesh"], row["within_tolerance"]) == (True, True, True)
     assert row["checks_passed"] == row["checks_total"] > 0
     assert (row["calls"], row["tool_calls"], row["reliable_tool_calls"]) == (4, 4, 4)
+    assert row["calls_to_done"] == 4
     assert row["tool_reliability"] == 1.0
     assert (row["writes"], row["runs"], row["inspects"]) == (1, 1, 1)
     assert (row["prompt_tokens"], row["reasoning_tokens"], row["cached_tokens"]) == (
@@ -183,9 +184,10 @@ def test_the_model_saying_blocked_ends_it(tmp_path: Path) -> None:
 
 
 def test_the_cap_interrupts_it(tmp_path: Path) -> None:
-    r = Run(tmp_path, [answer(call("write", {"path": "a.py", "content": ""}))] * 30)
+    r = Run(tmp_path, [answer(call("write", {"path": "a.py", "content": ""}))] * 50)
     row = r.go()
-    assert (row["ending"], row["stop"], row["calls"]) == ("interrupted", "call_cap", 20)
+    assert (row["ending"], row["stop"], row["calls"]) == ("interrupted", "call_cap", 40)
+    assert row["calls_to_done"] is None
 
 
 def test_a_failed_call_interrupts_it(tmp_path: Path) -> None:

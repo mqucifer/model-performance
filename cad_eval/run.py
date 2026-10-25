@@ -2,7 +2,7 @@
 
     uv run cad-eval spacer l-bracket
     uv run cad-eval --first          # one part per tier: the first run
-    uv run cad-eval --all --model crew-candidate --cap 20
+    uv run cad-eval --all --model crew-candidate --cap 40
 
 Each part gets a fresh directory and its own container from the CadQuery image, held
 by crew's sandbox, and a session with the Developer's model through LiteLLM on :4000
@@ -39,9 +39,9 @@ from common.config import Settings, load
 from common.litellm import Sender, builders_key
 
 SUITE = "cad_eval"
-# The first run's budget (the brief): 5 parts, about 100 calls.
-CAP_PER_PART = 20
-TOTAL_CAP = 100
+# A part's calls (the operator, 2026-10-25): 20 ended two of the first run's five, so it
+# starts high and comes down from each part's `calls_to_done`.
+CAP_PER_PART = 40
 
 
 class Refused(Exception):
@@ -96,6 +96,7 @@ def evaluate(
         "within_tolerance": None,
         "checks_passed": None,
         "checks_total": None,
+        "calls_to_done": None,
     }
     kept: dict[str, Any] = {}
     send.ticking()
@@ -116,6 +117,7 @@ def evaluate(
         session = Session(p.spec(), tools, send, alias, out / "events.jsonl", max_tokens=max_tokens)
         ending = session.run()
         row["ending"], row["stop"] = ending.how, ending.stop or None
+        row["calls_to_done"] = session.calls if ending.how == "done" else None
         kept["said"] = ending.said
         if ending.how == "done":
             final = tools.final(str(ending.said["script"]), p.probes(), p.mate)
@@ -185,7 +187,9 @@ def main(argv: list[str] | None = None) -> int:
     chosen_by.add_argument("--all", action="store_true", help="every part, one at a time")
     parser.add_argument("--model", help="a LiteLLM alias in place of the Developer's")
     parser.add_argument("--cap", type=int, default=CAP_PER_PART, help="calls a part may make")
-    parser.add_argument("--total", type=int, default=TOTAL_CAP, help="calls the whole run may make")
+    parser.add_argument(
+        "--total", type=int, help="calls the whole run may make (default: the cap for each part)"
+    )
     args = parser.parse_args(argv)
     if bool(args.parts) == (args.first or args.all):
         parser.error("name the parts, or --first, or --all")
@@ -194,6 +198,7 @@ def main(argv: list[str] | None = None) -> int:
         chosen = [part(n) for n in names]
     except UnknownPart as exc:
         parser.error(str(exc.args[0]))
+    total = args.total if args.total is not None else args.cap * len(chosen)
 
     from crew_org.calls import role_spec  # noqa: PLC0415
 
@@ -232,9 +237,9 @@ def main(argv: list[str] | None = None) -> int:
     # The crew's sandbox keeps its uv cache under the current directory: the work's.
     with contextlib.chdir(settings.work_dir):
         for p in chosen:
-            cap = min(args.cap, args.total - spent)
+            cap = min(args.cap, total - spent)
             if cap < 1:
-                print(f"{p.name}: not run, the run's {args.total} calls are spent")
+                print(f"{p.name}: not run, the run's {total} calls are spent")
                 continue
             send = Sender(settings, key, cap=cap, alias=args.model, timeout=timeout)
             try:

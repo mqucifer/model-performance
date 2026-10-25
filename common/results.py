@@ -67,6 +67,7 @@ SUITES: dict[str, set[str]] = {
         "within_tolerance",
         "checks_passed",
         "checks_total",
+        "calls_to_done",  # the calls a part took to `done`, or null without one
     },
 }
 # A short name: an id, a commit, a time, an alias. No spaces, so no sentence fits.
