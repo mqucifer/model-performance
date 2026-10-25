@@ -165,3 +165,63 @@ def test_the_skill_mentions_only_names_written_as_the_api_has_them() -> None:
     # The two names the first run looked for and CadQuery doesn't have.
     text = "\n".join(p.read_text(encoding="utf-8") for p in skills.files())
     assert re.search(r"no `cq\.makeHelix`", text)
+
+
+def ready(monkeypatch: pytest.MonkeyPatch, ticking: bool) -> list[Any]:
+    """A run's preflight, faked: a tick running or not, and every case's evaluation caught."""
+    monkeypatch.setattr("swap.runners.ticks_running", lambda: ticking)
+    monkeypatch.setattr(cad, "parallel_room", lambda: 4)
+    monkeypatch.setattr(cad.container, "image_id", lambda: "sha256:abc")
+    monkeypatch.setattr(cad, "builders_key", lambda _s: "k")
+    evaluated: list[Any] = []
+
+    class Quiet:
+        calls = 0
+
+        def __init__(self, *_: Any, **__: Any) -> None: ...
+        def lists(self, _alias: str) -> bool:
+            return True
+
+        def close(self) -> None: ...
+
+    def evaluate(p: Any, *_: Any, **kw: Any) -> dict[str, Any]:
+        evaluated.append((p.name, kw.get("arm"), kw.get("concurrency")))
+        return {
+            "ending": "done",
+            "stop": None,
+            "fault": None,
+            "run": "r",
+            **{
+                k: None
+                for k in (
+                    "compiles",
+                    "closed_mesh",
+                    "within_tolerance",
+                    "checks_passed",
+                    "checks_total",
+                    "calls",
+                    "tool_calls",
+                    "tool_reliability",
+                    "malformed_tool_calls",
+                    "ill_typed_tool_calls",
+                    "failed_tool_calls",
+                    "model_s",
+                )
+            },
+        }
+
+    monkeypatch.setattr(cad, "Sender", Quiet)
+    monkeypatch.setattr(cad, "evaluate", evaluate)
+    return evaluated
+
+
+def test_harder_cases_run_alongside_a_tick_and_the_30_parts_wait(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    evaluated = ready(monkeypatch, ticking=True)
+    assert cad.main(["living-hinge", "m8-bolt", "--arm", "skill", "--parallel", "2"]) == 0
+    assert sorted(evaluated) == [("living-hinge", "skill", 2), ("m8-bolt", "skill", 2)]
+    assert "each row records it" in capsys.readouterr().err
+    assert cad.main(["spacer"]) == 2
+    assert "refused: a crew tick is running" in capsys.readouterr().err

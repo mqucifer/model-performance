@@ -471,8 +471,13 @@ def main(argv: list[str] | None = None) -> int:
     from swap.runners import ticks_running  # noqa: PLC0415
 
     if ticks_running():
-        print("refused: a crew tick is running, and it shares the model", file=sys.stderr)
-        return 2
+        # The harder cases test correctness, capped by calls, so they share the Spark
+        # with a tick, each row recording it (`concurrent_tick`, `other_calls`): the
+        # operator, 2026-10-25. The 30 parts' runs, which compare times, still wait.
+        if not all(isinstance(p, Case) for p in chosen):
+            print("refused: a crew tick is running, and it shares the model", file=sys.stderr)
+            return 2
+        print("a crew tick is running: each row records it", file=sys.stderr, flush=True)
     if container.image_id() is None:
         print(f"refused: {container.IMAGE} isn't built: cad_eval/image/build.sh", file=sys.stderr)
         return 2
