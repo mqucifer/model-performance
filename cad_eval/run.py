@@ -38,7 +38,7 @@ from cad_eval.cases import CASES, Case
 from cad_eval.parts import FIRST, PARTS, Part, UnknownPart, part
 from cad_eval.session import SYSTEM, Session, system_for
 from cad_eval.tools import PartTools
-from common import crew, records, results
+from common import crew, records, results, spend
 from common.config import Settings, load
 from common.litellm import Sender, builders_key
 
@@ -174,6 +174,22 @@ def keep(source: Path, out: Path) -> None:
             shutil.copy2(found, target)
 
 
+def own_calls(events: Path) -> set[str]:
+    """The run's own request ids: each `call` event's `response_id`, as the proxy logs it."""
+    ids: set[str] = set()
+    if not events.exists():
+        return ids
+    with events.open(encoding="utf-8") as fh:
+        for line in fh:
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(event, dict) and event.get("kind") == "call" and event.get("response_id"):
+                ids.add(str(event["response_id"]))
+    return ids
+
+
 def evaluate(
     p: Part | Case,
     settings: Settings,
@@ -184,15 +200,17 @@ def evaluate(
     workspace_for: Callable[[Path, str], Any] = container.held,
     image_id: Callable[[], str | None] = container.image_id,
     results_dir: Path = results.RESULTS,
+    read_spend: Callable[[str], str] | None = None,
 ) -> dict[str, Any]:
     """One part end to end: its row, written to the results once the run has ended."""
     run = records.run_id()
+    started_at = datetime.now(UTC)
     out = records.run_dir(settings, SUITE, p.name, run)
     row: dict[str, Any] = {
         "case": p.name,
         "tier": p.tier,
         "run": run,
-        "at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "at": started_at.isoformat(timespec="seconds"),
         "crew_commit": crew.commit(),
         "model_alias": alias,
         "image": container.IMAGE,
@@ -271,6 +289,12 @@ def evaluate(
             keep(root, out)
             shutil.rmtree(root, ignore_errors=True)
         row.update(counts(session))
+        # Every other call through the proxy while this one ran (`common/spend.py`).
+        overlapped = spend.others(
+            started_at, datetime.now(UTC), own_calls(out / "events.jsonl"), read_spend
+        )
+        row["other_calls"] = None if overlapped is None else sum(overlapped.values())
+        row["other_aliases"] = spend.keys(overlapped) if overlapped else None
         if case is not None:
             troubles = tools.troubles if tools is not None else {}
             row["fault"] = fault(row, kept.pop("measured", {}), troubles)

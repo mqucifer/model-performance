@@ -254,6 +254,7 @@ def go(r: Run, name: str) -> dict[str, Any]:
         workspace_for=held,
         image_id=lambda: "sha256:abc",
         results_dir=r.results,
+        read_spend=lambda _sql: "",
     )
 
 
@@ -365,3 +366,17 @@ def test_overhangs_are_recorded_for_the_members_that_passed_only() -> None:
     # Never a check.
     assert not any("overhang" in c["name"] or "bridge" in c["name"] for c in found)
     assert all(r.get("print") for r in cad.requests(case).values())
+
+
+def test_other_calls_count_what_overlapped_but_not_the_runs_own(tmp_path: Path) -> None:
+    from tests.cad_eval.test_checks import measured as part_measured  # noqa: PLC0415
+    from tests.cad_eval.test_run import GOOD  # noqa: PLC0415
+
+    replies = [dict(reply, id=f"chatcmpl-{n}") for n, reply in enumerate(GOOD)]
+    log = "\n".join(
+        [f"chatcmpl-{n}|claude-builders|crew-code-think" for n in range(4)]
+        + ["other-1|claude-builders|crew-code-think", "tick-1|crew|crew-code-think"]
+    )
+    row = Run(tmp_path, replies, measured=part_measured("spacer")).go(read_spend=lambda _sql: log)
+    assert (row["other_calls"], row["other_aliases"]) == (2, "claude-builders+crew")
+    assert cad.own_calls(Path("nowhere")) == set()
