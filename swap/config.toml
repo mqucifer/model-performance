@@ -45,11 +45,11 @@ candidate_served_name = "crew-candidate"
 weights_cache = "Qwen3.8-27B-SGLang-DGX-Spark/.cache/huggingface"
 # How the 27B comes back: "start-dflash" (re-run its start script, as today),
 # "container" (`docker start` the stopped container) or "compose" (the
-# baseline engine's record with its defaults). The Sponsor's call, asked on
-# mqucifer/infra#40. Infra's read of 2026-10-25 found the running 27B's image and
+# baseline engine's record with its defaults). The Sponsor chose "container",
+# 2026-10-25 (mqucifer/infra#40): infra's read found the running 27B's image and
 # memory flags come from start-dflash.sh's .env, so "start-dflash" brings back the
 # same 27B only while that .env is unchanged; "container" doesn't depend on it.
-restore = "start-dflash"
+restore = "container"
 # Run on the Spark for restore = "start-dflash". Confirmed by step 1's read of
 # the host (mqucifer/infra#40) before the first real run.
 start_dflash = "cd ~/Qwen3.8-27B-SGLang-DGX-Spark && ./start-dflash.sh"
