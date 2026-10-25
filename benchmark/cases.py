@@ -5,6 +5,11 @@ Each story's text is kept in `cases/<case>.md`, fetched once from the issue's ed
 history, so every run reads the same text whatever the issue says now:
 
     uv run python -m benchmark.cases --fetch
+
+A case may also carry `cases/<case>.project.yaml`, the project's record in the format
+the pinned crew reads, for a base whose own record is in an older one. It's an
+authored input: the repository's own format migration of the same record, trimmed
+to what was true at the base (`results/README.md` says how).
 """
 
 from __future__ import annotations
@@ -85,6 +90,12 @@ def story(c: Case) -> str:
     if not path.exists():
         raise FileNotFoundError(f"{path} is missing: fetch it with `python -m benchmark.cases`")
     return path.read_text(encoding="utf-8")
+
+
+def record(c: Case) -> str | None:
+    """The project's record the case carries for its base, or None to use the base's own."""
+    path = STORIES / f"{c.name}.project.yaml"
+    return path.read_text(encoding="utf-8") if path.exists() else None
 
 
 def as_it_stood(issue: dict, first_attempt: str) -> str:
