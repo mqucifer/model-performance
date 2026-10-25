@@ -1,0 +1,8 @@
+#!/bin/sh
+# Build the CAD-code evaluation's image on the Mac. Its tag is what `config.toml`
+# names and what each results row records as `image`.
+set -eu
+here=$(cd "$(dirname "$0")" && pwd)
+tag=${1:-model-performance/cadquery:2.8.0}
+docker build -t "$tag" "$here"
+docker image inspect --format '{{.Id}}' "$tag"

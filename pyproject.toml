@@ -21,6 +21,7 @@ dev = [
 [project.scripts]
 swap = "swap.cli:main"
 replay = "benchmark.replay:main"
+cad-eval = "cad_eval.run:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,7 +31,7 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["swap", "common", "benchmark"]
+packages = ["swap", "common", "benchmark", "cad_eval"]
 
 [tool.ruff]
 line-length = 100
