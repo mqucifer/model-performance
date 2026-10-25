@@ -1,6 +1,6 @@
 # Which model fits each of the crew's roles, on the Spark
 
-**Goal:** mqucifer/infra#29. **Status:** designed. **Built by:** Claude in a session with the Sponsor, not by the crew: infra isn't onboarded to the crew yet, and when it is, this Goal is not one for the crew to decompose.
+**Goal:** mqucifer/infra#29. **Status:** the 27B baseline is built (mqucifer/model-performance#10); candidates wait for the planned pause. **Built by:** Claude in a session with the Sponsor, not by the crew: infra isn't onboarded to the crew yet, and when it is, this Goal is not one for the crew to decompose.
 
 ## The question
 
@@ -68,17 +68,21 @@ A model is tested only if its model card or serving recipe answers yes to all of
 
 ## Harness
 
-| File | Does |
+Built as `role_fit/` in this repository (mqucifer/model-performance#10). The cases are in `role_fit/cases.py`, with how they were chosen in `role_fit/select.py`; numbers go to `results/role_fit.jsonl` (`results/README.md`).
+
+| Step | Does |
 |---|---|
-| `run.py` | Replays each case through an arm's alias with its seed, through the crew's own call layer (`crew_org.calls.ask`) at the crew commit named in `run.json`, and for a Developer answer applies it to a clone at the base commit and runs the checks in the sandbox |
-| `analyse.py` | Reads the run folders and computes the measures per case, arm and role group, with each arm's spread |
+| `uv run role-fit select` | Reads the crew's events for E1's first-try answer calls and prints the cases, one per card per bucket, with production's outcome |
+| `uv run role-fit extract` | Copies each case's request from LiteLLM's spend log (Postgres, one SELECT) to the records directory on the Mac |
+| `uv run role-fit run --runs 3 [--model <alias>]` | Replays each request as production sent it, streamed and cut off on a runaway as crew does, a seed per run, and scores the answer in its own form beside production's |
+
+**Since the design:** the Developer now works in a session, which the benchmark (`benchmark/`) measures whole. E1's Developer calls are one-shot answers in the two-part form the pinned crew retired, so they're replayed and scored as `dated`: they show the model, not today's crew. The sandbox check of a Developer answer isn't built: a dated answer has no crew left to apply it.
 
 ## How to run it
 
-1. **Before:** the crew is idle (`pgrep -f "crew tick"` finds nothing). For each arm, the Sponsor serves the candidate on the Spark and adds its LiteLLM alias (steps per arm in the run's notes), then `crew doctor --deep` passes against that alias.
-2. **Run:** `python experiments/model-fit-29/run.py --arm <alias> --cases <case list> --runs 3`, from a crew checkout at the named commit.
-3. **Results:** `$INFRA_RESULTS/model-fit-29/<run-id>/`, with `run.json` first.
-4. **After:** the Sponsor puts the production model back on the Spark, and `crew doctor` passes.
+1. **Before:** a Spark slot from the operator. For a candidate, the Sponsor serves it at the planned pause (mqucifer/model-performance#4) and its alias is listed for the builders' key.
+2. **Run:** `uv run role-fit run --runs 3`, or `--model <alias>` for a candidate.
+3. **Results:** `results/role_fit.jsonl`; each answer and its thinking in `<records>/role_fit/<case>/<run>/`.
 
 ## What it changes
 
