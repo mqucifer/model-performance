@@ -40,6 +40,18 @@ Box = tuple[tuple[float, float], tuple[float, float], tuple[float, float]]
 Span = tuple[float, float]
 
 KINDS = {6: "tight", 7: "assembly", 8: "worded"}
+# Volumes measured off the reference solution, where no formula is short: within
+# `volume_rel` of these.
+VOLUMES = {
+    "print-in-place-hinge": 4749.278,
+    "spur-gear": 5290.916,
+    "gear-a": 1322.276,
+    "gear-b": 8049.99,
+}
+# Gear B's bounding box, off the reference: no tooth of it is on an axis.
+BOXES: dict[str, Box] = {"gear-b": ((7.7867, 52.6133), (-22.4133, 22.4133), (4.5, 10.5))}
+# A hexagon 13 mm across its flats.
+HEX_AREA = 2 * math.sqrt(3) * 6.5**2
 
 # PLA's strength for the load check, and the factor it's divided by. Ultimaker PLA's
 # technical data sheet (v5.00): yield strength 52.5 MPa, printed flat (XY), ASTM
@@ -207,6 +219,520 @@ class Case:
         return [f"{m.name}.step" for m in self.members]
 
 
-CASES: dict[str, Case] = {}
+def helix(name: str, radius: float, pitch: float, z0: float, z1: float, n: int = 360) -> Sample:
+    """`n` points along a right-hand helix: in a right-hand thread of the same pitch they
+    keep to one side of its flanks, so they change from inside to out hardly at all."""
+    points = []
+    for k in range(n):
+        z = z0 + (z1 - z0) * k / (n - 1)
+        a = 2 * math.pi * z / pitch
+        points.append((round(radius * math.cos(a), 3), round(radius * math.sin(a), 3), round(z, 3)))
+    return Sample(name, tuple(points), (0.0, 1.0), (0, 2))
+
+
+# The mating parts the tight cases give, as their specs describe them.
+BLOCK = """
+mate = (
+    cq.Workplane("XY").box(20, 20, 10, centered=(True, True, False))
+    .faces(">Z").workplane().hole(5)
+)
+"""
+LEDGE = "mate = cq.Workplane('XY').box(4.9, 12, 6.9, centered=False).translate((5.1, -6, 10))"
+DOVETAIL = """
+mate = (
+    cq.Workplane("XY").box(60, 20, 5, centered=(True, True, False))
+    .union(
+        cq.Workplane("YZ").polyline([(-5, 5), (5, 5), (7, 10), (-7, 10)]).close()
+        .extrude(30, both=True)
+    )
+)
+"""
+
+CASES: dict[str, Case] = {
+    c.name: c
+    for c in (
+        # Tier 6: tight features, one part.
+        Case(
+            "living-hinge",
+            6,
+            (
+                Member(
+                    "part",
+                    bbox=((-32, 32), (-10, 10), (0, 3)),
+                    volume=2 * 30 * 20 * 3 + 4 * 20 * 0.4,
+                    # The web's top at 0.4 ± 0.05: in below, out above.
+                    inside={
+                        "web_at_least": (0, 0, 0.34),
+                        "web_edge": (0, 9.9, 0.2),
+                        "flap_-x": (-17, 0, 1.5),
+                        "flap_+x": (17, 0, 1.5),
+                        "flap_edge_-x": (-2.11, 0, 1.5),
+                        "flap_edge_+x": (2.11, 0, 1.5),
+                    },
+                    outside={
+                        "web_at_most": (0, 0, 0.46),
+                        "gap": (0, 0, 1.5),
+                        "gap_edge_-x": (-1.89, 0, 1.5),
+                        "gap_edge_+x": (1.89, 0, 1.5),
+                    },
+                ),
+            ),
+        ),
+        Case(
+            "press-fit-pin",
+            6,
+            (
+                Member(
+                    "part",
+                    bbox=((-2.55, 2.55), (-2.55, 2.55), (0, 16)),
+                    tol=0.05,
+                    volume=math.pi * 2.55**2 * 16
+                    - 2 * math.pi * 0.5 * (2.55**2 - (2.55**2 + 2.55 * 2.05 + 2.05**2) / 3),
+                    inside={"pin_at_least": (2.53, 0, 8), "top": (0, 0, 15.9)},
+                    outside={
+                        "pin_at_most": (2.57, 0, 8),
+                        "chamfer_bottom": (2.4, 0, 0.05),
+                        "chamfer_top": (0, 2.4, 15.95),
+                    },
+                    # A diametral interference of 0.08 to 0.12 mm over the block's
+                    # depth, less the chamfer: about 6.0 to 9.1 mm³ of overlap.
+                    gaps=(Gap("block", interference=(5.9, 9.2)),),
+                ),
+            ),
+            mates={"block": BLOCK},
+        ),
+        Case(
+            "snap-hook",
+            6,
+            (
+                Member(
+                    "part",
+                    bbox=((-5, 6), (-4, 4), (0, 20)),
+                    volume=10 * 8 * 4 + 1.6 * 8 * 16 + 0.5 * 1 * 3 * 8,
+                    inside={
+                        "base": (0, 0, 2),
+                        "beam": (4.2, 0, 10),
+                        "beam_at_least_-x": (3.45, 0, 10),
+                        "beam_at_least_+x": (4.95, 0, 10),
+                        "hook_tip": (5.9, 0, 17.05),
+                        "ramp": (5.3, 0, 19),
+                    },
+                    outside={
+                        "beam_at_most_-x": (3.35, 0, 10),
+                        "beam_at_most_+x": (5.05, 0, 10),
+                        "under_catch": (5.5, 0, 16.95),
+                        "past_tip": (6.06, 0, 17.1),
+                        "past_ramp": (5.5, 0, 19),
+                        "beside_beam": (0, 0, 10),
+                    },
+                    gaps=(Gap("panel", distance=(0.05, 0.15)),),
+                ),
+            ),
+            mates={"panel": LEDGE},
+        ),
+        Case(
+            "dovetail-slider",
+            6,
+            (
+                Member(
+                    "part",
+                    bbox=((-15, 15), (-12, 12), (5.2, 15)),
+                    # The groove: the tongue's flanks offset 0.2 mm square to themselves.
+                    volume=30 * (24 * 9.8 - (2 * 5.2954 + 2 * 7.2954) / 2 * 5),
+                    # 0.05 mm square to a flank is 0.054 mm across it.
+                    inside={
+                        "flank_+y": (0, 6.355, 7.7),
+                        "flank_-y": (0, -6.355, 7.7),
+                        "over_groove": (0, 0, 10.26),
+                        "bottom": (0, 10, 5.26),
+                    },
+                    outside={
+                        "groove": (0, 0, 8),
+                        "flank_clear_+y": (0, 6.24, 7.7),
+                        "flank_clear_-y": (0, -6.24, 7.7),
+                        "groove_top_clear": (0, 0, 10.14),
+                        "bottom_clear": (0, 10, 5.14),
+                    },
+                    gaps=(Gap("rail", distance=(0.15, 0.25)),),
+                ),
+            ),
+            mates={"rail": DOVETAIL},
+        ),
+        Case(
+            "print-in-place-hinge",
+            6,
+            (
+                Member(
+                    "part",
+                    solids=2,
+                    bbox=((-25, 25), (-15, 15), (-3, 3)),
+                    volume=VOLUMES["print-in-place-hinge"],
+                    inside={
+                        "pin_at_least": (1.44, 0, 0),
+                        "pin_end": (0, -14.9, 0),
+                        "bore_at_most": (0, 0, 1.86),
+                        "knuckle_b": (0, 4.79, 2.5),
+                        "knuckle_a": (0, 5.21, 2.5),
+                        "plate_b": (3.36, 10, 0),
+                        "plate_a": (-3.36, 0, 0),
+                    },
+                    outside={
+                        "pin_at_most": (1.56, 0, 0),
+                        "bore_at_least": (0, 0, 1.74),
+                        "knuckle_ends": (0, 5.0, 2.5),
+                        "knuckle_a_to_plate_b": (3.15, 10, 0),
+                        "knuckle_b_to_plate_a": (-3.15, 0, 0),
+                    },
+                    own_gap=(0.25, 0.35),
+                ),
+            ),
+        ),
+        Case(
+            "spur-gear",
+            6,
+            (
+                Member(
+                    "part",
+                    bbox=((-16.5, 16.5), (-16.5, 16.5), (0, 8)),
+                    volume=VOLUMES["spur-gear"],
+                    inside={"bore_at_most": (0, 3.03, 4), "tooth_+x": (16.4, 0, 4)},
+                    outside={
+                        "bore_at_least": (0, 2.97, 4),
+                        "gap_+x": (15, 15 * math.tan(math.pi / 20), 4),
+                    },
+                    # A tooth's share of a circle, the involute's within about 0.1 mm of
+                    # tooth width (0.02 of the pitch): half at the pitch circle. A prime
+                    # count of points, so they can't line up with the 20 teeth.
+                    samples=(
+                        ring("pitch", (0, 0, 4), 15, n=499, share=(0.48, 0.52), changes=(40, 40)),
+                        ring(
+                            "addendum",
+                            (0, 0, 4),
+                            15.5,
+                            n=499,
+                            share=(0.394, 0.434),
+                            changes=(40, 40),
+                        ),
+                        ring("root", (0, 0, 4), 13.0, n=181, share=(0.99, 1.0)),
+                        ring("past_tips", (0, 0, 4), 16.6, n=181, share=(0.0, 0.01)),
+                    ),
+                ),
+            ),
+        ),
+        Case(
+            "m8-bolt",
+            6,
+            (
+                Member(
+                    "part",
+                    bbox=((-7.5056, 7.5056), (-6.5, 6.5), (-5.3, 20)),
+                    # The head, and a shank between the roots' and the crests' cylinders.
+                    volume_range=(
+                        HEX_AREA * 5.3 + math.pi * 3.323**2 * 20,
+                        HEX_AREA * 5.3 + math.pi * 4.0**2 * 20,
+                    ),
+                    inside={"flat_at_least": (0, 6.4, -2.6), "corner": (7.4, 0, -2.6)},
+                    outside={"flat_at_most": (0, 6.6, -2.6), "past_corner": (7.6, 0, -2.6)},
+                    samples=(
+                        # Along the flanks: in and out at each half pitch, 12.8 pitches.
+                        line(
+                            "flanks", (3.6, 0, 2), (3.6, 0, 18), share=(0.3, 0.7), changes=(24, 28)
+                        ),
+                        line("roots", (0, 3.2, 2), (0, 3.2, 18), share=(0.99, 1.0)),
+                        line("crests", (-3.88, 0, 2), (-3.88, 0, 18), share=(0.05, 0.5)),
+                        line("past_crests", (0, -4.02, 2), (0, -4.02, 18), share=(0.0, 0.01)),
+                        helix("right_hand", 3.6, 1.25, 3, 17),
+                    ),
+                ),
+            ),
+        ),
+        # Tier 7: assemblies, each member its own STEP file, placed as assembled.
+        Case(
+            "pin-clevis",
+            7,
+            (
+                Member(
+                    "clevis",
+                    bbox=((-8, 8), (-9, 9), (0, 26)),
+                    volume=16 * 18 * 6 + 2 * 16 * 4 * 20 - 2 * math.pi * 3.15**2 * 4,
+                    # The holes' radius 3.15 ± 0.025: in past it, out short of it.
+                    inside={"base": (0, 0, 3), "cheek": (0, 7, 10), "hole_at_most": (3.19, -7, 18)},
+                    outside={
+                        "hole": (0, -7, 18),
+                        "hole_at_least": (0, 7, 21.11),
+                        "between_cheeks": (0, 0, 15),
+                    },
+                ),
+                Member(
+                    "tongue",
+                    bbox=((-6, 6), (-4.6, 4.6), (10, 40)),
+                    volume=12 * 9.2 * 30 - math.pi * 3.15**2 * 9.2,
+                    inside={"bar": (0, 0, 30), "hole_at_most": (3.19, 0, 18)},
+                    outside={"hole": (0, 0, 18), "hole_at_least": (0, 0, 21.11)},
+                    gaps=(Gap("clevis", distance=(0.3, 0.5)),),
+                ),
+                Member(
+                    "pin",
+                    bbox=((-5, 5), (-12, 10), (13, 23)),
+                    volume=math.pi * 3**2 * 20 + math.pi * 5**2 * 2,
+                    inside={"pin_at_least": (2.97, 0, 18), "head": (4.9, -11, 18)},
+                    outside={"pin_at_most": (0, 0, 21.03), "past_head": (0, -12.1, 18)},
+                    gaps=(
+                        Gap("clevis", distance=(0.1, 0.2)),
+                        Gap("tongue", distance=(0.1, 0.2)),
+                    ),
+                ),
+            ),
+        ),
+        Case(
+            "shaft-bushing-collar",
+            7,
+            (
+                Member(
+                    "shaft",
+                    bbox=((-4, 4), (-4, 4), (-10, 50)),
+                    volume=math.pi * 4**2 * 60,
+                    inside={"shaft_at_least": (3.97, 0, 20)},
+                    outside={"shaft_at_most": (0, 4.03, 20)},
+                    gaps=(
+                        Gap("bushing", distance=(0.1, 0.2)),
+                        Gap("collar", distance=(0.1, 0.2)),
+                    ),
+                ),
+                Member(
+                    "bushing",
+                    bbox=((-9, 9), (-9, 9), (0, 12)),
+                    volume=math.pi * (9**2 * 2 + 6**2 * 10 - 4.15**2 * 12),
+                    inside={
+                        "flange": (0, 8.9, 1),
+                        "sleeve": (5.9, 0, 10),
+                        "bore_at_most": (4.18, 0, 6),
+                    },
+                    outside={"bore_at_least": (4.12, 0, 6), "past_sleeve": (0, 8, 6)},
+                ),
+                Member(
+                    "collar",
+                    bbox=((-9, 9), (-9, 9), (12.3, 20.3)),
+                    volume=math.pi * (9**2 - 4.15**2) * 8 - math.pi * 1.25**2 * (9 - 4.15),
+                    inside={"ring": (0, 8.5, 16.3), "bore_at_most": (0, 4.18, 16.3)},
+                    outside={"set_screw": (6.5, 0, 16.3), "bore_at_least": (0, -4.12, 16.3)},
+                    gaps=(Gap("bushing", distance=(0.25, 0.35)),),
+                ),
+            ),
+        ),
+        Case(
+            "drawer-cabinet",
+            7,
+            (
+                Member(
+                    "cabinet",
+                    bbox=((-50, 50), (0, 80), (0, 60)),
+                    volume=100 * 80 * 60 - 94 * 77 * 54,
+                    inside={
+                        "side": (48.5, 40, 30),
+                        "back": (0, 78.5, 30),
+                        "floor": (0, 40, 1.5),
+                        "top": (0, 40, 58.5),
+                    },
+                    outside={"inside": (0, 40, 30), "open_front": (0, 0.5, 30)},
+                ),
+                Member(
+                    "drawer",
+                    bbox=((-50, 50), (-3.5, 76.5), (0.5, 59.5)),
+                    volume=93 * 77 * 46.5 - 89 * 73 * 44.5 + 100 * 3 * 59 - math.pi * 10**2 * 5,
+                    inside={"side": (45.5, 40, 30), "floor": (0, 40, 4.5), "front": (0, -2, 10)},
+                    outside={
+                        "inside": (0, 40, 30),
+                        "finger_hole": (0, -2, 40),
+                        "over_body": (0, 0, 52),
+                    },
+                    gaps=(Gap("cabinet", distance=(0.4, 0.6)),),
+                ),
+            ),
+        ),
+        Case(
+            "gear-pair",
+            7,
+            (
+                Member(
+                    "plate",
+                    bbox=((-12, 58), (-25, 25), (0, 14)),
+                    volume=70 * 50 * 4 + 2 * math.pi * 2.5**2 * 10,
+                    inside={"post_a_at_least": (2.47, 0, 10), "post_b_at_least": (30.2, 2.47, 10)},
+                    outside={"post_a_at_most": (2.53, 0, 10), "post_b_at_most": (30.2, -2.53, 10)},
+                ),
+                Member(
+                    "gear-a",
+                    bbox=((-10.5, 10.5), (-10.5, 10.5), (4.5, 10.5)),
+                    volume=VOLUMES["gear-a"],
+                    inside={"bore_at_most": (0, 2.73, 7.5), "tooth_+x": (10.4, 0, 7.5)},
+                    outside={"bore_at_least": (0, 2.67, 7.5)},
+                    samples=(
+                        ring("pitch", (0, 0, 7.5), 9, n=499, share=(0.48, 0.52), changes=(24, 24)),
+                        ring("root", (0, 0, 7.5), 7.0, n=181, share=(0.99, 1.0)),
+                    ),
+                    gaps=(
+                        Gap("gear-b", distance=(0.02, 0.3)),
+                        Gap("plate", distance=(0.15, 0.25)),
+                    ),
+                ),
+                Member(
+                    "gear-b",
+                    bbox=BOXES["gear-b"],
+                    volume=VOLUMES["gear-b"],
+                    inside={"bore_at_most": (30.2, 2.73, 7.5)},
+                    outside={"bore_at_least": (30.2, 2.67, 7.5), "gap_-x": (30.2 - 22.4, 0, 7.5)},
+                    samples=(
+                        ring(
+                            "pitch", (30.2, 0, 7.5), 21, n=499, share=(0.48, 0.52), changes=(56, 56)
+                        ),
+                        ring("root", (30.2, 0, 7.5), 19.0, n=181, share=(0.99, 1.0)),
+                    ),
+                    gaps=(Gap("plate", distance=(0.15, 0.25)),),
+                ),
+            ),
+        ),
+        Case(
+            "bolt-nut",
+            7,
+            (
+                Member(
+                    "bolt",
+                    bbox=((-7.5056, 7.5056), (-6.5, 6.5), (-5.3, 30)),
+                    volume_range=(
+                        HEX_AREA * 5.3 + math.pi * 3.323**2 * 30,
+                        HEX_AREA * 5.3 + math.pi * 4.0**2 * 30,
+                    ),
+                    inside={"flat_at_least": (0, 6.4, -2.6)},
+                    outside={"flat_at_most": (0, 6.6, -2.6)},
+                    samples=(
+                        line(
+                            "flanks", (3.6, 0, 2), (3.6, 0, 28), share=(0.3, 0.7), changes=(39, 44)
+                        ),
+                        line("roots", (0, 3.2, 2), (0, 3.2, 28), share=(0.99, 1.0)),
+                        line("past_crests", (0, -4.02, 2), (0, -4.02, 28), share=(0.0, 0.01)),
+                        helix("right_hand", 3.6, 1.25, 3, 27),
+                    ),
+                ),
+                Member(
+                    "nut",
+                    bbox=((-7.5056, 7.5056), (-6.5, 6.5), (10, 16.5)),
+                    # The hexagon, less a bore between the thread's grown roots and crests.
+                    volume_range=(
+                        HEX_AREA * 6.5 - math.pi * 4.15**2 * 6.5,
+                        HEX_AREA * 6.5 - math.pi * 3.473**2 * 6.5,
+                    ),
+                    inside={"flat_at_least": (0, 6.4, 13)},
+                    outside={"flat_at_most": (0, 6.6, 13)},
+                    samples=(
+                        line(
+                            "flanks",
+                            (3.6, 0, 10.5),
+                            (3.6, 0, 16),
+                            share=(0.3, 0.7),
+                            changes=(7, 11),
+                        ),
+                        line("bore", (0, 3.4, 10.5), (0, 3.4, 16), share=(0.0, 0.01)),
+                        line("past_roots", (0, -4.25, 10.5), (0, -4.25, 16), share=(0.99, 1.0)),
+                        helix("right_hand", 3.8, 1.25, 11, 15.5, n=120),
+                    ),
+                    gaps=(Gap("bolt", distance=(0.05, 0.2)),),
+                ),
+            ),
+        ),
+        Case(
+            "snap-enclosure",
+            7,
+            (
+                Member(
+                    "box",
+                    bbox=((-30, 30), (-20, 20), (0, 30)),
+                    volume=60 * 40 * 30 - 56 * 36 * 28 - 2 * 2 * 12 * 4,
+                    inside={
+                        "over_window": (29, 0, 26),
+                        "under_window": (29, 0, 20),
+                        "side": (0, 19, 15),
+                        "floor": (0, 0, 1),
+                    },
+                    outside={
+                        "window_+x": (29, 0, 23),
+                        "window_-x": (-29, 0, 23),
+                        "inside": (0, 0, 15),
+                    },
+                ),
+                Member(
+                    "lid",
+                    bbox=((-31.8, 31.8), (-20, 20), (20, 32)),
+                    volume=63.6 * 40 * 2 + 2 * 1.6 * 10 * 10 + 2 * 0.5 * 1 * 3 * 10,
+                    # Each hook in its window's wall, under the window's top: it holds.
+                    inside={
+                        "hook_+x_holds": (29.6, 0, 24.75),
+                        "hook_-x_holds": (-29.6, 0, 24.75),
+                        "arm": (31, 0, 25),
+                        "plate": (0, 0, 31),
+                    },
+                    outside={
+                        "over_hook": (29.6, 0, 24.85),
+                        "arm_clear": (30.1, 0, 27),
+                        "ramp": (29.9, 0, 22.2),
+                    },
+                    gaps=(Gap("box"),),
+                ),
+            ),
+        ),
+        Case(
+            "caster-wheel",
+            7,
+            (
+                Member(
+                    "axle",
+                    bbox=((-2.5, 2.5), (-14, 14), (-2.5, 2.5)),
+                    volume=math.pi * 2.5**2 * 28,
+                    inside={"axle_at_least": (2.47, 0, 0)},
+                    outside={"axle_at_most": (0, 0, 2.53)},
+                    gaps=tuple(
+                        Gap(o, distance=(0.1, 0.2))
+                        for o in ("wheel", "spacer-a", "spacer-b", "fork")
+                    ),
+                ),
+                Member(
+                    "wheel",
+                    bbox=((-20, 20), (-6, 6), (-20, 20)),
+                    volume=math.pi * (20**2 - 2.65**2) * 12,
+                    inside={"rim": (0, 0, 19.9), "bore_at_most": (2.68, 0, 0)},
+                    outside={"bore_at_least": (2.62, 0, 0)},
+                    gaps=(
+                        Gap("spacer-a", distance=(0.25, 0.35)),
+                        Gap("spacer-b", distance=(0.25, 0.35)),
+                    ),
+                ),
+                *(
+                    Member(
+                        name,
+                        bbox=((-4.5, 4.5), (y0, y1), (-4.5, 4.5)),
+                        volume=math.pi * (4.5**2 - 2.65**2) * 2.7,
+                        inside={
+                            "tube": (0, (y0 + y1) / 2, 4.4),
+                            "bore_at_most": (0, (y0 + y1) / 2, 2.68),
+                        },
+                        outside={"bore_at_least": (0, (y0 + y1) / 2, 2.62)},
+                    )
+                    for name, y0, y1 in (("spacer-a", -9, -6.3), ("spacer-b", 6.3, 9))
+                ),
+                Member(
+                    "fork",
+                    bbox=((-12, 12), (-13.3, 13.3), (-8, 30)),
+                    volume=2 * 16 * 4 * 34 + 24 * 26.6 * 4 - 2 * math.pi * 2.65**2 * 4,
+                    inside={"arm": (0, 11, 20), "top": (0, 0, 28), "hole_at_most": (2.68, 11.3, 0)},
+                    outside={"hole_at_least": (0, 11.3, 2.62), "between_arms": (0, 0, 10)},
+                    gaps=(
+                        Gap("spacer-a", distance=(0.25, 0.35)),
+                        Gap("spacer-b", distance=(0.25, 0.35)),
+                    ),
+                ),
+            ),
+        ),
+    )
+}
 # The first run's cases: two of each kind's, and one more of the hardest.
 FIRST: tuple[str, ...] = ()
