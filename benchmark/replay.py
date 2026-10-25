@@ -31,7 +31,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from benchmark.cases import CASES, Case, UnknownCase, case, story
+from benchmark.cases import CASES, Case, UnknownCase, case, record, story
 from benchmark.history import history
 from common import crew, records, results
 from common.config import Settings, load
@@ -99,6 +99,28 @@ def gate(root: Path, workspace: Any, base: str) -> Any:
     from crew_org.tools.workspace import check  # noqa: PLC0415
 
     return check(root, held=workspace, since=base)
+
+
+def give_record(root: Path, text: str) -> str:
+    """Commit the case's record over the base's, and return the commit the session starts from.
+
+    A commit, as the project's own record would be: the gate and the diff read the
+    session's work against it, so the record isn't counted as the session's.
+    """
+    from crew_org.project import RECORD_PATH  # noqa: PLC0415
+
+    path = root / RECORD_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    git = ["git", "-C", str(root), "-c", "user.name=benchmark", "-c", "user.email=benchmark@local"]
+    subprocess.run([*git, "add", str(RECORD_PATH)], check=True)
+    subprocess.run(
+        [*git, "commit", "-q", "-m", "benchmark: the project's record in the format crew reads"],
+        check=True,
+    )
+    return subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
 
 
 def record_problem(root: Path) -> str | None:
@@ -191,6 +213,11 @@ def replay(
             root = checkout_for(c, run)
         except (subprocess.CalledProcessError, OSError) as exc:
             raise Refused("checkout", f"{type(exc).__name__}: {exc}") from exc
+        since = c.base
+        given = record(c)
+        row["record_authored"] = given is not None
+        if given is not None:
+            since = give_record(root, given)
         unfit = conversation.unfit(root)
         if unfit:
             raise Refused("host_venv", unfit)
@@ -220,7 +247,7 @@ def replay(
             workspace.tools,
             coverage=coverage(settings, c, root),
             send=send,
-            base=c.base,
+            base=since,
             benchmark_run=run,
         )
         (out / "start.md").write_text(session.start, encoding="utf-8")
@@ -255,14 +282,14 @@ def replay(
             "evidence": ending.evidence,
         }
         if ending.how == "done":
-            checked = gate_for(root, workspace, c.base)
+            checked = gate_for(root, workspace, since)
             row["gate_green"] = bool(checked.ok)
             gated = [
                 {"command": r.command, "code": r.code, "tail": r.output[-TAIL:]}
                 for r in checked.results
             ]
             (out / "gate.json").write_text(json.dumps(gated, indent=1), encoding="utf-8")
-        (out / "diff.patch").write_text(diff(root, c.base), encoding="utf-8")
+        (out / "diff.patch").write_text(diff(root, since), encoding="utf-8")
     except Refused as refused:
         row["ending"] = "refused"
         row["stop"] = refused.why

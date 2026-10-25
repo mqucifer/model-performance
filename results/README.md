@@ -28,6 +28,30 @@ from 2), and its compaction. So the same case measures a different session, and
 the two sets of numbers aren't on the same footing. The surviving Stage R
 records are kept in the records directory under `crew-778/`.
 
+**Each case's project record is an authored input** (`benchmark/cases/<case>.project.yaml`).
+Every case's base commit has `.crew/project.yaml` in format 2, and crew at the pin reads
+only format 3 (mqucifer/crew#847). Without a record it can read, crew falls back to its
+defaults: the session starts with "(no record)", and the run gets crew's default image,
+setup and checks. So a case carries its record in format 3, and the replay commits it
+over the base's before the session starts. The gate and the diff are read against that
+commit. A run whose record crew can't read is refused (`record_unreadable`), never run
+on the defaults.
+
+How each was made: the base's record is byte-identical to the one its repository
+migrated (sprint-metrics 9389a57, crew-presentation 41aa873), so each case takes that
+migration with only what the format needs. That's `version: 3`, `serves`, and the
+base's own `in_scope` moved to `design.built`; everything else is as the base had it.
+**Caveat:** `serves` was written 3 to 10 days after the bases. What the
+migrations added that the base records never said is trimmed: DORA's measures in
+both, sprint-metrics' new purpose, its two new `out_of_scope` items, and its note on
+`GET /trend`. Even so, a need may read a little later than the story's own time.
+
+The five-case run of 2026-10-25 05:24–07:11 UTC ran before this, on crew's defaults.
+It found the flaw, and its rows aren't kept. Its records are, under
+`records/benchmark/<case>/`, runs `20261025T052435Z` (662), `T054720Z` (596),
+`T054956Z` (567), `T060012Z` (124) and `T064644Z` (83). So is the
+first one-case run's (`20261025T035757Z`, mqucifer/model-performance#12).
+
 | Field | What it is |
 |---|---|
 | `ending` | `done`, `blocked` or `interrupted`, as crew's session ended it; or `refused` (it couldn't start) or `crashed` |
@@ -38,3 +62,4 @@ records are kept in the records directory under `crew-778/`.
 | `model_s`, `wall_s` | seconds waiting on the model, and the run's whole time |
 | `*_tokens` | the session's token counts, as LiteLLM reports them |
 | `edits_applied`, `test_runs`, `compactions`, `troubles`, `start_chars` | what the session did, by crew's counts |
+| `record_authored` | the session read the case's authored record, not the base's own |

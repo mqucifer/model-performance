@@ -96,11 +96,13 @@ def run(
     *,
     cap: int = 10,
     start_code: int = 0,
+    given: str | None = None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[dict[str, Any], list[FakeWorkspace], Path]:
     clone, base = repo
     case = Case(CASE.repo, CASE.card, base, CASE.first_attempt, CASE.note)
     monkeypatch.setattr(bench, "story", lambda c: "# A story\n\nChange nothing.")
+    monkeypatch.setattr(bench, "record", lambda c: given)
     settings = load(home=tmp_path)
     replies = iter(answers)
     send = Sender(
@@ -225,3 +227,46 @@ def test_a_record_crew_cant_read_is_refused_before_the_container(
     assert made == []
     out = tmp_path / ".local/share/model-performance/records/benchmark" / row["case"] / row["run"]
     assert "version 2" in json.loads((out / "result.json").read_text())["refused"]
+
+
+def test_a_given_record_is_committed_and_left_out_of_the_work(
+    tmp_path: Path, repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from benchmark.cases import CASES, record
+
+    given = record(CASES["sprint-metrics-662"])
+    assert given is not None
+    seen: list[str] = []
+    real = bench.give_record
+
+    def give(root: Path, text: str) -> str:
+        since = real(root, text)
+        seen.append(since)
+        return since
+
+    monkeypatch.setattr(bench, "give_record", give)
+    row, made, _ = run(
+        tmp_path,
+        repo,
+        [answer(call("blocked", json.dumps({"missing": "the data", "kind": "fact"})))],
+        given=given,
+        monkeypatch=monkeypatch,
+    )
+    assert (row["ending"], row["record_authored"]) == ("blocked", True)
+    assert seen and seen[0] != repo[1]
+    out = tmp_path / ".local/share/model-performance/records/benchmark" / row["case"] / row["run"]
+    assert ".crew/project.yaml" not in (out / "diff.patch").read_text()
+    assert "(no record)" not in (out / "start.md").read_text()
+
+
+def test_every_carried_record_is_one_crew_reads(tmp_path: Path) -> None:
+    from crew_org.project import read_record
+
+    from benchmark.cases import CASES, record
+
+    for c in CASES.values():
+        given = record(c)
+        assert given is not None, c.name
+        (tmp_path / ".crew").mkdir(exist_ok=True)
+        (tmp_path / ".crew" / "project.yaml").write_text(given)
+        assert read_record(tmp_path) is not None, c.name
