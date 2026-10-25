@@ -3,7 +3,7 @@
 *Moved here from mqucifer/infra's `experiments/` at 2d0a8c0 (mqucifer/project-print
 ADR 0002), unchanged. Where it says "here" or "infra", read this repository; its
 results go to `~/infra-results` until each experiment moves to the records
-directory in `config.toml`. Model fit (mqucifer/infra#29) is refiled here.*
+directory in `config.toml`. Model fit (mqucifer/infra#29) is refiled here as mqucifer/model-performance#10.*
 
 An experiment answers one question from a Goal by running something: against
 the stack through LiteLLM, against the crew's record, or both. Most test an
