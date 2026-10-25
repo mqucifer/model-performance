@@ -24,7 +24,9 @@ baseline (ADR 0004 in mqucifer/project-print). The numbers are in
   the baseline: an alias, fields in each request, the reasoning sent back, or where the
   session compacts. Its docstring names each arm's request field and value. An arm
   whose setting shows in the answer is checked on every call, and a run where it
-  didn't reach the model is `refused` (`arm_not_applied`, `budget_unenforced`).
+  didn't reach the model is `refused` (`arm_not_applied`).
+- `spent.py`: what the crew already spent thinking, per role, from crew's event log,
+  read-only: observed in production, not an arm.
 - `history.py`: the story's real delivery, from crew's event log, read-only, for
   the records.
 
