@@ -15,7 +15,10 @@ def inv(a):
 
 def half(r):
     """Straight flanks from the base circle to the tip: no involute."""
-    lo, hi = math.pi / (2 * Z) + inv(PRESSURE), math.pi / (2 * Z) + inv(PRESSURE) - inv(math.acos(BASE / TIP))
+    lo, hi = (
+        math.pi / (2 * Z) + inv(PRESSURE),
+        math.pi / (2 * Z) + inv(PRESSURE) - inv(math.acos(BASE / TIP)),
+    )
     return lo + (hi - lo) * (max(r, BASE) - BASE) / (TIP - BASE)
 
 

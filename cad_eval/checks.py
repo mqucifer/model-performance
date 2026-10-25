@@ -108,7 +108,7 @@ def member(m: Member, measured: dict[str, Any]) -> list[Check]:
         count = holes_found(holes, measured.get("cylinders") or [])
         found.append(Check(f"holes.{holes.name}", count >= holes.count, holes.count, count))
     if m.load is not None:
-        found.append(load(m.load, measured.get("section") or {}))
+        found.append(load(m.load, measured.get("section") or {}, box))
     for gap in m.gaps:
         found.extend(
             gapped(
@@ -133,7 +133,26 @@ def sampled(sample: Sample, inside: list[bool]) -> list[Check]:
         low_c, high_c = sample.changes
         ok = low_c <= changes <= high_c
         found.append(Check(f"changes.{sample.name}", ok, list(sample.changes), changes))
+    if sample.gaps is not None:
+        widths = gap_widths(inside, sample.spacing)
+        low_g, high_g = sample.gaps
+        ok = bool(widths) and all(low_g <= w <= high_g for w in widths)
+        found.append(Check(f"gaps.{sample.name}", ok, list(sample.gaps), widths))
     return found
+
+
+def gap_widths(inside: list[bool], spacing: float) -> list[float]:
+    """Each run of points outside between two inside, as a width in mm: the run's
+    points and one spacing more, the distance between the material on either side."""
+    widths, run, started = [], 0, False
+    for point in inside:
+        if point:
+            if started and run:
+                widths.append(round((run + 1) * spacing, 3))
+            started, run = True, 0
+        elif started:
+            run += 1
+    return widths
 
 
 def holes_found(holes: Holes, cylinders: list[dict[str, Any]]) -> int:
@@ -152,11 +171,14 @@ def holes_found(holes: Holes, cylinders: list[dict[str, Any]]) -> int:
     return len(axes)
 
 
-def stress(spec: Load, section: dict[str, Any]) -> float | None:
+def stress(spec: Load, section: dict[str, Any], box: Any = None) -> float | None:
     """The bending stress at the section, MPa, by `Load`'s simplification; None with no
-    material there."""
+    material there. `box` is the part's bounding box, for a load at its far end."""
     if not section.get("area"):
         return None
+    arm = spec.arm_mm
+    if arm is None:
+        arm = box["xyz".index(spec.axis)][1] - spec.at
     normal, along = "xyz".index(spec.axis), "xyz".index(spec.along)
     (across,) = {0, 1, 2} - {normal, along}
     second = section["moments"][across][across]
@@ -165,11 +187,11 @@ def stress(spec: Load, section: dict[str, Any]) -> float | None:
     far = max(abs(high - centre), abs(centre - low))
     if second <= 0:
         return None
-    return round(spec.force_n * spec.arm_mm * far / second, 3)
+    return round(spec.force_n * arm * far / second, 3)
 
 
-def load(spec: Load, section: dict[str, Any]) -> Check:
-    found = stress(spec, section)
+def load(spec: Load, section: dict[str, Any], box: Any = None) -> Check:
+    found = stress(spec, section, box)
     ok = found is not None and found <= ALLOWED_MPA
     return Check(f"load.{spec.name}", ok, f"<= {round(ALLOWED_MPA, 2)} MPa (simplified)", found)
 

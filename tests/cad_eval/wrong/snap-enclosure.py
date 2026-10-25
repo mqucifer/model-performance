@@ -2,8 +2,10 @@ import cadquery as cq
 
 
 def box(x0, x1, y0, y1, z0, z1):
-    return cq.Workplane("XY").box(x1 - x0, y1 - y0, z1 - z0).translate(
-        ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
+    return (
+        cq.Workplane("XY")
+        .box(x1 - x0, y1 - y0, z1 - z0)
+        .translate(((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2))
     )
 
 

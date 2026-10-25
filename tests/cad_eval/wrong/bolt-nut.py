@@ -17,15 +17,21 @@ def threaded(z0, z1, grow=0.0):
     major, minor = R_MAJOR + grow, R_MINOR + grow
     h = major - minor + SINK
     root = P / 8 + h * T30
-    profile = cq.Workplane("XZ").polyline(
-        [(minor - SINK, -root), (major, -P / 16), (major, P / 16), (minor - SINK, root)]
-    ).close().wire().val()
+    profile = (
+        cq.Workplane("XZ")
+        .polyline([(minor - SINK, -root), (major, -P / 16), (major, P / 16), (minor - SINK, root)])
+        .close()
+        .wire()
+        .val()
+    )
     start = P * math.floor(z0 / P) - P
     length = z1 - start + P
     helix = cq.Wire.makeHelix(P, length, minor - SINK, center=cq.Vector(0, 0, start))
     swept = cq.Solid.sweep(profile.translate((0, 0, start)), [], helix, isFrenet=True)
     core = cq.Solid.makeCylinder(minor, length, cq.Vector(0, 0, start))
-    return core.fuse(swept).intersect(cq.Solid.makeCylinder(major + 0.5, z1 - z0, cq.Vector(0, 0, z0)))
+    return core.fuse(swept).intersect(
+        cq.Solid.makeCylinder(major + 0.5, z1 - z0, cq.Vector(0, 0, z0))
+    )
 
 
 def hexagon(z0, z1):

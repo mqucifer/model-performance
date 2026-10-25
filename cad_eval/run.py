@@ -92,8 +92,9 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
 
 
 # Whose a failure is, in a word: the model's (a wrong design, or no design), a tool's
-# (the evaluation's own tools failed it), or the infrastructure's (the container, the
-# proxy, the model's server: nothing about the case).
+# (the evaluation's own tools failed it), the infrastructure's (the container, the
+# proxy, the model's server: nothing about the case), or the budget's (the call cap
+# ended it before an answer: no verdict on the design).
 INFRA_STOPS = {"call_failed", "workspace_gone", "no_image", "container_start"}
 TOOL_ERRORS = ("the measure didn't finish", "it loads but can't be measured")
 
@@ -109,6 +110,8 @@ def fault(row: dict[str, Any], measured: dict[str, Any], troubles: dict[str, int
         return "tool"
     if row["ending"] == "refused" or row["stop"] in INFRA_STOPS:
         return "infra"
+    if row["stop"] == "call_cap":
+        return "budget"
     if row["ending"] == "done":
         errors = [str(m.get("error", "")) for m in measured.values()]
         if any(e.startswith(TOOL_ERRORS) for e in errors):

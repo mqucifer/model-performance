@@ -2,8 +2,10 @@ import cadquery as cq
 
 
 def box(x0, x1, y0, y1, z0, z1):
-    return cq.Workplane("XY").box(x1 - x0, y1 - y0, z1 - z0).translate(
-        ((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2)
+    return (
+        cq.Workplane("XY")
+        .box(x1 - x0, y1 - y0, z1 - z0)
+        .translate(((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2))
     )
 
 
@@ -26,6 +28,10 @@ fork = (
     .cut(along_y(BORE, -14, 14))
 )
 for name, part in (
-    ("axle", axle), ("wheel", wheel), ("spacer-a", spacer_a), ("spacer-b", spacer_b), ("fork", fork)
+    ("axle", axle),
+    ("wheel", wheel),
+    ("spacer-a", spacer_a),
+    ("spacer-b", spacer_b),
+    ("fork", fork),
 ):
     cq.exporters.export(part, f"{name}.step")

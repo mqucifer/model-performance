@@ -74,7 +74,7 @@ SUITES: dict[str, set[str]] = {
         "parts_total",  # the case's members, each its own STEP file
         "parts_fit",  # the members that passed every check of their own, fits included
         "load_ok",  # the simplified load check, or null without one or without a `done`
-        "fault",  # model, tool or infra, or null for a case that passed
+        "fault",  # model, tool, infra or budget, or null for a case that passed
     },
 }
 # A short name: an id, a commit, a time, an alias. No spaces, so no sentence fits.

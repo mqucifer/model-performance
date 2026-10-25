@@ -69,7 +69,9 @@ class Sample:
 
     `share` is the range of the points' share inside. `changes` is the range of times
     they go from inside to outside or back, in order (round a circle, back to the
-    first): a gear's teeth or a thread's turns, counted.
+    first): a gear's teeth or a thread's turns, counted. `gaps`, for a line, is the
+    range of each gap's width in mm: each run of points outside the material between
+    two inside it, a comb's slot.
     """
 
     name: str
@@ -77,6 +79,8 @@ class Sample:
     share: Span = (0.0, 1.0)
     changes: tuple[int, int] | None = None
     closed: bool = False
+    gaps: Span | None = None
+    spacing: float = 0.0  # between points along a line, mm
 
 
 def ring(
@@ -109,13 +113,15 @@ def line(
     n: int = 200,
     share: Span = (0.0, 1.0),
     changes: tuple[int, int] | None = None,
+    gaps: Span | None = None,
 ) -> Sample:
     """`n` points from `start` to `end`, both included."""
     points = tuple(
         tuple(round(a + (b - a) * k / (n - 1), 3) for a, b in zip(start, end, strict=True))
         for k in range(n)
     )
-    return Sample(name, points, share, changes)  # type: ignore[arg-type]
+    spacing = math.dist(start, end) / (n - 1)
+    return Sample(name, points, share, changes, gaps=gaps, spacing=spacing)  # type: ignore[arg-type]
 
 
 @dataclass(frozen=True)
@@ -135,7 +141,9 @@ class Load:
 
     The section is the material in the plane `axis` = `at`, measured in the container.
     The load is `force_n` along `along` (downward, -Z, for a weight), at `arm_mm` from
-    the section, so the moment is their product. The stress is M·c/I, with I the
+    the section, so the moment is their product. Without `arm_mm` the load hangs at the
+    part's far end along `axis`, the worst place it could, so a longer part carries a
+    longer arm. The stress is M·c/I, with I the
     section's second moment about its centroid across the load, and c the farthest
     material from that centroid along the load. It passes at no more than
     `ALLOWED_MPA`. It ignores the screws, shear, the stress raised at corners, and
@@ -146,7 +154,7 @@ class Load:
     axis: str
     at: float
     force_n: float
-    arm_mm: float
+    arm_mm: float | None = None
     along: str = "z"
 
 
@@ -245,6 +253,13 @@ mate = (
         cq.Workplane("YZ").polyline([(-5, 5), (5, 5), (7, 10), (-7, 10)]).close()
         .extrude(30, both=True)
     )
+)
+"""
+# The worded cases': the shaft the knob fits, as its spec describes it.
+D_SHAFT = """
+mate = (
+    cq.Workplane("XY").circle(3).extrude(12)
+    .cut(cq.Workplane("XY").box(5, 10, 12, centered=(False, True, False)).translate((1.5, 0, 0)))
 )
 """
 
@@ -732,7 +747,124 @@ CASES: dict[str, Case] = {
                 ),
             ),
         ),
+        # Tier 8: in a person's words, the dimensions the model's to choose.
+        Case(
+            "shelf-bracket",
+            8,
+            (
+                Member(
+                    "part",
+                    within=((0, 150), (-30, 30), (-200, 0)),
+                    samples=(
+                        # Its top carries the shelf from the wall to 100 mm out.
+                        line("carries_shelf", (2, 0, -0.3), (100, 0, -0.3), share=(0.99, 1.0)),
+                        line("on_the_wall", (0.3, 0, -1), (0.3, 0, -40), share=(0.8, 1.0)),
+                    ),
+                    holes=(Holes("screws", "x", (2.1, 2.6), 2),),
+                    # 2 kg on two brackets: 9.81 N on each, at the shelf's middle, 75 mm out.
+                    load=Load("shelf", "x", 20, force_n=1 * G, arm_mm=75 - 20),
+                ),
+            ),
+        ),
+        Case(
+            "tube-clip",
+            8,
+            (
+                Member(
+                    "part",
+                    within=((-30, 30), (-30, 30), (-45, 0)),
+                    samples=(
+                        # It wraps more than half the tube, so it snaps on, and leaves an
+                        # opening; its bore takes the tube and grips it.
+                        ring("wraps", (0, 0, -20), 10.6, axis="x", n=181, share=(0.55, 0.95)),
+                        ring("takes_tube", (0, 0, -20), 9.95, axis="x", n=181, share=(0.0, 0.01)),
+                        ring("grips", (0, 0, -20), 10.4, axis="x", n=181, share=(0.5, 1.0)),
+                        line("on_desk", (0, -15, -0.3), (0, 15, -0.3), share=(0.5, 1.0)),
+                    ),
+                    holes=(Holes("screws", "z", (2.1, 2.6), 1),),
+                ),
+            ),
+        ),
+        Case(
+            "d-shaft-knob",
+            8,
+            (
+                Member(
+                    "part",
+                    within=((-25, 25), (-25, 25), (0.5, 40)),
+                    spans=((20, 50), (20, 50), (10, 40)),
+                    # The bore keys on the flat (X = 1.5), from Z = 4 to the shaft's tip.
+                    inside={
+                        "keys_flat": (1.75, 0, 8),
+                        "keys_flat_low": (1.75, 0, 4.5),
+                        "keys_flat_high": (1.75, 0, 11.5),
+                        "round_snug": (0, 3.2, 8),
+                    },
+                    outside={"bore": (0, 0, 8)},
+                    # Snug: at most 0.15 mm off the shaft, or pressed on by a little.
+                    gaps=(Gap("shaft", interference=(0.0, 1.0), distance=(0.0, 0.15)),),
+                ),
+            ),
+            mates={"shaft": D_SHAFT},
+        ),
+        Case(
+            "wall-hook",
+            8,
+            (
+                Member(
+                    "part",
+                    within=((0, 100), (-40, 40), (-60, 60)),
+                    spans=(None, (40, 80), None),
+                    holes=(Holes("screws", "x", (2.1, 2.6), 2),),
+                    # 5 kg hung at the hook's far end, the worst place it could hang.
+                    load=Load("bag", "x", 8, force_n=5 * G),
+                ),
+            ),
+        ),
+        Case(
+            "cable-comb",
+            8,
+            (
+                Member(
+                    "part",
+                    within=((-30, 30), (-60, 60), (0, 40)),
+                    spans=(None, None, (12, 40)),
+                    samples=(
+                        # Six slots across the cables' centres: in, then out and in for
+                        # each, then out, 14 changes; each slot 5 to 6 mm, snug.
+                        line(
+                            "cables",
+                            (0, -60, 10),
+                            (0, 60, 10),
+                            n=601,
+                            changes=(14, 14),
+                            gaps=(5.0, 6.0),
+                        ),
+                        line("open_top", (0, -60, 14), (0, 60, 14), n=601, changes=(14, 14)),
+                    ),
+                ),
+            ),
+        ),
+        Case(
+            "spool-holder",
+            8,
+            (
+                Member(
+                    "part",
+                    within=((0, 150), (-60, 60), (-60, 60)),
+                    samples=(
+                        # Clear of the 53 mm hole by 0.2 mm at least, under the spool's
+                        # whole width.
+                        ring("clears_hub", (40, 0, 0), 26.3, axis="x", n=181, share=(0.0, 0.01)),
+                        line("carries_width", (8, 0, 0), (75, 0, 0), share=(0.99, 1.0)),
+                    ),
+                    holes=(Holes("screws", "x", (2.1, 2.6), 2),),
+                    load=Load("spool", "x", 8, force_n=1 * G),
+                ),
+            ),
+        ),
     )
 }
-# The first run's cases: two of each kind's, and one more of the hardest.
-FIRST: tuple[str, ...] = ()
+# The first run's cases (mqucifer/model-performance#16): one of each kind in its middle,
+# and the hardest tight feature and assembly, easiest first.
+FIRST = ("snap-hook", "pin-clevis", "shelf-bracket", "m8-bolt", "caster-wheel")
