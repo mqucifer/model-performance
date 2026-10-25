@@ -1,0 +1,22 @@
+# What the benchmark and the CAD-code evaluation share. No address, key or
+# prompt lives here: the key is named by its file and name, and stays on the Mac.
+
+[records]
+# Run records hold prompts and answers, so they stay on the Mac (ADR 0010 in
+# mqucifer/crew), outside any checkout and off ~/Documents, which iCloud can
+# sync. infra's crew-backup job archives this directory, encrypted, as its
+# `run-records` source: the only way they leave the Mac.
+dir = "~/.local/share/model-performance/records"
+
+[litellm]
+# Every model call goes through the proxy. Anything but the Mac's :4000 is refused.
+base_url = "http://localhost:4000"
+key_file = "~/.config/crew/builders.env"
+key_name = "CREW_LLM_API_KEY"
+# A run stops at this many calls unless it's given its own: the shared budget.
+call_cap = 150
+
+[crew]
+# The main checkout's event log and coverage maps: read, never written.
+events = "~/Documents/git/crew/var/events"
+coverage = "~/Documents/git/crew/var/coverage"
