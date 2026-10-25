@@ -7,6 +7,8 @@ services:
     image: tensorfold:test
     container_name: ${CONTAINER_NAME:-tensorfold}
     network_mode: host
+    volumes:
+      - ${WEIGHTS_CACHE:-/cache}:/models
     command: >-
       tensorfold serve
       --model ${MODEL_PATH:-nvidia/Nemotron-3.5-Bolt}

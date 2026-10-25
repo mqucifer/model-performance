@@ -11,10 +11,17 @@ DEFAULT_CONFIG = Path(__file__).with_name("config.toml")
 RESTORE_MODES = ("start-dflash", "container", "compose")
 
 # The variables a recorded launch may take. Every engine's must take the
-# required ones, so a candidate differs from the 27B only in its model, and
-# takes its own served name and container (mqucifer/infra#40).
-LAUNCH_VARIABLES = ("MODEL_PATH", "SERVED_MODEL_NAME", "SPECULATIVE_ARGS", "CONTAINER_NAME")
-REQUIRED_VARIABLES = ("MODEL_PATH", "SERVED_MODEL_NAME", "CONTAINER_NAME")
+# required ones, so a candidate differs from the 27B only in its model, takes
+# its own served name and container, and reads its weights from the one cache
+# (mqucifer/infra#40).
+LAUNCH_VARIABLES = (
+    "MODEL_PATH",
+    "SERVED_MODEL_NAME",
+    "SPECULATIVE_ARGS",
+    "CONTAINER_NAME",
+    "WEIGHTS_CACHE",
+)
+REQUIRED_VARIABLES = ("MODEL_PATH", "SERVED_MODEL_NAME", "CONTAINER_NAME", "WEIGHTS_CACHE")
 
 
 class ConfigError(Exception):
@@ -32,7 +39,6 @@ class Engine:
 @dataclass(frozen=True)
 class Config:
     addr_key: str
-    user_key: str
     infra_dir: Path
     engines: dict[str, Engine]
     baseline_engine: str
@@ -40,6 +46,7 @@ class Config:
     candidate_project: str
     candidate_container: str
     candidate_served_name: str
+    weights_cache: str
     restore: str
     start_dflash: str
     base_url: str
@@ -68,7 +75,6 @@ def load(path: Path = DEFAULT_CONFIG, infra_dir: Path | None = None) -> Config:
     spark, infra, serving, litellm = raw["spark"], raw["infra"], raw["serving"], raw["litellm"]
     config = Config(
         addr_key=spark["addr_key"],
-        user_key=spark["user_key"],
         infra_dir=(infra_dir or Path(infra["dir"])).expanduser(),
         engines={
             name: Engine(
@@ -84,6 +90,7 @@ def load(path: Path = DEFAULT_CONFIG, infra_dir: Path | None = None) -> Config:
         candidate_project=serving["candidate_project"],
         candidate_container=serving["candidate_container"],
         candidate_served_name=serving["candidate_served_name"],
+        weights_cache=serving["weights_cache"],
         restore=serving["restore"],
         start_dflash=serving["start_dflash"],
         base_url=litellm["base_url"].rstrip("/"),
@@ -117,6 +124,9 @@ def check(config: Config) -> None:
                 f"engine {engine.name}: variables must take {', '.join(REQUIRED_VARIABLES)}"
                 f" and only {', '.join(LAUNCH_VARIABLES)}"
             )
+    cache = Path(config.weights_cache)
+    if cache.is_absolute() or ".." in cache.parts or not cache.parts:
+        raise ConfigError("serving.weights_cache is a directory under the Spark's home, with no ..")
     if config.candidate_container == config.baseline_container:
         raise ConfigError("the candidate's container must not take the 27B's name")
     if config.candidate_alias == config.baseline_alias:

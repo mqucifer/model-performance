@@ -3,9 +3,9 @@
 # builders' env file. Both values stay on the Mac.
 
 [spark]
-# Keys in $INFRA_HOSTS (default ~/.config/infra/hosts.env), kept by the Sponsor.
+# A key in $INFRA_HOSTS (default ~/.config/infra/hosts.env), kept by the Sponsor.
+# The ssh user comes from ~/.ssh/config (NVIDIA Sync's), so there's no user key.
 addr_key = "SPARK_ADDR"
-user_key = "SPARK_USER"
 
 [infra]
 # A checkout of mqucifer/infra. The candidate starts from its recorded launch.
@@ -18,14 +18,14 @@ dir = "~/Documents/git/infra"
 # every request needs one (TensorFold is deterministic without it).
 [engines.sglang]
 compose = "compose/spark/sglang/compose.yaml"
-variables = ["MODEL_PATH", "SERVED_MODEL_NAME", "SPECULATIVE_ARGS", "CONTAINER_NAME"]
+variables = ["MODEL_PATH", "SERVED_MODEL_NAME", "SPECULATIVE_ARGS", "CONTAINER_NAME", "WEIGHTS_CACHE"]
 seed = false
 
 # The comparison arm on mqucifer/model-performance#4: an engine that replaces
 # SGLang. Its launch is recorded in infra before the arm runs.
 [engines.tensorfold]
 compose = "compose/spark/tensorfold/compose.yaml"
-variables = ["MODEL_PATH", "SERVED_MODEL_NAME", "CONTAINER_NAME"]
+variables = ["MODEL_PATH", "SERVED_MODEL_NAME", "CONTAINER_NAME", "WEIGHTS_CACHE"]
 seed = true
 
 [serving]
@@ -39,10 +39,16 @@ candidate_project = "spark-candidate"
 candidate_container = "spark-candidate"
 # The served name LiteLLM's crew-candidate alias points at (mqucifer/infra#40).
 candidate_served_name = "crew-candidate"
+# The one weights cache every model server on the Spark mounts, under the
+# Spark's home (the Sponsor's container rule, mqucifer/infra#40). Each engine's
+# launch takes it as WEIGHTS_CACHE, so a candidate's weights land nowhere else.
+weights_cache = "Qwen3.8-27B-SGLang-DGX-Spark/.cache/huggingface"
 # How the 27B comes back: "start-dflash" (re-run its start script, as today),
 # "container" (`docker start` the stopped container) or "compose" (the
 # baseline engine's record with its defaults). The Sponsor's call, asked on
-# mqucifer/infra#40.
+# mqucifer/infra#40. Infra's read of 2026-10-25 found the running 27B's image and
+# memory flags come from start-dflash.sh's .env, so "start-dflash" brings back the
+# same 27B only while that .env is unchanged; "container" doesn't depend on it.
 restore = "start-dflash"
 # Run on the Spark for restore = "start-dflash". Confirmed by step 1's read of
 # the host (mqucifer/infra#40) before the first real run.

@@ -39,13 +39,13 @@ def say(message: str) -> None:
 class RealRunner:
     """Over ssh to the Spark, and over HTTP to LiteLLM on :4000 only.
 
-    The Spark's address and user, and the LiteLLM key, are read here and never
-    printed: messages name the Spark as $SPARK_ADDR.
+    The Spark's address and the LiteLLM key are read here and never printed:
+    messages name the Spark as $SPARK_ADDR. The ssh user is ~/.ssh/config's.
     """
 
     def __init__(self, config: Config, hosts: dict[str, str], key: str) -> None:
         self.config = config
-        self.target = f"{hosts[config.user_key]}@{hosts[config.addr_key]}"
+        self.target = hosts[config.addr_key]
         self.client = httpx.Client(
             base_url=config.base_url,
             headers={"Authorization": f"Bearer {key}"},
@@ -56,7 +56,7 @@ class RealRunner:
     ticks_running = staticmethod(ticks_running)
 
     def remote(self, command: str, stdin: bytes | None = None) -> int:
-        say(f"  ssh ${self.config.user_key}@${self.config.addr_key}: {command}")
+        say(f"  ssh ${self.config.addr_key}: {command}")
         try:
             done = subprocess.run(
                 ["ssh", *SSH_OPTIONS, self.target, command],
@@ -147,7 +147,7 @@ class DryRunner:
 
     def remote(self, command: str, stdin: bytes | None = None) -> int:
         fed = f"   < {self.launches.get(stdin.decode(), '?')}" if stdin is not None else ""
-        say(f"  [dry-run] ssh ${self.config.user_key}@${self.config.addr_key}: {command}{fed}")
+        say(f"  [dry-run] ssh ${self.config.addr_key}: {command}{fed}")
         return 0
 
     def answers(self, alias: str, seed: bool) -> bool:
@@ -172,13 +172,12 @@ class DryRunner:
 
 
 def read_secrets(config: Config, hosts_file: Path) -> tuple[dict[str, str], str]:
-    """The Spark's address and user, and the LiteLLM key, read without exporting them."""
+    """The Spark's address and the LiteLLM key, read without exporting them."""
     from crew_org.config import load_env
 
     hosts = load_env(hosts_file)
-    missing = [k for k in (config.addr_key, config.user_key) if not hosts.get(k)]
-    if missing:
-        raise LookupError(f"{', '.join(missing)} not set in {hosts_file}")
+    if not hosts.get(config.addr_key):
+        raise LookupError(f"{config.addr_key} not set in {hosts_file}")
     key = load_env(config.key_file).get(config.key_name)
     if not key:
         raise LookupError(f"{config.key_name} not set in {config.key_file}")

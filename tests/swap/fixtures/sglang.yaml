@@ -7,6 +7,8 @@ services:
     image: lmsysorg/sglang:v0.5.20-cu130
     container_name: ${CONTAINER_NAME:-qwen3.8-27b-sglang}
     network_mode: host
+    volumes:
+      - ${WEIGHTS_CACHE:-/cache}:/root/.cache/huggingface
     command: >-
       python3 -m sglang.launch_server
       --model-path ${MODEL_PATH:-RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead}

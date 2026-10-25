@@ -16,19 +16,38 @@ from .conftest import FakeRunner, launch
 MODEL = "Qwen/Qwen3.8-8B"
 COMMAND = ["uv", "run", "bench", "--case", "one"]
 
-PREFLIGHT = ["ticks?", "ssh true", "answers? crew-local", "lists? crew-candidate"]
+CACHE = '"$HOME"/Qwen3.8-27B-SGLang-DGX-Spark/.cache/huggingface'
+ENV = (
+    "env MODEL_PATH=Qwen/Qwen3.8-8B SERVED_MODEL_NAME=crew-candidate "
+    f"SPECULATIVE_ARGS='' CONTAINER_NAME=spark-candidate WEIGHTS_CACHE={CACHE}"
+)
+TENSORFOLD_ENV = (
+    "env MODEL_PATH=nvidia/Nemotron-3.5-Bolt SERVED_MODEL_NAME=crew-candidate "
+    f"CONTAINER_NAME=spark-candidate WEIGHTS_CACHE={CACHE}"
+)
+PREFLIGHT = [
+    "ticks?",
+    "ssh true",
+    "answers? crew-local",
+    "lists? crew-candidate",
+    f"ssh {ENV} docker compose -p spark-candidate -f - config -q <sglang",
+]
 SWAP = [
     "ssh docker stop qwen3.8-27b-sglang",
-    "ssh env MODEL_PATH=Qwen/Qwen3.8-8B SERVED_MODEL_NAME=crew-candidate "
-    "SPECULATIVE_ARGS='' CONTAINER_NAME=spark-candidate "
-    "docker compose -p spark-candidate -f - up -d <sglang",
+    f"ssh {ENV} docker compose -p spark-candidate -f - up -d <sglang",
     "answers? crew-candidate",
 ]
 RESTORE = [
-    "ssh docker compose -p spark-candidate down --timeout 60 || docker rm -f spark-candidate",
+    "ssh { docker compose -p spark-candidate down --timeout 60 || docker rm -f spark-candidate; }"
+    " && ! docker container inspect spark-candidate >/dev/null 2>&1",
     "ssh cd ~/Qwen3.8-27B-SGLang-DGX-Spark && ./start-dflash.sh",
     "answers? crew-local",
 ]
+
+
+COMPOSE_RESTORE = (
+    "{ docker rm qwen3.8-27b-sglang >/dev/null 2>&1 || true; } && docker compose -f - up -d"
+)
 
 
 def swap(runner: FakeRunner, config: Config, engine: str = "sglang", model: str = MODEL) -> int:
@@ -63,13 +82,12 @@ def test_tensorfold_arm_starts_its_own_launch_seeds_its_checks_and_restores_sgla
     assert swap(runner, config, engine="tensorfold", model="nvidia/Nemotron-3.5-Bolt") == 0
     assert (
         runner.steps
-        == PREFLIGHT
+        == PREFLIGHT[:-1]
         + [
-            "ssh docker stop qwen3.8-27b-sglang",
             # Only the variables TensorFold's launch takes: no speculative draft to empty.
-            "ssh env MODEL_PATH=nvidia/Nemotron-3.5-Bolt SERVED_MODEL_NAME=crew-candidate "
-            "CONTAINER_NAME=spark-candidate "
-            "docker compose -p spark-candidate -f - up -d <tensorfold",
+            f"ssh {TENSORFOLD_ENV} docker compose -p spark-candidate -f - config -q <tensorfold",
+            "ssh docker stop qwen3.8-27b-sglang",
+            f"ssh {TENSORFOLD_ENV} docker compose -p spark-candidate -f - up -d <tensorfold",
             "answers? crew-candidate seeded",
             "run uv run bench --case one",
         ]
@@ -83,7 +101,8 @@ def test_tensorfold_arm_restores_with_sglangs_record(config: Config) -> None:
     runner = FakeRunner()
     config = replace(config, restore="compose")
     assert swap(runner, config, engine="tensorfold") == 0
-    assert runner.steps[-2] == "ssh docker compose -f - up -d <sglang"
+    assert runner.steps[-2] == f"ssh {COMPOSE_RESTORE} <sglang"
+    assert "ssh docker compose -f - config -q <sglang" in runner.steps
 
 
 def test_tensorfold_candidate_that_exits_fails_at_once(config: Config) -> None:
@@ -148,7 +167,7 @@ def test_candidate_answering_after_a_few_polls_runs_the_command(config: Config) 
     assert "run uv run bench --case one" in runner.steps
 
 
-@pytest.mark.parametrize("failing", ["docker stop", "MODEL_PATH"])
+@pytest.mark.parametrize("failing", ["docker stop", "spark-candidate -f - up -d"])
 def test_failed_stop_or_start_restores(config: Config, failing: str) -> None:
     runner = FakeRunner(remote_fails={failing})
     assert swap(runner, config) == core.CANDIDATE_FAILED
@@ -216,7 +235,8 @@ def test_launch_without_the_variables_is_refused(config: Config) -> None:
     sglang = config.engine("sglang")
     assert core.swap(runner, config, sglang, MODEL, COMMAND, bare, bare) == core.REFUSED
     assert any(
-        "sglang launch doesn't take SERVED_MODEL_NAME, SPECULATIVE_ARGS, CONTAINER_NAME" in m
+        "sglang launch doesn't take SERVED_MODEL_NAME, SPECULATIVE_ARGS, CONTAINER_NAME,"
+        " WEIGHTS_CACHE" in m
         for m in runner.messages
     )
     assert runner.steps == ["ticks?"]
@@ -233,7 +253,7 @@ def test_tensorfold_launch_needs_no_speculative_variable(config: Config) -> None
     ("mode", "command"),
     [
         ("container", "ssh docker start qwen3.8-27b-sglang"),
-        ("compose", "ssh docker compose -f - up -d <sglang"),
+        ("compose", f"ssh {COMPOSE_RESTORE} <sglang"),
     ],
 )
 def test_restore_modes(config: Config, mode: str, command: str) -> None:
@@ -286,3 +306,62 @@ def test_engine_without_the_required_variables_is_refused(config: Config) -> Non
 def test_candidate_cannot_take_the_27bs_container(config: Config) -> None:
     with pytest.raises(ConfigError):
         check(replace(config, candidate_container=config.baseline_container))
+
+
+@pytest.mark.parametrize("model", ["m", "/home/x/weights", "./local", "a/b/c", "org/model;rm"])
+def test_a_model_that_isnt_a_hub_id_is_refused_first(config: Config, model: str) -> None:
+    runner = FakeRunner()
+    assert swap(runner, config, model=model) == core.REFUSED
+    assert any("must be a hub id" in m for m in runner.messages)
+    assert runner.steps == []
+
+
+def test_a_launch_docker_wont_render_is_refused_before_the_27b_stops(config: Config) -> None:
+    runner = FakeRunner(remote_fails={"config -q"})
+    assert swap(runner, config) == core.REFUSED
+    assert any("won't render infra's sglang launch for the candidate" in m for m in runner.messages)
+    assert not any("docker stop" in step or "up -d" in step for step in runner.steps)
+
+
+def test_compose_restore_is_refused_when_the_27bs_launch_wont_render(config: Config) -> None:
+    class BaselineWontRender(FakeRunner):
+        def remote(self, command: str, stdin: bytes | None = None) -> int:
+            if command == core.accepts_baseline():
+                self.steps.append("ssh renders the 27B?")
+                return 1
+            return super().remote(command, stdin)
+
+    runner = BaselineWontRender()
+    assert swap(runner, replace(config, restore="compose")) == core.REFUSED
+    assert any("launch for the 27B" in m for m in runner.messages)
+    assert not any("docker stop" in step for step in runner.steps)
+
+
+def test_a_candidate_still_there_after_removal_is_named(config: Config) -> None:
+    runner = FakeRunner(remote_fails={"docker container inspect"})
+    assert swap(runner, config) == 0
+    assert any("docker rm -f spark-candidate" in m for m in runner.messages)
+    assert runner.steps[-3:] == RESTORE
+
+
+def test_the_candidates_weights_are_listed_for_pruning_and_nothing_deleted(config: Config) -> None:
+    runner = FakeRunner(command_result=1)
+    swap(runner, config)
+    listed = next(m for m in runner.messages if m.startswith("prune once unused"))
+    cache = "~/Qwen3.8-27B-SGLang-DGX-Spark/.cache/huggingface"
+    assert f"weights {cache}/models--Qwen--Qwen3.8-8B" in listed
+    assert "image" not in listed.split(":", 1)[1]  # the 27B's own image stays
+    assert not any("rmi" in step or "prune" in step for step in runner.steps)
+
+
+def test_another_engines_image_is_listed_for_pruning(config: Config) -> None:
+    runner = FakeRunner()
+    swap(runner, config, engine="tensorfold", model="nvidia/Nemotron-3.5-Bolt")
+    listed = next(m for m in runner.messages if m.startswith("prune once unused"))
+    assert "image tensorfold:test" in listed
+
+
+@pytest.mark.parametrize("cache", ["/abs/cache", "../out", ""])
+def test_the_weights_cache_stays_under_the_sparks_home(config: Config, cache: str) -> None:
+    with pytest.raises(ConfigError, match="weights_cache"):
+        check(replace(config, weights_cache=cache))
