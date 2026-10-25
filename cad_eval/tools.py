@@ -14,8 +14,9 @@ Leaderboard, v3):
   BFCL's type check, which crew's rule doesn't make: a value of the wrong type is
   `ill_typed`.
 - **Executable: did it do what it asked?** A well-formed call the tool couldn't carry
-  out is `failed`: a path outside the part's directory, a file that isn't there, or
-  content over the limit. A script that runs and raises is the tool doing what it was
+  out is `failed`: a path outside the part's directory, a file that isn't there, text
+  that can't be a path (a script's content sent as its path), or content over the
+  limit. A script that runs and raises is the tool doing what it was
   asked: that's the CAD code failing (`compiles`), not the call.
 
 Everything else is `ok`. The reliability of a run is its `ok` calls over all of them.
@@ -34,6 +35,7 @@ RUN_TIMEOUT = 120
 MEASURE_TIMEOUT = 180
 TAIL = 4000
 MAX_CONTENT = 200_000
+MAX_PATH = 200
 # What the script the session names at `done` must write: the part, as STEP.
 OUTPUT = "part.step"
 MEASURE_SOURCE = Path(measure.__file__).read_text(encoding="utf-8")
@@ -138,6 +140,11 @@ def well_formed(name: str, args: Any) -> Judged | None:
     return None
 
 
+def a_path(path: str) -> bool:
+    """Whether `path` could name a file at all: a file's text sent as its path can't."""
+    return 0 < len(path) <= MAX_PATH and path.isprintable()
+
+
 def inside(directory: Path, path: str) -> Path | None:
     """`path` in the part's directory, or None for one that leads out of it."""
     pure = PurePosixPath(path)
@@ -167,6 +174,8 @@ class PartTools:
         return Judged(name, "failed", reply, why, args)
 
     def _write(self, args: dict[str, Any]) -> Judged:
+        if not a_path(args["path"]):
+            return self._not_a_path("write", args, "path")
         target = inside(self.directory, args["path"])
         if target is None:
             return self._failed("write", "outside", "Write only inside the part's directory.", args)
@@ -174,11 +183,20 @@ class PartTools:
             return self._failed(
                 "write", "too_large", f"A file is at most {MAX_CONTENT} characters.", args
             )
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(args["content"], encoding="utf-8")
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(args["content"], encoding="utf-8")
+        except OSError as exc:
+            return self._failed("write", "not_written", f"It couldn't be written: {exc}", args)
         return Judged("write", "ok", f"Wrote {args['path']} ({len(args['content'])} characters).")
 
+    def _not_a_path(self, name: str, args: dict[str, Any], key: str) -> Judged:
+        said = f"`{key}` is a file's path, of at most {MAX_PATH} characters on one line."
+        return self._failed(name, "not_a_path", said, args)
+
     def _existing(self, name: str, args: dict[str, Any], key: str = "path") -> Judged | None:
+        if not a_path(args[key]):
+            return self._not_a_path(name, args, key)
         target = inside(self.directory, args[key])
         if target is None:
             return self._failed(name, "outside", "Only files inside the part's directory.", args)

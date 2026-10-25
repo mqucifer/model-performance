@@ -89,3 +89,17 @@ def test_final_runs_the_script_again_from_a_clean_start(tools: PartTools) -> Non
     assert result["code"] == 1
     assert "error" in result["measured"]
     assert not (tools.directory / "part.step").exists()
+
+
+def test_a_scripts_text_sent_as_its_path_fails_and_the_session_goes_on(tools: PartTools) -> None:
+    # The 27B's first run, twice: `done` with the script's content as `script`.
+    text = "import cadquery as cq\n" + "x = 1\n" * 100
+    for name, args in (
+        ("done", {"script": text}),
+        ("run", {"path": text}),
+        ("inspect", {"path": "a" * 300}),
+        ("write", {"path": text, "content": "x"}),
+    ):
+        judged = tools.call(name, json.dumps(args))
+        assert (judged.outcome, judged.why) == ("failed", "not_a_path")
+    assert list(tools.directory.iterdir()) == []
