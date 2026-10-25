@@ -1,0 +1,106 @@
+# SGLang on the Spark, serving the crew's model, Qwen3.8-27B, to LiteLLM on
+# :8888 (inventory/services/sglang.yaml). Recorded 2026-10-25 from the running
+# container, read-only over SSH: `docker inspect qwen3.8-27b-sglang` and
+# ~/Qwen3.8-27B-SGLang-DGX-Spark/start-dflash.sh (mqucifer/infra#40).
+#
+# Today the Sponsor starts the 27B with start-dflash.sh, not with this file.
+# This file is that launch written out, so the swap (mqucifer/model-performance#2)
+# can start a candidate from it with only the model changed, and so the 27B can
+# be brought back from it. check_launch.py proves it matches the container,
+# flag by flag: run it against a fresh `docker inspect` after any change here
+# or on the Spark.
+#
+# With no variables set, it's the 27B exactly. A swap's candidate sets:
+#
+#   MODEL_PATH          the candidate's weights, a hub id or a path in the cache
+#   SERVED_MODEL_NAME   crew-candidate, the name LiteLLM's alias points at
+#   SPECULATIVE_ARGS    empty: the DFlash2 draft is the 27B's own
+#   CONTAINER_NAME      spark-candidate, so nothing clashes with the stopped 27B
+#
+# and runs it on the Spark, with this file on stdin:
+#
+#   docker compose -p spark-candidate -f - up -d
+#
+# TRITON_CACHE_DIR and SGLANG_OPT_MAMBA_SKIP_DECODE_LOCK were read from the
+# running container on 2026-10-25, those two names only, with no other value
+# printed. Neither is a secret:
+#
+#   docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' qwen3.8-27b-sglang \
+#     | grep -E '^(TRITON_CACHE_DIR|SGLANG_OPT_MAMBA_SKIP_DECODE_LOCK)='
+
+name: spark-sglang
+
+services:
+  sglang:
+    # The image the container runs, pinned by digest: an upgrade is a
+    # deliberate change. start-dflash.sh's default is a nightly
+    # (nightly-cu134-20260909-708f51e); the running container is this one, so
+    # its IMAGE is overridden, likely in the script's .env, which isn't read.
+    image: lmsysorg/sglang:v0.5.20-cu130@sha256:06e4f2ed21afde4ff513cda65070124e727ba23ccaeff7712b8c40e1097d611f
+    container_name: ${CONTAINER_NAME:-qwen3.8-27b-sglang}
+    # Started by hand after each boot, as today: the Spark is often off.
+    restart: "no"
+    network_mode: host
+    ipc: host
+    privileged: true
+    security_opt: [label=disable]
+    shm_size: 32gb
+    gpus: all
+    environment:
+      # As start-dflash.sh's own draft pull sets it, beside the mount below.
+      HF_HOME: /root/.cache/huggingface
+      TRITON_CACHE_DIR: /root/.triton
+      SGLANG_OPT_MAMBA_SKIP_DECODE_LOCK: "0"
+      # Passed through from the caller, never written here. Unset is fine:
+      # the weights are already in the cache.
+      HF_TOKEN:
+    volumes:
+      # The weights cache: every model the Spark serves is read from here.
+      - ${WEIGHTS_CACHE:-${HOME}/Qwen3.8-27B-SGLang-DGX-Spark/.cache/huggingface}:/root/.cache/huggingface
+      # Triton's compiled kernels, kept so a restart skips compiling them.
+      - ${HOME}/Qwen3.8-27B-SGLang-DGX-Spark/.cache/triton:/root/.triton
+    # The image's entrypoint (/opt/nvidia/nvidia_entrypoint.sh) runs this.
+    #
+    # Each flag once, with the value SGLang uses. The container's own arguments
+    # repeat some, start.sh's defaults first and then start-dflash.sh's, and
+    # argparse keeps the last:
+    #   --mem-fraction-static          0.95, 0.90, 0.80   -> 0.80
+    #   --mamba-radix-cache-strategy   extra_buffer_lazy, extra_buffer -> extra_buffer
+    #   --max-mamba-cache-size         32, 120            -> 120
+    #   --speculative-algorithm        EAGLE, DFLASH      -> DFLASH
+    #   --speculative-num-draft-tokens 4, 8               -> 8
+    #   --model-path                   the same twice
+    # EAGLE's --speculative-num-steps 3 and --speculative-eagle-topk 1 are
+    # never overridden, so SGLang still receives them; they stay, with the rest
+    # of the 27B's speculative flags, in SPECULATIVE_ARGS. Unset means the
+    # 27B's; empty means none (`-`, not `:-`, keeps that difference).
+    command: >-
+      python3 -m sglang.launch_server
+      --model-path ${MODEL_PATH:-RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead}
+      --served-model-name ${SERVED_MODEL_NAME:-qwen3.8-27b-sglang}
+      --trust-remote-code
+      --mem-fraction-static 0.80
+      --sleep-on-idle
+      --attention-backend flashinfer
+      --chunked-prefill-size 8192
+      --disable-prefill-cuda-graph
+      --kv-cache-dtype fp8_e4m3
+      --mamba-ssm-dtype bfloat16
+      --mamba-full-memory-ratio 4.21
+      --mamba-radix-cache-strategy extra_buffer
+      --max-mamba-cache-size 120
+      --max-running-requests 8
+      --context-length 262144
+      --reasoning-parser qwen3
+      --tool-call-parser qwen3_coder
+      --sampling-defaults model
+      --enable-metrics
+      --enable-cache-report
+      --host 0.0.0.0
+      --port 8888
+      ${SPECULATIVE_ARGS---speculative-algorithm DFLASH
+      --speculative-draft-model-path z-lab/Qwen3.8-27B-DFlash2
+      --speculative-draft-model-revision 50307d4c4cde6860d4eee73e2547cd786fe8e8a4
+      --speculative-num-draft-tokens 8
+      --speculative-num-steps 3
+      --speculative-eagle-topk 1}

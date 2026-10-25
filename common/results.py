@@ -49,6 +49,9 @@ SUITES: dict[str, set[str]] = {
         "troubles",  # empty, cut-off or malformed answers
         "start_chars",
         "record_authored",  # the session read the case's authored record, not the base's own
+        "sessions",  # how many sessions ran at once (mqucifer/model-performance#7); absent: one
+        "serving",  # the SGLang setting under test, e.g. mem-fraction-static:0.88, or record
+        "batch",  # the concurrent run it ran in: its tuning row's `run`
     },
     "cad_eval": {
         "tier",  # the part's difficulty, 1 to 5
@@ -69,6 +72,27 @@ SUITES: dict[str, set[str]] = {
         "checks_passed",
         "checks_total",
         "calls_to_done",  # the calls a part took to `done`, or null without one
+    },
+    # One row per concurrent run of the benchmark (mqucifer/model-performance#7).
+    "tuning": {
+        "sessions",  # how many ran at once
+        "serving",  # the SGLang setting under test, or record
+        "workspace_memory",  # each workspace's cap, e.g. 1536m
+        "docker_free_gib",  # Docker's free memory before the run
+        "stories",  # sessions started
+        "done",
+        "gate_green",  # first-time passes: green gate at done
+        "story_wall_s_mean",
+        "story_wall_s_max",
+        "ttft_p50_s",  # SGLang's time to first token over the run, from Grafana
+        "ttft_p95_s",
+        "queue_max",  # sglang_num_queue_reqs
+        "running_max",  # sglang_num_running_reqs
+        "cache_hit_mean",  # sglang_cache_hit_rate
+        "kv_use_max",  # sglang_token_usage
+        "spec_accept_mean",  # sglang_spec_accept_length
+        "gen_throughput_mean",  # sglang_gen_throughput, tokens/s
+        "grafana",  # whether the series were read and copied to the Mac
     },
 }
 # A short name: an id, a commit, a time, an alias. No spaces, so no sentence fits.

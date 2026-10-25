@@ -97,6 +97,7 @@ def run(
     cap: int = 10,
     start_code: int = 0,
     given: str | None = None,
+    tags: dict[str, Any] | None = None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[dict[str, Any], list[FakeWorkspace], Path]:
     clone, base = repo
@@ -135,6 +136,7 @@ def run(
         checkout_for=checkout_for,
         workspace_for=workspace_for,
         results_dir=results,
+        tags=tags,
     )
     return row, made, results
 
@@ -185,6 +187,15 @@ def test_a_container_that_wont_start_is_refused_and_leaves_nothing(
     assert made[0].stopped
     assert not (tmp_path / "worktrees" / row["run"]).exists()
     assert (results / "benchmark.jsonl").exists()
+
+
+def test_a_concurrent_runs_tags_reach_its_row(
+    tmp_path: Path, repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tags = {"sessions": 6, "serving": "mem-fraction-static:0.88", "batch": "20261025T120000Z"}
+    row, _, results = run(tmp_path, repo, [], start_code=126, tags=tags, monkeypatch=monkeypatch)
+    assert {k: row[k] for k in tags} == tags
+    assert json.loads((results / "benchmark.jsonl").read_text())["serving"] == tags["serving"]
 
 
 def test_a_checkout_that_fails_is_refused(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

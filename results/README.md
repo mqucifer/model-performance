@@ -84,6 +84,7 @@ model, and is kept as it ran. The case was run again straight after
 | `*_tokens` | the session's token counts, as LiteLLM reports them |
 | `edits_applied`, `test_runs`, `compactions`, `troubles`, `start_chars` | what the session did, by crew's counts |
 | `record_authored` | the session read the case's authored record, not the base's own |
+| `sessions`, `serving`, `batch` | set on a concurrent run's sessions only (`tuning/`): how many ran at once, the Spark's SGLang setting (`record`, or e.g. `mem-fraction-static:0.88`), and the run's `tuning.jsonl` row. Absent: one session, on the record |
 
 ## `cad_eval.jsonl`: the CAD-code evaluation
 
@@ -105,3 +106,25 @@ one crew's argument rule refuses, here over the evaluation's own tools.
 | `checks_passed`, `checks_total` | the dimension checks behind `within_tolerance`, named in the run's `checks.json` |
 | `calls` | model calls. A part stops at its cap (40, or `--cap`; the first run's was 20) as `interrupted` with `call_cap` |
 | `calls_to_done` | the calls a part took to reach `done`, or null without one: what the next run's cap is set from |
+
+## `tuning.jsonl`: concurrent runs on the Spark
+
+One row per `concurrent` run (`tuning/README.md`, mqucifer/model-performance#7). Its
+sessions' own rows are in `benchmark.jsonl`, with this row's `run` as their `batch`.
+The shared fields are the sessions' summed (`calls`, `*_tokens`, `model_s`,
+`tick_calls`), except `wall_s`, which is the whole run's.
+
+| Field | What it is |
+|---|---|
+| `sessions`, `serving` | how many ran at once, and the SGLang setting under test (`record`: infra's launch as it is) |
+| `workspace_memory`, `docker_free_gib` | each workspace's cap, and Docker's free memory before the run |
+| `stories`, `done`, `gate_green` | sessions started, ended `done`, and passed first time: the gate green at `done` |
+| `story_wall_s_mean`, `story_wall_s_max` | wall-clock per story, over its sessions |
+| `ttft_p50_s`, `ttft_p95_s` | SGLang's time to first token over the run's requests |
+| `queue_max`, `running_max` | the most requests waiting, and running, at once |
+| `cache_hit_mean`, `kv_use_max` | the radix cache's hit rate, and the most of the KV cache in use (0 to 1) |
+| `spec_accept_mean`, `gen_throughput_mean` | the draft's accepted tokens per step, and tokens generated per second |
+| `grafana` | whether the Spark's series were read from Grafana; false leaves them null |
+
+The Spark's numbers are read from Grafana (Alloy's scrape of SGLang's metrics), never
+from the Spark, at a 15 s step: a peak shorter than that can be missed.

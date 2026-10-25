@@ -22,6 +22,8 @@ dev = [
 swap = "swap.cli:main"
 replay = "benchmark.replay:main"
 cad-eval = "cad_eval.run:main"
+tune = "tuning.launch:main"
+concurrent = "tuning.concurrent:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -31,13 +33,13 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["swap", "common", "benchmark", "cad_eval"]
+packages = ["swap", "common", "benchmark", "cad_eval", "tuning"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
 # The template's files are the template's (mqucifer/project-template).
-extend-exclude = [".github"]
+extend-exclude = [".github", "tests/tuning/fixtures/infra"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]

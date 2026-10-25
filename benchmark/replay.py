@@ -169,8 +169,13 @@ def replay(
     workspace_for: Callable[[Path, str], Any] = held,
     gate_for: Callable[[Path, Any, str], Any] = gate,
     results_dir: Path = results.RESULTS,
+    tags: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """One case end to end: its row, written to the results once the run has ended."""
+    """One case end to end: its row, written to the results once the run has ended.
+
+    `tags` are the concurrent run's (mqucifer/model-performance#7): how many sessions
+    ran at once, the Spark's serving setting, and the batch they ran in.
+    """
     from crew_org import events  # noqa: PLC0415
     from crew_org.session import conversation  # noqa: PLC0415
 
@@ -186,6 +191,7 @@ def replay(
         "ending": None,
         "stop": None,
         "gate_green": None,
+        **(tags or {}),
     }
     kept: dict[str, Any] = {"base": c.base, "note": c.note}
     # Each tool call's result, by the crew's own events: a call refused by the session's
@@ -325,7 +331,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--all", action="store_true", help="every case, one at a time")
     parser.add_argument("--model", help="a LiteLLM alias in place of the Developer's")
     parser.add_argument("--cap", type=int, help="calls a run may make (default: config's)")
+    # A concurrent run's tags (tuning.concurrent sets them), so its rows can be told apart.
+    parser.add_argument("--sessions", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--serving", help=argparse.SUPPRESS)
+    parser.add_argument("--batch", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    tags = {
+        k: v
+        for k, v in (("sessions", args.sessions), ("serving", args.serving), ("batch", args.batch))
+        if v is not None
+    }
     if bool(args.cases) == args.all:
         parser.error("name the cases, or --all")
     try:
@@ -362,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
         for c in chosen:
             send = Sender(settings, key, cap=args.cap, alias=args.model, timeout=timeout)
             try:
-                row = replay(c, settings, send, alias)
+                row = replay(c, settings, send, alias, tags=tags)
             finally:
                 send.close()
             failed += row["ending"] in ("refused", "crashed")
