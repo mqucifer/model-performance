@@ -28,7 +28,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from common import crew, records, results
+from common import crew, records, results, spend
 from common.config import Settings, load
 from common.litellm import CallCapReached, Sender, builders_key
 from role_fit import extract, score, select
@@ -69,6 +69,7 @@ def replay(
         "at": datetime.now(UTC).isoformat(timespec="seconds"),
         "crew_commit": crew.commit(),
         "model_alias": None,
+        "arm": None,  # the 27B's baseline and a candidate are both measured as served
         "ending": None,
         "stop": None,
         "bucket": c.bucket,
@@ -96,8 +97,10 @@ def replay(
         },
     }
     kept: dict[str, Any] = {}
+    own: set[str] = set()
     send.ticking()
     began = time.monotonic()
+    began_at = datetime.now(UTC)
     try:
         try:
             given = extract.load(settings, c)
@@ -124,6 +127,7 @@ def replay(
             return row
         row["calls"] = 1
         row["model_s"] = round(time.monotonic() - started, 1)
+        own.add(str(data.get("id") or ""))
         choice = (data.get("choices") or [{}])[0]
         message = choice.get("message") or {}
         text = str(message.get("content") or "")
@@ -158,6 +162,11 @@ def replay(
         send.ticking()
         row["concurrent_tick"] = send.tick_seen
         row["tick_calls"] = send.tick_calls
+        if row["calls"]:
+            overlapped = spend.others(began_at, datetime.now(UTC), own)
+            row["other_calls"] = None if overlapped is None else sum(overlapped.values())
+            row["other_aliases"] = spend.keys(overlapped) if overlapped else None
+            kept["other_calls"] = overlapped
         (out / "result.json").write_text(
             json.dumps({**row, **kept}, indent=1, default=str), encoding="utf-8"
         )

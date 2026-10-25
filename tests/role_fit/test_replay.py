@@ -10,7 +10,7 @@ import httpx
 import pytest
 from crew_org.calls import RUNAWAY_CHARS
 
-from common import results
+from common import results, spend
 from common.config import load
 from role_fit import extract, run, select
 from role_fit.cases import CASES, Case, UnknownCase, chosen
@@ -42,6 +42,20 @@ REQUEST = {
     "metadata": {"user_api_key": "hashed"},
     "stream": True,
 }
+
+
+@pytest.fixture(autouse=True)
+def proxy_log(monkeypatch: pytest.MonkeyPatch) -> list[set[str]]:
+    """LiteLLM's log of other calls, faked: one other builder's call overlapped each run."""
+    owns: list[set[str]] = []
+    real = spend.others
+
+    def others(since: Any, until: Any, own: Any, read: Any = None) -> Any:
+        owns.append(set(own))
+        return real(since, until, own, read=lambda _: "r1|x|crew-analysis\nr9|tick|crew-analysis\n")
+
+    monkeypatch.setattr(spend, "others", others)
+    return owns
 
 
 def finished(at: str, call: str, response: str, **detail: Any) -> dict[str, Any]:
@@ -159,7 +173,9 @@ def given(tmp_path: Path, production: dict[str, Any] | None = None):
     return settings
 
 
-def test_a_replay_sends_the_request_as_production_did_and_scores_both(tmp_path: Path) -> None:
+def test_a_replay_sends_the_request_as_production_did_and_scores_both(
+    tmp_path: Path, proxy_log: list[set[str]]
+) -> None:
     settings = given(tmp_path)
     seen: list[dict[str, Any]] = []
     send = sender(tmp_path, seen, stream_of(['{"n": ', "1}"]))
@@ -171,6 +187,9 @@ def test_a_replay_sends_the_request_as_production_did_and_scores_both(tmp_path: 
     assert row["dated"] is True  # the pinned crew has no `Thing`
     assert row["reasoning_tokens"] == 4 and row["hedges_per_10k"] > 0
     assert row["prod_valid"] is False and row["prod_form_valid"] is False  # "{}" lacks `n`
+    # The other calls on the proxy, but the replay's own (`r1`, its response id).
+    assert proxy_log == [{"r1"}]
+    assert (row["other_calls"], row["other_aliases"], row["arm"]) == (1, "tick", None)
     written = (tmp_path / "results" / "role_fit.jsonl").read_text().splitlines()
     assert results.problems(json.loads(written[0])) == []
     kept = settings.records_dir / "role_fit" / CASE.id / row["run"]

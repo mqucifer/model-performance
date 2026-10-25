@@ -16,16 +16,17 @@ What it prints is pasted into `cases.py`, so every run replays the same calls.
 
 from __future__ import annotations
 
-import json
 from collections import defaultdict
-from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-# E1's window: crew#633 merged, then crew#583 closed (UTC).
-SINCE = "2026-10-11T17:51:22"
-UNTIL = "2026-10-13T19:42:56"
+from benchmark.spent import events
+
+# E1's window, to the minute as `benchmark.spent.events` compares it: crew#633 merged
+# at 17:51:22, and crew#583 closed at 19:42:56 (UTC).
+SINCE = "2026-10-11T17:52"
+UNTIL = "2026-10-13T19:43"
 REPO = "sprint-metrics"
 
 
@@ -57,21 +58,6 @@ BUCKETS = (
     Bucket("settle", "judgement", ("Product Owner",), ("Settlement",), None, 3),
     Bucket("architect", "judgement", ("Architect",), ("DesignNote",), None, 2),
 )
-
-
-def events(directory: Path, since: str, until: str) -> Iterator[dict[str, Any]]:
-    """The tick log's events in the window, oldest first; lines that aren't JSON are skipped.
-
-    A stand-in until m12-arms' `benchmark.spent.events` lands (mqucifer/model-performance#17).
-    """
-    with (directory / "tick.jsonl").open(encoding="utf-8") as fh:
-        for line in fh:
-            try:
-                event = json.loads(line)
-            except ValueError:
-                continue
-            if since <= str(event.get("at", "")) <= until:
-                yield event
 
 
 def role_key(role: str) -> str:

@@ -5,7 +5,7 @@
 LiteLLM keeps every request and response, reasoning included, for 90 days
 (`store_prompts_in_spend_logs` in infra's `compose/mac/litellm/config.yaml`). A
 case's row is found by its `request_id`, which is the crew's `response_id`, and
-read with one SELECT inside the database's container: its port is never
+read with one SELECT inside the database's container (`common.spend.psql`): its port is never
 published, and nothing here writes to it.
 
 The request is kept as production sent it, but for LiteLLM's own keys
@@ -20,16 +20,14 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from common.config import Settings
+from common.spend import psql
 from role_fit.cases import Case
 
-# infra's `compose/mac/litellm/compose.yaml` names it.
-DATABASE = "litellm-temp-db"
 # What LiteLLM adds to a request, and what the replay sets for itself.
 DROPPED = {"metadata", "litellm_trace_id", "stream", "stream_options", "user"}
 ID = re.compile(r"[0-9a-f]{32}")
@@ -47,13 +45,7 @@ def query(request_id: str) -> str:
         "select json_build_object('request', proxy_server_request, 'response', response) "
         f"from \"LiteLLM_SpendLogs\" where request_id = '{request_id}'"
     )
-    found = subprocess.run(
-        ["docker", "exec", DATABASE, "psql", "-U", "litellm_admin", "-d", "litellm", "-Atc", sql],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return found.stdout.strip()
+    return psql(sql).strip()
 
 
 def requests_dir(settings: Settings) -> Path:
