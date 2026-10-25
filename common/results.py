@@ -75,6 +75,10 @@ SUITES: dict[str, set[str]] = {
         "parts_fit",  # the members that passed every check of their own, fits included
         "load_ok",  # the simplified load check, or null without one or without a `done`
         "fault",  # model, tool, infra or budget, or null for a case that passed
+        # Printed as placed, over the members that passed: recorded, never checked.
+        "overhang_mm2",  # faces facing down steeper than 45° from vertical, off the bed
+        "bridges",  # patches facing straight down, off the bed
+        "longest_bridge_mm",  # the longest of their spans
     },
 }
 # A short name: an id, a commit, a time, an alias. No spaces, so no sentence fits.

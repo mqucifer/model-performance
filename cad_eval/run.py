@@ -73,7 +73,7 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
     members = {m.name for m in case.members}
     found = {}
     for m in case.members:
-        request: dict[str, Any] = {"path": f"{m.name}.step", "probes": m.probes()}
+        request: dict[str, Any] = {"path": f"{m.name}.step", "probes": m.probes(), "print": True}
         if m.gaps:
             request["against"] = [
                 {"name": g.other, "path": f"{g.other}.step"}
@@ -130,9 +130,14 @@ def judge(case: Case, final: dict[str, Any]) -> tuple[dict[str, Any], list[dict[
     found: list[dict[str, Any]] = []
     passed = 0
     load_ok = None
+    # Overhangs and bridges, recorded for the members that passed: never a check
+    # (the Sponsor, 2026-10-25: printability is a second pass on a part's files).
+    printing: list[dict[str, Any]] = []
     for m in case.members:
         own = checks.member(m, measured[m.name])
         passed += all(c.ok for c in own)
+        if all(c.ok for c in own) and measured[m.name].get("print"):
+            printing.append(measured[m.name]["print"])
         for c in own:
             found.append({**asdict(c), "member": m.name})
             if c.name.startswith("load."):
@@ -146,6 +151,9 @@ def judge(case: Case, final: dict[str, Any]) -> tuple[dict[str, Any], list[dict[
         "checks_total": len(found),
         "parts_fit": passed,
         "load_ok": load_ok,
+        "overhang_mm2": round(sum(p["overhang_mm2"] for p in printing), 1) if printing else None,
+        "bridges": sum(p["bridges"] for p in printing) if printing else None,
+        "longest_bridge_mm": max(p["longest_bridge_mm"] for p in printing) if printing else None,
     }
     return row, found
 
@@ -201,6 +209,7 @@ def evaluate(
     if case is not None:
         row.update(kind=case.kind, parts_total=len(case.members), parts_fit=None)
         row.update(load_ok=None, fault=None)
+        row.update(overhang_mm2=None, bridges=None, longest_bridge_mm=None)
     kept: dict[str, Any] = {}
     send.ticking()
     began = time.monotonic()

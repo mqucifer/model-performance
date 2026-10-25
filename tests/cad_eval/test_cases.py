@@ -346,4 +346,22 @@ def test_the_30_parts_rows_have_none_of_the_cases_fields(tmp_path: Path) -> None
     from tests.cad_eval.test_run import GOOD  # noqa: PLC0415
 
     row = Run(tmp_path, GOOD, measured=part_measured("spacer")).go()
-    assert not {"kind", "parts_total", "parts_fit", "load_ok", "fault"} & set(row)
+    assert not {"kind", "parts_total", "parts_fit", "load_ok", "fault", "overhang_mm2"} & set(row)
+
+
+def test_overhangs_are_recorded_for_the_members_that_passed_only() -> None:
+    case = CASES["pin-clevis"]
+    measured_by = {}
+    for m in case.members:
+        found = measured(m, print={"overhang_mm2": 10.0, "bridges": 1, "longest_bridge_mm": 2.5})
+        found["against"] = {
+            g.other: {"interference": 0.0, "distance": g.distance[0]} for g in m.gaps
+        }
+        measured_by[m.name] = found
+    measured_by["pin"]["against"]["clevis"]["interference"] = 3.0
+    row, found = cad.judge(case, {"code": 0, "measured": measured_by})
+    assert (row["parts_fit"], row["overhang_mm2"], row["bridges"]) == (2, 20.0, 2)
+    assert row["longest_bridge_mm"] == 2.5
+    # Never a check.
+    assert not any("overhang" in c["name"] or "bridge" in c["name"] for c in found)
+    assert all(r.get("print") for r in cad.requests(case).values())

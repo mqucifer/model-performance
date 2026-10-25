@@ -8,9 +8,10 @@ file to measure (STEP or STL, relative to /work), and optionally points to probe
 a mating part's CadQuery source. The harder cases (`cad_eval/cases.py`) may also ask
 for the overlap and the gap with other parts (`against`), between the shape's own
 solids (`self`), its cylindrical faces (`cylinders`), a plane section's area
-properties (`section`), and which lines along an axis meet it (`rays`). It prints
-one line, `MARK` then JSON: the facts, or
-`error`. The host compares them with the part's spec (`cad_eval/checks.py`).
+properties (`section`), which lines along an axis meet it (`rays`), and what it
+would overhang printed as placed (`print`). It prints one line, `MARK` then JSON:
+the facts, or `error`. The host compares them with the part's spec
+(`cad_eval/checks.py`).
 
 Standard library, CadQuery and trimesh: what the image holds.
 """
@@ -210,6 +211,53 @@ def section(shape, request: dict) -> dict:  # noqa: ANN001
     }
 
 
+# A face overhangs when it faces down steeper than this from vertical: PrusaSlicer's
+# default support threshold. A bridge is a face facing straight down, within this.
+OVERHANG_DEG = 45.0
+BRIDGE_DEG = 1.0
+# How close to the part's lowest point a face may be and still rest on the bed, mm.
+BED_TOLERANCE = 0.01
+
+
+def printability(shape) -> dict:  # noqa: ANN001
+    """What printing the shape as placed (+Z up, its lowest point on the bed) would hang
+    over air: recorded beside the checks, never one of them.
+
+    - `overhang_mm2`: the area of faces facing down steeper than `OVERHANG_DEG` from
+      vertical, bridges included, but not those on the bed;
+    - `bridges`: the regions of those facing straight down, each a connected patch;
+    - `longest_bridge_mm`: the longest of their spans, each the shorter side of its
+      patch's box across X and Y: the gap it crosses, if it rests on its two long sides.
+    """
+    import numpy as np  # noqa: PLC0415
+    import trimesh  # noqa: PLC0415
+
+    with tempfile.TemporaryDirectory() as tmp:
+        stl = Path(tmp) / "part.stl"
+        shape.exportStl(str(stl), tolerance=MESH_TOLERANCE, angularTolerance=MESH_ANGLE)
+        mesh = trimesh.load(str(stl), force="mesh")
+    normals, areas = mesh.face_normals, mesh.area_faces
+    lowest = mesh.bounds[0][2]
+    on_bed = mesh.triangles[:, :, 2].max(axis=1) <= lowest + BED_TOLERANCE
+    down = -normals[:, 2]
+    over = (down > np.cos(np.radians(OVERHANG_DEG))) & ~on_bed
+    flat = (down > np.cos(np.radians(BRIDGE_DEG))) & ~on_bed
+    spans = []
+    if flat.any():
+        patches = trimesh.graph.connected_components(
+            mesh.face_adjacency, nodes=np.nonzero(flat)[0], min_len=1
+        )
+        for patch in patches:
+            points = mesh.triangles[patch].reshape(-1, 3)
+            size = points.max(axis=0) - points.min(axis=0)
+            spans.append(float(min(size[0], size[1])))
+    return {
+        "overhang_mm2": round(float(areas[over].sum()), 1),
+        "bridges": len(spans),
+        "longest_bridge_mm": round(max(spans), 2) if spans else 0.0,
+    }
+
+
 def rays(shape, request: dict) -> list[bool]:  # noqa: ANN001
     """Whether a line along `axis` through each point meets the shape: a vent is where
     one doesn't."""
@@ -261,6 +309,8 @@ def measure(request: dict) -> dict:
             out["section"] = section(shape, request["section"])
         if request.get("rays"):
             out["rays"] = rays(shape, request["rays"])
+        if request.get("print"):
+            out["print"] = printability(shape)
     except Exception as exc:  # noqa: BLE001
         out["error"] = f"it loads but can't be measured: {type(exc).__name__}: {exc}"[:500]
     return out
