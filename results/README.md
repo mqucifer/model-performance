@@ -38,3 +38,23 @@ records are kept in the records directory under `crew-778/`.
 | `model_s`, `wall_s` | seconds waiting on the model, and the run's whole time |
 | `*_tokens` | the session's token counts, as LiteLLM reports them |
 | `edits_applied`, `test_runs`, `compactions`, `troubles`, `start_chars` | what the session did, by crew's counts |
+
+## `cad_eval.jsonl`: the CAD-code evaluation
+
+One row per part's run (`cad_eval/README.md`). `case` is the part. The shared
+`tool_calls` and `malformed_tool_calls` mean what they mean above: a malformed call is
+one crew's argument rule refuses, here over the evaluation's own tools.
+
+| Field | What it is |
+|---|---|
+| `tier` | the part's difficulty, 1 (one primitive) to 5 (a fit to another part) |
+| `ending` | `done`, `blocked` or `interrupted`; or `refused` or `crashed` |
+| `stop` | what ended it, when it isn't `done`: `said` (the model's own `blocked`), `no_tool_call`, `backstop`, `call_cap`, `call_failed`, `workspace_gone`; or a refusal (`no_image`, `container_start`) |
+| `image` | the CadQuery image's tag. Its id is in the run's `result.json` |
+| `ill_typed_tool_calls` | well formed by crew's rule, but a value of the wrong type (BFCL's type check) |
+| `failed_tool_calls` | well formed, but the tool couldn't do it: a path outside the part, a missing file, too much content |
+| `reliable_tool_calls`, `tool_reliability` | the calls that did what they asked, and their share of `tool_calls` (null with none). A script that raises is a reliable call and a CAD failure |
+| `writes`, `runs`, `inspects` | calls to each tool, well formed or not |
+| `compiles`, `closed_mesh`, `within_tolerance` | the part at `done`, checked: null without a `done` |
+| `checks_passed`, `checks_total` | the dimension checks behind `within_tolerance`, named in the run's `checks.json` |
+| `calls` | model calls. A part stops at its cap (20, or `--cap`) as `interrupted` with `call_cap` |
