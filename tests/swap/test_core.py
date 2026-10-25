@@ -40,7 +40,7 @@ SWAP = [
 RESTORE = [
     "ssh { docker compose -p spark-candidate down --timeout 60 || docker rm -f spark-candidate; }"
     " && ! docker container inspect spark-candidate >/dev/null 2>&1",
-    "ssh cd ~/Qwen3.8-27B-SGLang-DGX-Spark && ./start-dflash.sh",
+    "ssh docker start qwen3.8-27b-sglang",
     "answers? crew-local",
 ]
 
@@ -140,7 +140,7 @@ def test_sigterm_to_the_swap_restores(config: Config) -> None:
 
 def test_ctrl_c_during_the_restore_is_ignored(config: Config) -> None:
     def interrupt(command: str) -> None:
-        if "start-dflash" in command:
+        if "docker start" in command:
             os.kill(os.getpid(), signal.SIGINT)
 
     runner = FakeRunner(on_remote=interrupt)
@@ -184,7 +184,10 @@ def test_restore_that_never_answers_says_so_and_gives_the_manual_steps(config: C
 
     runner = BaselineNeverComesBack()
     assert swap(runner, config) == core.RESTORE_FAILED
-    assert any("THE 27B DID NOT COME BACK" in m and "start-dflash.sh" in m for m in runner.messages)
+    assert any(
+        "THE 27B DID NOT COME BACK" in m and "docker start qwen3.8-27b-sglang" in m
+        for m in runner.messages
+    )
 
 
 def test_restore_stops_waiting_when_the_27b_exits(config: Config) -> None:
@@ -252,7 +255,7 @@ def test_tensorfold_launch_needs_no_speculative_variable(config: Config) -> None
 @pytest.mark.parametrize(
     ("mode", "command"),
     [
-        ("container", "ssh docker start qwen3.8-27b-sglang"),
+        ("start-dflash", "ssh cd ~/Qwen3.8-27B-SGLang-DGX-Spark && ./start-dflash.sh"),
         ("compose", f"ssh {COMPOSE_RESTORE} <sglang"),
     ],
 )

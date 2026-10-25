@@ -66,12 +66,12 @@ mqucifer/infra#40). For the swap that means:
 
 ## Restoring the 27B
 
-`serving.restore` is the Sponsor's choice, asked on mqucifer/infra#40:
+`serving.restore` is the Sponsor's choice, made on 2026-10-25 (mqucifer/infra#40): `container`.
 
 | Mode | Runs | Depends on |
 |---|---|---|
-| `start-dflash` (today's) | `start-dflash.sh`, as the Sponsor starts it | its `.env`, which sets the running 27B's image and memory flags, staying unchanged |
-| `container` | `docker start` on the stopped 27B | nothing: the same container comes back |
+| `start-dflash` | `start-dflash.sh`, as the Sponsor starts it | its `.env`, which sets the running 27B's image and memory flags, staying unchanged |
+| `container` (chosen) | `docker start` on the stopped 27B | nothing: the same container comes back |
 | `compose` | removes the stopped 27B (`docker rm`, which refuses a running one) and starts infra's record with its defaults | infra's record; the preflight checks Docker renders it before anything stops |
 
 ## The health wait
