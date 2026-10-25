@@ -188,6 +188,9 @@ member's checks. Five fields are theirs alone, absent from the 30 parts' rows:
 | `parts_total`, `parts_fit` | the case's members, each its own STEP file, and those that passed every check of their own, fits included (null without a `done`) |
 | `load_ok` | the simplified load check (a section's bending stress against PLA's strength over 4), or null for a case without one or without a `done`. It never means "strong enough" |
 | `fault` | whose the failure is: `model`, `tool`, `infra` or `budget`; null for a case that passed |
+| `arm` | the shared field: what the session was given besides the baseline's tools (`skill`), or null for the baseline (`cad_eval/README.md`, "The arms") |
+| `concurrency` | the cases the run ran at once. The Spark's load follows it, so times aren't compared across rows; calls and checks are |
+| `calls_to_first_compile` | the call after which a `run` first exited 0 with every output file written, or null if none did |
 
 **The harder cases' first run, 2026-10-25 16:45–17:47 UTC** (crew 099879f,
 `crew-code-think`, a 20-call cap per case, no concurrent tick), and the rerun of two

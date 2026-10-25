@@ -238,7 +238,7 @@ DONE = [
 ]
 
 
-def go(r: Run, name: str) -> dict[str, Any]:
+def go(r: Run, name: str, **kw: Any) -> dict[str, Any]:
     case = CASES[name]
     r.workspace.writes = {o: "step" for o in case.outputs()}
 
@@ -255,6 +255,7 @@ def go(r: Run, name: str) -> dict[str, Any]:
         image_id=lambda: "sha256:abc",
         results_dir=r.results,
         read_spend=lambda _sql: "",
+        **kw,
     )
 
 

@@ -226,3 +226,56 @@ A harder case's row says whose its failure is (`fault`):
 
 A `blocked` the model says is counted the model's. Its reason, in the records, is read
 by hand in the write-up, since a missing tool may be what it names.
+
+## The arms (M14, mqucifer/model-performance#21)
+
+An arm gives the session something more than the baseline and runs the 21 harder
+cases with it, each row naming its `arm` (null for the baseline). They run separately,
+so each says which lever helped.
+
+    uv run cad-eval --hard --parallel 4                 # the baseline
+    uv run cad-eval --hard --arm skill --parallel 4     # the CadQuery skill and lookup
+
+**`skill`: the CadQuery skill and a signature lookup.**
+- **The skill** is in the crew's own shape (crew's `session/skills.py`, crew#839).
+  - The start names each skill in one line, crew's `start_line`, after the case's
+    spec.
+  - The session reads one with a `skill` tool, crew's `SKILL_SPEC` word for word.
+  - The text, `skills/cadquery/SKILL.md` and five `references/*.md` in the Agent Skills
+    layout, is one skill per file, so a topic is read only when needed. It covers how
+    to build a part (sketch, then features, then checks), and references for:
+    - sketch and extrude;
+    - selectors;
+    - threads and helices;
+    - assemblies and fits;
+    - errors.
+  - It's distilled from CadQuery's documentation for 2.8.0, the version the image
+    pins, and each file links its pages.
+  - `test_skills_in_image.py` checks every CadQuery name it mentions exists in the
+    installed library, so it can't drift from what the session runs.
+  - **Crew's mechanism, crew's code:** only the registry is here (`cad_eval/skills.py`).
+    Crew's `SKILLS` holds only crew's own skills. Letting it take skills from outside
+    would be a later crew change.
+- **`lookup`** (`lookup.py`) runs in the container, from stdin with `python -I`, as
+  the measure does.
+  - A name or a fragment goes in. Out come the matching names in the installed
+    CadQuery, with their signatures and docstrings' first paragraphs, at most 20.
+  - `OCP.<module>` lists that module's classes.
+  - Its calls are judged in the same categories as every other tool's.
+
+**Running cases at once (the Sponsor, 2026-10-25: these runs test correctness, not speed):**
+- `--parallel N` runs N cases at once: at most what the operator gives, and refused
+  above what Docker's free memory holds.
+  - The memory check is Docker's total less what its containers use and a 1 GiB
+    reserve, over the sandbox's 2 GiB cap per container.
+  - The Spark takes 6 sessions at once in all, across ticks, builders and proof runs.
+- Each row records its `concurrency`, and its `other_calls` from LiteLLM's spend log.
+- A case's calls are capped by count, never by time, so its result doesn't depend on
+  the load. **No timing claims are made from these runs.**
+- `touch <work dir>/cad_eval.stop` stops a run from starting more cases, and the ones
+  running finish. That's for the operator, when another builder needs the Spark to
+  itself.
+
+**`calls_to_first_compile`**, on every case's row: the call after which a `run` first
+exited 0 with every output file written. That's the turns spent before a first
+compiling part.

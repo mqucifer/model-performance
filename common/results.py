@@ -85,6 +85,9 @@ SUITES: dict[str, set[str]] = {
         "overhang_mm2",  # faces facing down steeper than 45° from vertical, off the bed
         "bridges",  # patches facing straight down, off the bed
         "longest_bridge_mm",  # the longest of their spans
+        # The arms (mqucifer/model-performance#21): `arm` is SHARED.
+        "concurrency",  # the cases the run ran at once
+        "calls_to_first_compile",  # the call after which a `run` first wrote every output
     },
 }
 # A short name: an id, a commit, a time, an alias. No spaces, so no sentence fits.
