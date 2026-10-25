@@ -52,6 +52,27 @@ It found the flaw, and its rows aren't kept. Its records are, under
 `T054956Z` (567), `T060012Z` (124) and `T064644Z` (83). So is the
 first one-case run's (`20261025T035757Z`, mqucifer/model-performance#12).
 
+**The 27B baseline, 2026-10-25 08:57–09:56 UTC** (crew 099879f, `crew-code-think`,
+a 150-call cap, every case with its authored record, no concurrent tick):
+
+| Case | Ending | Gate | Calls | Tool calls (malformed) | Model s | Wall s |
+|---|---|---|---|---|---|---|
+| sprint-metrics-662 | done | green | 23 | 38 (0) | 174.3 | 191.7 |
+| sprint-metrics-596 | done | green | 23 | 29 (0) | 180.7 | 201.9 |
+| sprint-metrics-567 | done | green | 55 | 70 (0) | 680.4 | 705.3 |
+| crew-presentation-124 | done | green | 81 | 89 (0) | 1097.8 | 1230.7 |
+| crew-presentation-83 | done | green | 32 | 45 (0) | 479.9 | 524.7 |
+
+Before it, `replay crew-presentation-83 --cap 0` checked the image and setup: the
+Playwright image and `python tools/setup.py`, exit 0. Its row isn't kept.
+
+**crew-presentation-124 has two rows.** In `replay --all` (run `20261025T091613Z`)
+its call 31 failed: LiteLLM answered 500 because the Spark's server disconnected,
+at about 66k prompt tokens. The next call, a second later, succeeded. That row
+(`interrupted`, `call_failed`, 30 calls) records the lost connection, not the
+model, and is kept as it ran. The case was run again straight after
+(`20261025T093512Z`), and the table shows that run.
+
 | Field | What it is |
 |---|---|
 | `ending` | `done`, `blocked` or `interrupted`, as crew's session ended it; or `refused` (it couldn't start) or `crashed` |
