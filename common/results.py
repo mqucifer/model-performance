@@ -49,6 +49,8 @@ SUITES: dict[str, set[str]] = {
         "troubles",  # empty, cut-off or malformed answers
         "start_chars",
         "record_authored",  # the session read the case's authored record, not the base's own
+        "arm",  # the one setting changed (benchmark/arms.py), or null for the baseline
+        "max_call_reasoning_tokens",  # one call's most, as the arm saw them; null without one
     },
     "cad_eval": {
         "tier",  # the part's difficulty, 1 to 5
