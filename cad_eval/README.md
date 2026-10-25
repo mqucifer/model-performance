@@ -84,6 +84,11 @@ a diameter or a clearance is the feature (the spacer's bore, the lid's lip).
 
 ## The harder cases (mqucifer/model-performance#16)
 
+**Every CAD run uses `crew-code-think`, with thinking on**, and each row names it in
+`model_alias`. That's the Sponsor's decision of 2026-10-25: "We've seen thinking on do
+better. Let's spend time on new tests, not rehashing." So M14's arms have no
+thinking-off arm.
+
 M14's first step: find where the base model breaks. On the 30 parts the 27B passed
 28, so `cases.py` pushes past them in three kinds, each a tier after the five above.
 A case runs in the same session, tools and container as a part. It is checked the
