@@ -29,9 +29,32 @@ PROBE_TOLERANCE = 1e-3
 def load(path: Path):  # noqa: ANN201 - cadquery is the container's
     import cadquery as cq  # noqa: PLC0415
 
-    if path.suffix.lower() in (".step", ".stp"):
-        return cq.importers.importStep(str(path)).val()
-    raise ValueError(f"measures a STEP file (.step or .stp), not {path.suffix or 'no suffix'}")
+    if path.suffix.lower() not in (".step", ".stp"):
+        raise ValueError(f"measures a STEP file (.step or .stp), not {path.suffix or 'no suffix'}")
+    return cq.importers.importStep(str(path)).val()
+
+
+def solids_from_shells(shape):  # noqa: ANN001, ANN201
+    """A solid from each closed shell, for a STEP that holds no solid: and how many.
+
+    CadQuery 2.8's `cq.exporters.export` of a Workplane writes a shelled solid (an open
+    box, a cup) as its bare closed shell, which a slicer fills as it would the solid.
+    An open shell stays as it is, and fails as no solid.
+    """
+    import cadquery as cq  # noqa: PLC0415
+    from OCP.BRep import BRep_Tool  # noqa: PLC0415
+    from OCP.ShapeFix import ShapeFix_Solid  # noqa: PLC0415
+    from OCP.TopoDS import TopoDS  # noqa: PLC0415
+
+    if shape.Solids():
+        return shape, 0
+    closed = [s for s in shape.Shells() if BRep_Tool.IsClosed_s(s.wrapped)]
+    if not closed:
+        return shape, 0
+    made = [
+        cq.Shape.cast(ShapeFix_Solid().SolidFromShell(TopoDS.Shell_s(s.wrapped))) for s in closed
+    ]
+    return (made[0] if len(made) == 1 else cq.Compound.makeCompound(made)), len(made)
 
 
 def facts(shape) -> dict:  # noqa: ANN001
@@ -91,6 +114,7 @@ def measure(request: dict) -> dict:
     except Exception as exc:  # noqa: BLE001 - whatever fails to load is said, not raised
         return {**out, "error": f"it doesn't load: {type(exc).__name__}: {exc}"[:500]}
     try:
+        shape, out["solids_from_shells"] = solids_from_shells(shape)
         out.update(facts(shape))
         if request.get("probes"):
             out["inside"] = inside(shape, request["probes"])

@@ -83,3 +83,12 @@ def test_inspect_measures_in_the_container_and_refuses_a_missing_file(tools: Par
     assert seen.outcome == "ok"
     assert '"watertight": true' in seen.reply
     assert tools.call("inspect", '{"path": "nothing.step"}').outcome == "failed"
+
+
+def test_a_shelled_solid_exported_as_its_closed_shell_is_still_a_solid(tools: PartTools) -> None:
+    # CadQuery 2.8's `cq.exporters.export` writes a shelled box as its bare shell.
+    result = final(tools, HERE / "wrong" / "divided-tray.py", "divided-tray")
+    measured = result["measured"]
+    assert measured["solids_from_shells"] == 1
+    assert checks.valid(measured) and checks.closed(measured)
+    assert measured["volume"] == pytest.approx(80 * 60 * 20 - 76 * 56 * 18)

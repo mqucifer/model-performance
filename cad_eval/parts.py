@@ -68,6 +68,22 @@ mate = (
 )
 """
 
+# The mating parts of tier 5, as their specs describe them.
+SHAFT = "mate = cq.Workplane('XY').workplane(offset=-20).circle(4).extrude(60)"
+BEARING = "mate = cq.Workplane('XY').workplane(offset=2).circle(11).extrude(7)"
+RAIL = "mate = cq.Workplane('XY').box(100, 20, 10, centered=(True, True, False))"
+PANEL = """
+mate = (
+    cq.Workplane("XY").box(40, 40, 5, centered=(True, True, False))
+    .faces(">Z").workplane().hole(20)
+)
+"""
+TUBES = """
+low = cq.Workplane("XY").workplane(offset=-20).circle(5).circle(3.5).extrude(19.5)
+high = cq.Workplane("XY").workplane(offset=0.5).circle(5).circle(3.5).extrude(19.5)
+mate = low.union(high)
+"""
+
 PARTS = {
     p.name: p
     for p in (
@@ -162,6 +178,397 @@ PARTS = {
                 "below_lip": (27.05, 0, 25.5),
             },
             mate=OPEN_BOX,
+        ),
+        # Tier 1: one primitive with features.
+        Part(
+            "washer",
+            1,
+            bbox=((-10, 10), (-10, 10), (0, 2)),
+            volume=_tube(20, 10.5, 2),
+            inside={"ring": (7.5, 0, 1), "hole_at_most": (5.3, 0, 1)},
+            outside={"hole": (0, 0, 1), "hole_at_least": (0, 5.2, 1)},
+        ),
+        Part(
+            "square-plate",
+            1,
+            bbox=((-25, 25), (-25, 25), (0, 3)),
+            volume=50 * 50 * 3 - 4 * math.pi * 1.7**2 * 3,
+            inside={"plate": (0, 0, 1.5), "hole_at_most": (21.75, 20, 1.5)},
+            outside={
+                **{f"hole_{x:+d}_{y:+d}": (x, y, 1.5) for x in (20, -20) for y in (20, -20)},
+                "hole_at_least": (21.65, 20, 1.5),
+            },
+        ),
+        Part(
+            "hex-standoff",
+            1,
+            bbox=((-8 / math.sqrt(3), 8 / math.sqrt(3)), (-4, 4), (0, 15)),
+            volume=(math.sqrt(3) / 2 * 8**2 - math.pi * 1.6**2) * 15,
+            inside={
+                "body": (3, 0, 7.5),
+                "corner_on_x": (4.5, 0, 7.5),
+                "bore_at_most": (1.65, 0, 7.5),
+            },
+            outside={
+                "bore": (0, 0, 7.5),
+                "bore_at_least": (0, 1.55, 7.5),
+                "past_flat": (0, 4.3, 7.5),
+            },
+        ),
+        Part(
+            "end-cap",
+            1,
+            bbox=((-8, 8), (-8, 8), (0, 12)),
+            volume=math.pi / 4 * (16**2 * 12 - 10**2 * 10),
+            inside={
+                "top": (0, 0, 11),
+                "top_at_least": (0, 0, 10.1),
+                "wall": (6.5, 0, 5),
+                "hole_at_most": (5.05, 0, 5),
+            },
+            outside={"hole": (0, 0, 5), "hole_depth": (0, 0, 9.9), "hole_at_least": (0, 4.95, 5)},
+        ),
+        Part(
+            "slotted-bar",
+            1,
+            bbox=((-40, 40), (-6, 6), (0, 5)),
+            volume=80 * 12 * 5 - _slot(5.5, 40) * 5,
+            inside={"bar": (30, 0, 2.5), "slot_end": (20.1, 0, 2.5), "slot_side": (0, 2.85, 2.5)},
+            outside={
+                "slot": (0, 0, 2.5),
+                "slot_reach": (19.9, 0, 2.5),
+                "slot_width": (0, 2.7, 2.5),
+            },
+        ),
+        # Tier 2: several features.
+        Part(
+            "flanged-bushing",
+            2,
+            bbox=((-10, 10), (-10, 10), (0, 15)),
+            volume=math.pi / 4 * (20**2 * 3 + 12**2 * 12 - 8**2 * 15),
+            inside={"flange": (9, 0, 1.5), "body": (5, 0, 10), "bore_at_most": (4.05, 0, 10)},
+            outside={
+                "over_flange": (9, 0, 5),
+                "body_at_most": (0, 6.1, 10),
+                "bore": (0, 0, 7),
+                "bore_at_least": (0, 3.95, 10),
+            },
+        ),
+        Part(
+            "motor-plate",
+            2,
+            bbox=((-30, 30), (-30, 30), (0, 4)),
+            volume=(
+                60 * 60 * 4
+                - 4 * (5**2 - math.pi * 5**2 / 4) * 4
+                - math.pi * 11**2 * 4
+                - 4 * math.pi * 1.7**2 * 4
+            ),
+            inside={
+                "plate": (20, 0, 2),
+                "corner_rounded_in": (28, 28, 2),
+                "boss_at_most": (11.05, 0, 2),
+            },
+            outside={
+                "corner_rounded_out": (29.5, 29.5, 2),
+                "boss": (0, 0, 2),
+                "boss_at_least": (0, 10.95, 2),
+                **{
+                    f"hole_{x:+.1f}_{y:+.1f}": (x, y, 2)
+                    for x in (15.5, -15.5)
+                    for y in (15.5, -15.5)
+                },
+            },
+        ),
+        Part(
+            "stepped-shaft",
+            2,
+            bbox=((-10, 10), (-10, 10), (0, 40)),
+            volume=math.pi / 4 * (20**2 * 10 + 14**2 * 20 + 8**2 * 10) - 2 * math.pi * 11 / 3 * 0.5,
+            inside={
+                "collar": (9, 0, 5),
+                "seat": (6.5, 0, 20),
+                "end": (3.5, 0, 35),
+                "by_chamfer": (3.5, 0, 39.3),
+            },
+            outside={
+                "over_collar": (9, 0, 15),
+                "over_seat": (6.5, 0, 35),
+                "chamfer": (3.8, 0, 39.8),
+            },
+        ),
+        Part(
+            "u-channel",
+            2,
+            bbox=((0, 60), (-15, 15), (0, 20)),
+            volume=(30 * 3 + 2 * 3 * 17) * 60 - 2 * math.pi * 2.25**2 * 3,
+            inside={
+                "floor": (30, 0, 1.5),
+                "wall_+y": (30, 13.5, 10),
+                "wall_-y": (30, -13.5, 10),
+                "wall_thickness": (30, 12.1, 10),
+            },
+            outside={"channel": (30, 0, 10), "hole_15": (15, 0, 1.5), "hole_45": (45, 0, 1.5)},
+        ),
+        Part(
+            "counterbored-block",
+            2,
+            bbox=((-20, 20), (-10, 10), (0, 15)),
+            volume=40 * 20 * 15 - 2 * (math.pi * 2.25**2 * 10.5 + math.pi * 4**2 * 4.5),
+            inside={
+                "block": (0, 0, 7.5),
+                "below_counterbore": (12, 3.5, 5),
+                "counterbore_floor": (12, 3.5, 10.4),
+            },
+            outside={
+                "hole_+12": (12, 0, 5),
+                "hole_-12": (-12, 0, 5),
+                "counterbore": (12, 3.5, 13),
+                "counterbore_-12": (-12, -3.5, 13),
+                "counterbore_depth": (12, 3.5, 10.6),
+            },
+        ),
+        # Tier 3: shells and patterns.
+        Part(
+            "pegboard-plate",
+            3,
+            bbox=((-30, 30), (-20, 20), (0, 3)),
+            volume=60 * 40 * 3 - 15 * math.pi * 2.5**2 * 3,
+            inside={"between": (5, 5, 1.5), "hole_at_most": (2.55, 0, 1.5)},
+            outside={
+                **{f"hole_{x:+d}_{y:+d}": (x, y, 1.5) for x in (-20, 0, 20) for y in (-10, 10)},
+                "hole_0_0": (0, 0, 1.5),
+                "hole_at_least": (0, 2.45, 1.5),
+            },
+        ),
+        Part(
+            "cup",
+            3,
+            bbox=((-25, 25), (-25, 25), (0, 40)),
+            volume=math.pi / 4 * (50**2 * 40 - 46**2 * 37),
+            inside={
+                "wall": (24, 0, 20),
+                "floor": (0, 0, 1.5),
+                "floor_at_least": (0, 0, 2.9),
+                "wall_at_least": (23.1, 0, 20),
+            },
+            outside={
+                "cavity": (0, 0, 20),
+                "floor_at_most": (0, 0, 3.1),
+                "wall_at_most": (0, 22.9, 20),
+            },
+        ),
+        Part(
+            "bolt-flange",
+            3,
+            bbox=((-40, 40), (-40, 40), (0, 6)),
+            volume=math.pi / 4 * (80**2 - 30**2) * 6 - 6 * math.pi / 4 * 6.5**2 * 6,
+            inside={
+                "disc": (20, 0, 3),
+                "between_holes": (30 * math.cos(math.pi / 6), 15, 3),
+                "bore_at_most": (0, 15.05, 3),
+            },
+            outside={
+                "bore": (0, 0, 3),
+                "bore_at_least": (14.95, 0, 3),
+                **{
+                    f"hole_{k}": (30 * math.cos(k * math.pi / 3), 30 * math.sin(k * math.pi / 3), 3)
+                    for k in range(6)
+                },
+            },
+        ),
+        Part(
+            "heat-sink",
+            3,
+            bbox=((-20, 20), (-20, 20), (0, 18)),
+            volume=40 * 40 * 3 + 7 * 1.5 * 40 * 15,
+            inside={
+                "base": (3, 0, 1.5),
+                "fin_0": (0, 0, 10),
+                "fin_+18": (18, 0, 10),
+                "fin_-18": (-18, 0, 10),
+                "fin_full_length": (-12, 19.5, 17),
+                "fin_thickness": (0.7, 0, 10),
+            },
+            outside={
+                "gap_+3": (3, 0, 10),
+                "gap_-15": (-15, 0, 10),
+                "past_fin": (19.5, 0, 10),
+                "fin_at_most": (0.8, 0, 10),
+            },
+        ),
+        Part(
+            "divided-tray",
+            3,
+            bbox=((-40, 40), (-30, 30), (0, 20)),
+            volume=80 * 60 * 20 - 76 * 56 * 18 + 2 * 56 * 18,
+            inside={
+                "divider": (0, 0, 10),
+                "divider_joins": (0, 28.5, 19),
+                "wall": (39, 0, 10),
+                "floor": (20, 0, 1),
+            },
+            outside={
+                "compartment_+x": (20, 0, 10),
+                "compartment_-x": (-20, 0, 10),
+                "floor_at_most": (20, 0, 2.1),
+            },
+        ),
+        # Tier 4: sweeps, lofts and revolves.
+        Part(
+            "funnel",
+            4,
+            bbox=((-31.5, 31.5), (-31.5, 31.5), (0, 40)),
+            # Pappus: the spout's band, 1.5 by 10 at r 6.75, and the cone's, 1.5 by 30 at r 18.75.
+            volume=2 * math.pi * (6.75 * 1.5 * 10 + 18.75 * 1.5 * 30),
+            inside={"spout": (6.75, 0, 5), "cone": (18.75, 0, 25), "rim": (0, 30.75, 39.5)},
+            outside={
+                "spout_bore": (0, 0, 5),
+                "inside_cone": (17.5, 0, 25),
+                "outside_cone": (20.5, 0, 25),
+                "open_top": (0, 0, 39),
+            },
+        ),
+        Part(
+            "tapered-foot",
+            4,
+            bbox=((-20, 20), (-20, 20), (0, 30)),
+            volume=30 / 3 * (40**2 + 20**2 + 40 * 20) - math.pi * 3.25**2 * 30,
+            inside={
+                "low": (15, 0, 5),
+                "high": (11, 0, 25),
+                "corner": (18, 18, 2),
+                "hole_at_most": (3.3, 0, 15),
+            },
+            outside={"tapered": (15, 0, 25), "hole": (0, 0, 15), "hole_at_least": (0, 3.2, 15)},
+        ),
+        Part(
+            "coil-spring",
+            4,
+            bbox=((-11, 11), (-11, 11), (-1, 21)),
+            volume=math.pi * 1**2 * 4 * math.hypot(2 * math.pi * 10, 5),
+            inside={
+                "half_turn": (-10, 0, 2.5),
+                "quarter_turn": (0, 10, 1.25),
+                "last_turn": (0, -10, 18.75),
+            },
+            outside={"axis": (0, 0, 10), "between_coils": (-10, 0, 5), "start_gap": (10, 0, 2.5)},
+        ),
+        Part(
+            "pulley",
+            4,
+            bbox=((-20, 20), (-20, 20), (0, 12)),
+            volume=math.pi * 20**2 * 12 - 2 * math.pi * (20 - 4 / 3) * 12 - math.pi * 4**2 * 12,
+            inside={"rim": (19, 0, 1.5), "under_groove": (15.9, 0, 6), "bore_at_most": (0, 4.1, 6)},
+            outside={
+                "groove": (19, 0, 6),
+                "groove_depth": (16.2, 0, 6),
+                "bore": (0, 0, 6),
+                "bore_at_least": (3.9, 0, 6),
+            },
+        ),
+        Part(
+            "drawer-handle",
+            4,
+            bbox=((-44, 44), (-4, 4), (0, 34)),
+            volume=math.pi * 4**2 * (20 + 20 + 60 + math.pi * 10),
+            inside={
+                "leg_-x": (-40, 0, 10),
+                "leg_+x": (40, 0, 10),
+                "grip": (0, 0, 30),
+                "grip_round": (0, 3.5, 30),
+                "bend": (-30 - 10 * math.sqrt(0.5), 0, 20 + 10 * math.sqrt(0.5)),
+            },
+            outside={
+                "under_grip": (0, 0, 25),
+                "outside_bend": (-40, 0, 30),
+                "over_grip": (0, 0, 34.5),
+            },
+        ),
+        # Tier 5: a fit to a mating part.
+        Part(
+            "shaft-collar",
+            5,
+            bbox=((-9, 9), (-9, 9), (0, 10)),
+            volume=math.pi / 4 * (18**2 - 8.2**2) * 10 - math.pi * 1.25**2 * (9 - 4.1),
+            inside={"wall": (0, -8, 5), "bore_at_most": (0, -4.22, 5), "over_screw": (6.5, 0, 8)},
+            outside={"bore": (0, 0, 5), "bore_at_least": (0, -4.03, 5), "set_screw": (6.5, 0, 5)},
+            mate=SHAFT,
+        ),
+        Part(
+            "bearing-housing",
+            5,
+            bbox=((-20, 20), (-20, 20), (0, 10)),
+            volume=(
+                40 * 40 * 10
+                - math.pi / 4 * 22.1**2 * 8
+                - math.pi / 4 * 16**2 * 2
+                - 4 * math.pi * 2.25**2 * 10
+            ),
+            inside={
+                "block": (18, 0, 5),
+                "pocket_at_most": (0, -11.15, 6),
+                "floor": (0, -9, 1),
+                "floor_top": (0, -9, 1.9),
+            },
+            outside={
+                "pocket": (0, 0, 6),
+                "pocket_at_least": (11.02, 0, 6),
+                "shaft_hole": (0, 0, 1),
+                "over_floor": (0, -9, 2.1),
+                **{f"hole_{x:+d}_{y:+d}": (x, y, 5) for x in (15, -15) for y in (15, -15)},
+            },
+            mate=BEARING,
+        ),
+        Part(
+            "rail-slider",
+            5,
+            bbox=((-15, 15), (-15, 15), (0, 15)),
+            volume=30 * 30 * 15 - 30 * 20.4 * 10.2,
+            # The channel's clearance may run from 0.05 to 0.35 mm on each face.
+            volume_rel=0.04,
+            inside={
+                "side": (0, 12.5, 5),
+                "top": (0, 0, 12.5),
+                "side_at_most": (0, -10.35, 5),
+                "top_at_most": (0, 0, 10.35),
+            },
+            outside={
+                "channel": (0, 0, 5),
+                "side_at_least": (0, -10.05, 5),
+                "top_at_least": (5, 0, 10.05),
+            },
+            mate=RAIL,
+        ),
+        Part(
+            "hole-plug",
+            5,
+            bbox=((-13, 13), (-13, 13), (0, 7)),
+            volume=math.pi / 4 * (26**2 * 2 + 19.8**2 * 5),
+            inside={"shank": (0, 0, 2.5), "head": (12, 0, 6), "shank_at_least": (0, -9.8, 2.5)},
+            outside={"under_head": (12, 0, 4), "shank_at_most": (9.97, 0, 2.5)},
+            mate=PANEL,
+        ),
+        Part(
+            "tube-coupler",
+            5,
+            bbox=((-7, 7), (-7, 7), (-15, 15)),
+            volume=math.pi / 4 * ((14**2 - 10.2**2) * 30 + (10.2**2 - 7**2) * 1),
+            # The bore's clearance may run from 0.1 to 0.4 mm.
+            volume_rel=0.06,
+            inside={
+                "sleeve": (6, 0, 8),
+                "bore_at_most": (0, -5.22, 8),
+                "stop": (4.3, 0, 0),
+                "stop_thickness": (4.3, 0, 0.4),
+            },
+            outside={
+                "bore": (0, 0, 8),
+                "bore_at_least": (5.03, 0, 8),
+                "stop_hole": (0, 0, 0),
+                "stop_at_most": (4.3, 0, 0.6),
+            },
+            mate=TUBES,
         ),
     )
 }

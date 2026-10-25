@@ -5,22 +5,31 @@ call its tools while it does? North Star D2, as mqucifer/model-performance#3.
 
     cad_eval/image/build.sh                    # once: the CadQuery image, on the Mac
     uv run cad-eval --first                    # one part per tier: the first run
-    uv run cad-eval spacer box-lid --cap 20
+    uv run cad-eval spacer box-lid --cap 40
     uv run cad-eval --all --model crew-candidate   # at a time the operator gives
 
 It needs Docker, the image, and LiteLLM on :4000 with the builders' key. It refuses
-to start while a `crew tick` runs. A part may make `--cap` calls (20), and the run
-`--total` (100). The numbers are in [`results/`](../results/README.md), and the
+to start while a `crew tick` runs. A part may make `--cap` calls (40), and the run
+`--total` (by default, the cap for each part it runs). The numbers are in [`results/`](../results/README.md), and the
 records stay on the Mac, in `records/cad_eval/<part>/<run>/`: `events.jsonl` (every
 call and tool call, with their text), `files/` (what the model wrote), `checks.json`
 and `result.json`.
 
 - `parts.py` and `parts/*.md`: the parts, each a spec as a person would write it
   (purpose, dimensions, tolerances, placement) and its checks as data. They're
-  written here, from scratch, modelled on functional printed parts, in five tiers
-  after the CAD-code benchmarks' simple-to-complex split (CADPrompt, Text2CAD): one
-  primitive with features, several features, shells and patterns, sweeps, and a
-  fit to a mating part.
+  written here, from scratch, modelled on functional printed parts: 30 parts, six in
+  each of five tiers after the CAD-code benchmarks' simple-to-complex split
+  (CADPrompt, Text2CAD):
+  1. one primitive with features: spacer, washer, mounting plate, hex standoff, end
+     cap, slotted bar;
+  2. several features: L-bracket, flanged bushing, motor plate, stepped shaft,
+     U-channel, counterbored block;
+  3. shells and patterns: vented box, pegboard plate, cup, bolt flange, heat sink,
+     divided tray;
+  4. sweeps, lofts and revolves: hose elbow, funnel, tapered foot, coil spring,
+     pulley, drawer handle;
+  5. a fit to a mating part: box lid, shaft collar, bearing housing, rail slider,
+     hole plug, tube coupler.
 - `measure.py`: measures a STEP file **in the container only**, sent on stdin and
   run with `python -I`, so the session can neither change it nor shadow its imports.
   It reports validity, solids, bounding box, volume, the mesh's closedness (trimesh,
@@ -59,7 +68,10 @@ does.
 ## A part is right when
 
 - **it compiles:** the script named at `done` runs again from a clean start, exits
-  0, and writes `part.step`, which loads as a valid shape with at least one solid;
+  0, and writes `part.step`, which loads as a valid shape with at least one solid.
+  CadQuery 2.8's `cq.exporters.export` writes a shelled solid (an open box, a cup) as
+  its bare closed shell, so a closed shell is made a solid first, as a slicer fills
+  it, and `checks.json` says so (`solids_from_shells`). An open shell stays no solid;
 - **its mesh is closed:** watertight, with a consistent winding, a volume;
 - **it's within tolerance:** one solid, the bounding box within the spec's tolerance
   (which fixes its placement too), the volume within 2%, each feature's points in or
