@@ -177,3 +177,31 @@ one crew's argument rule refuses, here over the evaluation's own tools.
 | `checks_passed`, `checks_total` | the dimension checks behind `within_tolerance`, named in the run's `checks.json` |
 | `calls` | model calls. A part stops at its cap (40, or `--cap`; the first run's was 20) as `interrupted` with `call_cap` |
 | `calls_to_done` | the calls a part took to reach `done`, or null without one: what the next run's cap is set from |
+
+## `role_fit.jsonl`: which model fits each role
+
+One row per replayed call (`role_fit/`, mqucifer/model-performance#10). `case` is the
+call's `response_id` in production, and `run` ends with its seed. Each case is one
+first-try answer call from E1 (mqucifer/crew#583) on sprint-metrics, 2026-10-11 17:51 to
+2026-10-13 19:42 UTC, sent again as production sent it.
+
+**Compare `valid` with `prod_form_valid`, not `prod_valid`.** `prod_valid` is crew's own
+verdict, which also ran the step's rules on its answer model. `prod_form_valid` is
+production's answer scored as the replay's is. On the 26 cases the scorer agrees with
+crew's verdict on 24; the other two crew refused under its answer model's own rules
+(a list left empty, an implementation that edits nothing).
+
+**`dated` cases** asked for a form the pinned crew no longer asks for: E1's two-part
+answers (the Developer's), or a model whose schema has changed since. They're scored on
+the request's own form, and say what the model does with that prompt, not what today's
+crew would do.
+
+| Field | What it is |
+|---|---|
+| `bucket`, `group` | the kind of call (`dev-first`, `dev-repair`, `qa-verdict`, `criteria`, `split`, `settle`, `architect`) and its role group, `execution` or `judgement` |
+| `ending` | `done`, or `refused` (`no_request`: not extracted), `interrupted` (`call_failed`, `call_cap`), `crashed` |
+| `form` | `json_schema`, `two_part` or `free` |
+| `valid`, `why` | the answer in its form, and why not in a word: `empty`, `runaway`, `length`, `not_json`, `schema`, `model`, `blocks`, `block_names`, `cut_at_quote` |
+| `empty`, `runaway`, `cut` | no answer; run on as whitespace and cut off, as crew's call layer does; stopped at its token limit |
+| `thinking_chars`, `hedges_per_10k` | the thinking's length, and its hedges per 10k characters (model-fit-29's list) |
+| `prod_*` | the same request in production, from crew's events and LiteLLM's log |

@@ -10,6 +10,8 @@ dependencies = [
     # Pinned to a commit (mqucifer/project-print ADR 0004). Moving it is a deliberate change.
     "crew-org @ git+https://github.com/mqucifer/crew@099879fe31216b5c3b1b4fb7d8db0c00208d6496",
     "httpx>=0.27",
+    # The role-fit replay checks each answer against its request's own JSON schema.
+    "jsonschema>=4.20",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +24,7 @@ dev = [
 swap = "swap.cli:main"
 replay = "benchmark.replay:main"
 cad-eval = "cad_eval.run:main"
+role-fit = "role_fit.run:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -31,7 +34,7 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["swap", "common", "benchmark", "cad_eval"]
+packages = ["swap", "common", "benchmark", "cad_eval", "role_fit"]
 
 [tool.ruff]
 line-length = 100

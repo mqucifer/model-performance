@@ -19,7 +19,7 @@ RESULTS = Path(__file__).parents[1] / "results"
 
 # What every suite's row has.
 SHARED = {
-    "suite",  # benchmark, cad_eval
+    "suite",  # benchmark, cad_eval, role_fit
     "case",
     "run",  # the run's id, which names its records directory
     "at",  # when it started, UTC
@@ -75,6 +75,37 @@ SUITES: dict[str, set[str]] = {
         "checks_passed",
         "checks_total",
         "calls_to_done",  # the calls a part took to `done`, or null without one
+    },
+    "role_fit": {
+        "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed
+        "bucket",  # the kind of call: dev-first, dev-repair, qa-verdict, criteria, ...
+        "group",  # execution or judgement
+        "role",
+        "card",
+        "schema",  # the answer model the request asked for
+        "form",  # json_schema, two_part or free
+        "dated",  # the pinned crew no longer asks for that form
+        "seed",
+        # The answer, scored in the request's own form (`role_fit/score.py`).
+        "valid",
+        "why",  # why not valid, in a word
+        "empty",
+        "runaway",  # run on as whitespace, cut off as crew's call layer does
+        "cut",  # stopped at its token limit
+        "finish_reason",
+        "answer_chars",
+        "thinking_chars",
+        "hedges_per_10k",  # hedges per 10k characters of thinking
+        # The same request in production, from the crew's events and LiteLLM's log.
+        "prod_valid",  # crew's verdict: its form and the step's own rules
+        "prod_form_valid",  # production's answer scored as the replay's is
+        "prod_empty",
+        "prod_finish",
+        "prod_prompt_tokens",
+        "prod_completion_tokens",
+        "prod_reasoning_tokens",
+        "prod_duration_s",
+        "prod_hedges_per_10k",
     },
 }
 # A short name: an id, a commit, a time, an alias. No spaces, so no sentence fits.
