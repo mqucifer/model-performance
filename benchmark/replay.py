@@ -101,6 +101,25 @@ def gate(root: Path, workspace: Any, base: str) -> Any:
     return check(root, held=workspace, since=base)
 
 
+def record_problem(root: Path) -> str | None:
+    """Why crew can't read the project's record at the base, or None.
+
+    Crew falls back to its defaults when it can't: no record in the session's
+    start, and its default image, setup and checks. That's a different session
+    from the one the case is meant to measure, so the run is refused, not run.
+    A project with no record at all is read as crew reads it, without one.
+    """
+    from crew_org.project import RECORD_PATH, ProjectRecordError, read_record  # noqa: PLC0415
+
+    if not (root / RECORD_PATH).exists():
+        return None
+    try:
+        read_record(root)
+    except ProjectRecordError as exc:
+        return str(exc)
+    return None
+
+
 def coverage(settings: Settings, c: Case, root: Path) -> Any:
     """The crew's coverage map at the base, if it measured one: read, never built."""
     from crew_org.tools.coverage_map import CoverageMap, with_static  # noqa: PLC0415
@@ -175,6 +194,9 @@ def replay(
         unfit = conversation.unfit(root)
         if unfit:
             raise Refused("host_venv", unfit)
+        unreadable = record_problem(root)
+        if unreadable:
+            raise Refused("record_unreadable", unreadable)
         workspace = workspace_for(root, f"bench-{c.name}-{run}")
         started = workspace.start()
         if not started.ok:
@@ -186,6 +208,11 @@ def replay(
         if setup is not None and not setup.ok:
             ran = f"$ {setup.command}\n(exit {setup.code})\n{setup.output[-TAIL:]}"
             raise Refused("setup_failed", ran)
+        kept["setup"] = (
+            None
+            if setup is None
+            else {"command": setup.command, "code": setup.code, "tail": setup.output[-TAIL:]}
+        )
         session = conversation.session(
             root,
             story(c),

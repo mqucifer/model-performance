@@ -204,3 +204,24 @@ def test_a_checkout_that_fails_is_refused(tmp_path: Path, monkeypatch: pytest.Mo
 def test_main_refuses_both_cases_and_all() -> None:
     with pytest.raises(SystemExit):
         bench.main(["sprint-metrics-662", "--all"])
+
+
+def test_a_record_crew_cant_read_is_refused_before_the_container(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "clone"
+    path.mkdir()
+    git = ["git", "-C", str(path), "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run([*git[:3], "init", "-q"], check=True)
+    (path / ".crew").mkdir()
+    (path / ".crew" / "project.yaml").write_text("version: 2\n")
+    subprocess.run([*git, "add", "."], check=True)
+    subprocess.run([*git, "commit", "-qm", "base"], check=True)
+    base = subprocess.run(
+        [*git[:3], "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    row, made, _ = run(tmp_path, (path, base), [], monkeypatch=monkeypatch)
+    assert (row["ending"], row["stop"]) == ("refused", "record_unreadable")
+    assert made == []
+    out = tmp_path / ".local/share/model-performance/records/benchmark" / row["case"] / row["run"]
+    assert "version 2" in json.loads((out / "result.json").read_text())["refused"]
