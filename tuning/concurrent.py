@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from benchmark.cases import CASES
-from common import records, results
+from common import records, results, spend
 from common.config import Settings, load
 
 SUITE = "tuning"
@@ -167,6 +167,7 @@ def concurrent(
     read_grafana: Callable[[Path, float, float], dict[str, Any]] | None = None,
     results_dir: Path = results.RESULTS,
     start: Callable[[list[list[str]], Path], list[Any]] = start_all,
+    others: Callable[[datetime, datetime, set[str]], Any] = spend.others,
 ) -> dict[str, Any]:
     """One concurrent run end to end: its row, written once every session has ended."""
     from tuning import grafana  # noqa: PLC0415
@@ -191,6 +192,17 @@ def concurrent(
         ending = "interrupted"
         stop_all(children)
     ended_wall = time.time()
+    rows = batch_rows(batch, results_dir)
+    # The calls that overlapped the run and are none of its sessions': the sessions' own
+    # rows each count their siblings as other calls, so the run's count leaves them out.
+    own: set[str] = set()
+    for r in rows:
+        own |= spend.own_calls(
+            settings.records_dir / "benchmark" / r["case"] / r["run"] / "events.jsonl"
+        )
+    overlapped = others(
+        datetime.fromtimestamp(began_wall, UTC), datetime.fromtimestamp(ended_wall, UTC), own
+    )
     row = {
         "run": batch,
         "at": datetime.fromtimestamp(began_wall, UTC).isoformat(timespec="seconds"),
@@ -200,7 +212,9 @@ def concurrent(
         "docker_free_gib": free_gib,
         "ending": ending,
         "wall_s": round(time.monotonic() - began, 1),
-        **summary(batch_rows(batch, results_dir), len(cases)),
+        **summary(rows, len(cases)),
+        "other_calls": None if overlapped is None else sum(overlapped.values()),
+        "other_aliases": spend.keys(overlapped) if overlapped else None,
         **read_grafana(out, began_wall, ended_wall),
     }
     results.append(SUITE, row, results_dir)

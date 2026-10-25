@@ -184,7 +184,9 @@ one crew's argument rule refuses, here over the evaluation's own tools.
 One row per `concurrent` run (`tuning/README.md`, mqucifer/model-performance#7). Its
 sessions' own rows are in `benchmark.jsonl`, with this row's `run` as their `batch`.
 The shared fields are the sessions' summed (`calls`, `*_tokens`, `model_s`,
-`tick_calls`), except `wall_s`, which is the whole run's.
+`tick_calls`), except `wall_s`, which is the whole run's, and `other_calls`: the calls
+that overlapped the run and are none of its sessions'. A session's own `other_calls`
+counts its siblings too, so read the run's row for what else used the Spark.
 
 | Field | What it is |
 |---|---|

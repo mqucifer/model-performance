@@ -114,6 +114,7 @@ def test_a_run_leaves_one_row_of_its_sessions_and_the_spark(tmp_path: Path) -> N
         None,
         10.6,
         read_grafana=lambda out, a, b: SPARK,
+        others=lambda a, b, own: None,
         results_dir=results,
         start=start,
     )
@@ -123,6 +124,7 @@ def test_a_run_leaves_one_row_of_its_sessions_and_the_spark(tmp_path: Path) -> N
     assert row["story_wall_s_max"] == 900.0
     assert row["calls"] == 180
     assert row["running_max"] == 6.0
+    assert row["other_calls"] is None
     written = json.loads((results / "tuning.jsonl").read_text())
     assert problems(written) == []
     assert written["workspace_memory"] == "1536m"
@@ -147,6 +149,7 @@ def test_another_runs_rows_arent_counted(tmp_path: Path) -> None:
         ["sprint-metrics-662"],
         10.6,
         read_grafana=lambda out, a, b: SPARK,
+        others=lambda a, b, own: None,
         results_dir=results,
         start=lambda argvs, out: [Fake(a, results, "blocked", None) for a in argvs],
     )
@@ -183,6 +186,7 @@ def test_an_interrupt_stops_every_session_and_still_leaves_a_row(tmp_path: Path)
         None,
         10.6,
         read_grafana=lambda out, a, b: SPARK,
+        others=lambda a, b, own: None,
         results_dir=results,
         start=lambda argvs, out: children,
     )
@@ -207,3 +211,40 @@ def test_main_refuses_while_a_tick_runs(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setattr(swap.runners, "ticks_running", lambda: True)
     monkeypatch.setattr(conc, "docker_free_gib", lambda: pytest.fail("read"))
     assert conc.main(["4"]) == 2
+
+
+def test_other_calls_leave_out_every_session_of_the_run(tmp_path: Path) -> None:
+    from collections import Counter
+
+    results = tmp_path / "results"
+    results.mkdir()
+    settings = load(home=tmp_path)
+    seen: list[set[str]] = []
+
+    def start(argvs: list[list[str]], out: Path) -> list[Any]:
+        made = [Fake(a, results, "done", True) for a in argvs]
+        for i, a in enumerate(argvs):
+            events = settings.records_dir / "benchmark" / a[6] / f"r{a[6]}" / "events.jsonl"
+            events.parent.mkdir(parents=True, exist_ok=True)
+            line = {"kind": "llm.finished", "detail": {"response_id": f"own-{i}"}}
+            events.write_text(json.dumps(line) + "\n")
+        return made
+
+    def others(since, until, own):
+        seen.append(set(own))
+        return Counter({"claude-builders/crew-local": 3})
+
+    row = conc.concurrent(
+        settings,
+        2,
+        "record",
+        None,
+        None,
+        10.6,
+        read_grafana=lambda out, a, b: SPARK,
+        results_dir=results,
+        start=start,
+        others=others,
+    )
+    assert seen == [{"own-0", "own-1"}]
+    assert (row["other_calls"], row["other_aliases"]) == (3, "claude-builders")
