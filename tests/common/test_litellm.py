@@ -52,3 +52,14 @@ def test_a_refusal_says_its_status_and_not_its_body(tmp_path: Path) -> None:
         sender(tmp_path, [], status=400)({"model": "m"})
     assert "400" in str(raised.value)
     assert "prompt" not in str(raised.value)
+
+
+def test_lists_says_whether_the_proxy_knows_an_alias(tmp_path: Path) -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "http://localhost:4000/models"
+        return httpx.Response(200, json={"data": [{"id": "crew-code-think"}]})
+
+    send = Sender(load(home=tmp_path), "k", transport=httpx.MockTransport(answer))
+    assert send.lists("crew-code-think")
+    assert not send.lists("crew-candidate")
+    assert send.calls == 0

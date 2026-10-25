@@ -63,6 +63,17 @@ class Sender:
         result: dict[str, Any] = response.json()
         return result
 
+    def lists(self, alias: str) -> bool:
+        """Whether the proxy knows `alias` for this key: a check that costs no model call."""
+        response = self._client.get("/models")
+        if response.status_code != 200:
+            raise httpx.HTTPStatusError(
+                f"LiteLLM answered {response.status_code} for its models",
+                request=response.request,
+                response=response,
+            )
+        return alias in {model.get("id") for model in response.json().get("data", [])}
+
     def close(self) -> None:
         self._client.close()
 

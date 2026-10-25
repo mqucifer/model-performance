@@ -17,6 +17,7 @@ class ConfigError(Exception):
 @dataclass(frozen=True)
 class Settings:
     records_dir: Path
+    work_dir: Path
     base_url: str
     key_file: Path
     key_name: str
@@ -27,9 +28,10 @@ class Settings:
 
 def load(path: Path = DEFAULT_CONFIG, home: Path | None = None) -> Settings:
     raw = tomllib.loads(path.read_text(encoding="utf-8"))
-    records, litellm, crew = raw["records"], raw["litellm"], raw["crew"]
+    records, work, litellm, crew = raw["records"], raw["work"], raw["litellm"], raw["crew"]
     settings = Settings(
         records_dir=_path(records["dir"], home),
+        work_dir=_path(work["dir"], home),
         base_url=litellm["base_url"].rstrip("/"),
         key_file=_path(litellm["key_file"], home),
         key_name=litellm["key_name"],
@@ -42,21 +44,21 @@ def load(path: Path = DEFAULT_CONFIG, home: Path | None = None) -> Settings:
 
 
 def check(settings: Settings, home: Path) -> None:
-    """Refuse a proxy that isn't the Mac's :4000, and a records directory that could leave it."""
+    """Refuse a proxy that isn't the Mac's :4000, and directories a record could leave it from."""
     url = urlparse(settings.base_url)
     if url.hostname not in ("localhost", "127.0.0.1") or url.port != 4000:
         raise ConfigError(
             f"litellm.base_url must be the Mac's LiteLLM on :4000, not {settings.base_url}: "
             "every model call goes through the proxy"
         )
-    records = settings.records_dir
-    if not records.is_absolute():
-        raise ConfigError(f"records.dir must be absolute, not {records}")
-    if records.is_relative_to(home / "Documents"):
-        raise ConfigError("records.dir must be off ~/Documents, which iCloud can sync")
-    checkout = inside_checkout(records)
-    if checkout is not None:
-        raise ConfigError(f"records.dir must be outside any checkout, not inside {checkout}")
+    for name, path in (("records.dir", settings.records_dir), ("work.dir", settings.work_dir)):
+        if not path.is_absolute():
+            raise ConfigError(f"{name} must be absolute, not {path}")
+        if path.is_relative_to(home / "Documents"):
+            raise ConfigError(f"{name} must be off ~/Documents, which iCloud can sync")
+        checkout = inside_checkout(path)
+        if checkout is not None:
+            raise ConfigError(f"{name} must be outside any checkout, not inside {checkout}")
     if settings.call_cap < 1:
         raise ConfigError("litellm.call_cap must be at least 1")
 

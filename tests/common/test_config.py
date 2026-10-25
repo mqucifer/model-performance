@@ -33,10 +33,8 @@ def test_a_proxy_that_isnt_the_macs_4000_is_refused(tmp_path: Path, url: str) ->
         load(path, home=tmp_path)
 
 
-def test_records_on_documents_are_refused(tmp_path: Path) -> None:
-    path = settings_with(
-        tmp_path, "~/.local/share/model-performance/records", "~/Documents/records"
-    )
+def test_a_directory_on_documents_is_refused(tmp_path: Path) -> None:
+    path = settings_with(tmp_path, "~/.local/share/model-performance/work", "~/Documents/work")
     with pytest.raises(ConfigError, match="iCloud"):
         load(path, home=tmp_path)
 

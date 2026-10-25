@@ -8,6 +8,11 @@
 # `run-records` source: the only way they leave the Mac.
 dir = "~/.local/share/model-performance/records"
 
+[work]
+# Clones, worktrees and the sandbox's uv cache (crew's sandbox keeps it at
+# var/uv-cache under the current directory, so a run works from here).
+dir = "~/.local/share/model-performance/work"
+
 [litellm]
 # Every model call goes through the proxy. Anything but the Mac's :4000 is refused.
 base_url = "http://localhost:4000"
