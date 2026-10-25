@@ -7,6 +7,7 @@ model time and tokens? Moved from crew's `experiments/session_replay/`
     uv run replay sprint-metrics-662
     uv run replay --all                                  # at a time the operator gives
     uv run replay sprint-metrics-662 --model crew-candidate --cap 150
+    uv run replay sprint-metrics-567 --arm think-off     # one setting changed
 
 It needs Docker, `gh`, and LiteLLM on :4000 with the builders' key. It runs crew's
 own session at the commit `pyproject.toml` pins, so a pin bump re-runs the
@@ -19,6 +20,13 @@ baseline (ADR 0004 in mqucifer/project-print). The numbers are in
   holds crew's workspace container, runs `crew_org.session` with every call
   through `common.litellm`, and runs crew's gate at `done`. It writes the records
   and the row, and always removes the container and worktree.
+- `arms.py`: the arms (mqucifer/model-performance#5), each one setting changed against
+  the baseline: an alias, fields in each request, the reasoning sent back, or where the
+  session compacts. Its docstring names each arm's request field and value. An arm
+  whose setting shows in the answer is checked on every call, and a run where it
+  didn't reach the model is `refused` (`arm_not_applied`).
+- `spent.py`: what the crew already spent thinking, per role, from crew's event log,
+  read-only: observed in production, not an arm.
 - `history.py`: the story's real delivery, from crew's event log, read-only, for
   the records.
 
