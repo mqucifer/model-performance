@@ -90,6 +90,23 @@ SPECS = [
     ),
 ]
 ACCEPTED = {s["function"]["name"]: s["function"]["parameters"] for s in SPECS}
+
+
+def specs_for(outputs: list[str]) -> list[dict[str, Any]]:
+    """The tools for a session that writes `outputs`: the 30 parts' own, word for word,
+    for `part.step` alone; for a harder case, `done` names its files."""
+    if outputs == [OUTPUT]:
+        return SPECS
+    named = ", ".join(f"`{o}`" for o in outputs)
+    done = _spec(
+        "done",
+        f"Finish: the script is run again from a clean start, and the files it writes "
+        f"({named}) are checked against the spec. The session ends.",
+        script="The script that writes the parts.",
+    )
+    return [done if s["function"]["name"] == "done" else s for s in SPECS]
+
+
 TYPES = {"string": str, "number": (int, float), "integer": int, "boolean": bool, "object": dict}
 
 
@@ -156,10 +173,15 @@ def inside(directory: Path, path: str) -> Path | None:
 class PartTools:
     """The tools over one part's directory and its started container."""
 
-    def __init__(self, directory: Path, workspace: Any) -> None:
+    def __init__(self, directory: Path, workspace: Any, outputs: list[str] | None = None) -> None:
         self.directory = directory
         self.workspace = workspace
+        self.outputs = outputs or [OUTPUT]
+        self.specs = specs_for(self.outputs)
         self.runs: list[dict[str, Any]] = []
+        # The tools' own failures, by kind, that weren't the model's: a measure that
+        # didn't finish. `run.py` reads them to say whose a failure is.
+        self.troubles: dict[str, int] = {}
 
     def call(self, name: str, raw: Any) -> Judged:
         args = parse(raw)
@@ -243,7 +265,20 @@ class PartTools:
         for line in reversed(done.output.splitlines()):
             if line.startswith(measure.MARK):
                 return json.loads(line[len(measure.MARK) :])
+        self.troubles["measure_unfinished"] = self.troubles.get("measure_unfinished", 0) + 1
         return {"path": path, "error": f"the measure didn't finish (exit {done.code})"}
+
+    def measure_request(self, request: dict[str, Any]) -> dict[str, Any]:
+        """`measure.py` on a whole request: the harder cases' `against`, `self`,
+        `cylinders` and `section` beside the probes."""
+        done = self.execute(
+            ["python", "-I", "-", json.dumps(request)], MEASURE_TIMEOUT, stdin=MEASURE_SOURCE
+        )
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(measure.MARK):
+                return json.loads(line[len(measure.MARK) :])
+        self.troubles["measure_unfinished"] = self.troubles.get("measure_unfinished", 0) + 1
+        return {"path": request["path"], "error": f"the measure didn't finish (exit {done.code})"}
 
     def final(self, script: str, probes: list[Any], mate: str | None) -> dict[str, Any]:
         """`done`'s script, run again from a clean start, and what it wrote, measured."""
@@ -255,4 +290,21 @@ class PartTools:
             result["measured"] = {"path": OUTPUT, "error": f"no {OUTPUT} after exit {ran.code}"}
             return result
         result["measured"] = self.measure(OUTPUT, probes, mate)
+        return result
+
+    def final_case(self, script: str, requests: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        """`done`'s script, run again from a clean start, and each file it wrote, measured
+        by its own request (`cad_eval/run.py` makes them from the case's members)."""
+        for name in self.outputs:
+            (self.directory / name).unlink(missing_ok=True)
+        ran = self.execute(["python", script], RUN_TIMEOUT)
+        result: dict[str, Any] = {"script": script, "code": ran.code, "tail": ran.output[-TAIL:]}
+        measured: dict[str, Any] = {}
+        for name, request in requests.items():
+            if ran.code != 0 or not (self.directory / request["path"]).is_file():
+                error = f"no {request['path']} after exit {ran.code}"
+                measured[name] = {"path": request["path"], "error": error}
+            else:
+                measured[name] = self.measure_request(request)
+        result["measured"] = measured
         return result

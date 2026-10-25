@@ -69,6 +69,12 @@ SUITES: dict[str, set[str]] = {
         "checks_passed",
         "checks_total",
         "calls_to_done",  # the calls a part took to `done`, or null without one
+        # The harder cases' (mqucifer/model-performance#16): absent from the 30 parts' rows.
+        "kind",  # tight, assembly or worded
+        "parts_total",  # the case's members, each its own STEP file
+        "parts_fit",  # the members that passed every check of their own, fits included
+        "load_ok",  # the simplified load check, or null without one or without a `done`
+        "fault",  # model, tool or infra, or null for a case that passed
     },
 }
 # A short name: an id, a commit, a time, an alias. No spaces, so no sentence fits.

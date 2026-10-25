@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from cad_eval.tools import OUTPUT, SPECS, Gone, PartTools
+from cad_eval.tools import OUTPUT, Gone, PartTools
 from common.litellm import CallCapReached
 
 QUIET_LIMIT = 3
@@ -42,6 +42,18 @@ directory, with `cq.exporters.export(result, "{OUTPUT}")`. Units are millimetres
 a clean start and checked. If the spec can't be made, call `blocked` and say why.
 - The part must be one closed solid, placed exactly as the spec says. There's no \
 network, and only CadQuery and its dependencies are installed."""
+# The harder cases' (`cad_eval/cases.py`): one script writes every file the spec names.
+SYSTEM_CASE = """You make 3D-printable parts in CadQuery 2.8 (Python), from a spec, \
+with tools, in a directory of your own.
+
+- Write a script with `write`. It must save each part the spec names as STEP, to the \
+file the spec names for it, with `cq.exporters.export(part, "<name>.step")`. Units \
+are millimetres.
+- Run it with `run`, and measure what it made with `inspect` against the spec.
+- When it matches the spec, call `done` with the script's path. It's run again from \
+a clean start and checked. If the spec can't be made, call `blocked` and say why.
+- Each part must be closed solids, as many as the spec says, placed exactly as the \
+spec says. There's no network, and only CadQuery and its dependencies are installed."""
 
 
 @dataclass
@@ -59,6 +71,7 @@ class Session:
     alias: str
     events: Path
     max_tokens: int = 65536
+    system: str = SYSTEM
     backstop_s: float = BACKSTOP_S
     calls: int = 0
     model_s: float = 0.0
@@ -70,7 +83,7 @@ class Session:
 
     def run(self) -> Ending:
         self.messages = [
-            {"role": "system", "content": SYSTEM},
+            {"role": "system", "content": self.system},
             {"role": "user", "content": self.spec},
         ]
         quiet = 0
@@ -104,7 +117,7 @@ class Session:
         body = {
             "model": self.alias,
             "messages": self.messages,
-            "tools": SPECS,
+            "tools": self.tools.specs,
             "tool_choice": "auto",
             "max_tokens": self.max_tokens,
         }
