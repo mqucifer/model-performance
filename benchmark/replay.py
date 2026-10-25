@@ -3,6 +3,7 @@
     uv run replay sprint-metrics-662
     uv run replay --all
     uv run replay sprint-metrics-662 --model crew-candidate --cap 150
+    uv run replay sprint-metrics-567 --arm think-off      # benchmark/arms.py
 
 Checks the story's repository out at its base commit in a fresh worktree, holds its
 workspace container as the crew's delivery does, and runs `crew_org.session` on the
@@ -31,9 +32,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from benchmark.arms import NAMES, Arm, ArmNotInEffect, UnknownArm, arm
 from benchmark.cases import CASES, Case, UnknownCase, case, record, story
 from benchmark.history import history
-from common import crew, records, results
+from common import crew, records, results, spend
 from common.config import Settings, load
 from common.litellm import Sender, builders_key
 
@@ -169,25 +171,35 @@ def replay(
     workspace_for: Callable[[Path, str], Any] = held,
     gate_for: Callable[[Path, Any, str], Any] = gate,
     results_dir: Path = results.RESULTS,
+    arm: Arm | None = None,
 ) -> dict[str, Any]:
-    """One case end to end: its row, written to the results once the run has ended."""
+    """One case end to end: its row, written to the results once the run has ended.
+
+    With an `arm`, the session's calls go through it, and the row names it.
+    """
     from crew_org import events  # noqa: PLC0415
     from crew_org.session import conversation  # noqa: PLC0415
 
     checkout_for = checkout_for or (lambda c, run: checkout(settings.work_dir, c, run))
     run = records.run_id()
     out = records.run_dir(settings, SUITE, c.name, run)
+    started_at = datetime.now(UTC)
     row: dict[str, Any] = {
         "case": c.name,
         "run": run,
-        "at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "at": started_at.isoformat(timespec="seconds"),
         "crew_commit": crew.commit(),
         "model_alias": alias,
         "ending": None,
         "stop": None,
         "gate_green": None,
+        "arm": arm.name if arm else None,
+        "max_call_reasoning_tokens": None,
     }
     kept: dict[str, Any] = {"base": c.base, "note": c.note}
+    armed = arm.wrap(send) if arm else None
+    if arm:
+        kept["arm"] = arm.describe()
     # Each tool call's result, by the crew's own events: a call refused by the session's
     # argument rule (not an object, no such tool, an unknown or missing argument) is one
     # that wasn't well formed.
@@ -202,7 +214,8 @@ def replay(
             tool_results["malformed" if malformed else "ok"] += 1
 
     send.ticking()
-    sink = events.EventSink(out / "events.jsonl")
+    sink_path = out / "events.jsonl"
+    sink = events.EventSink(sink_path)
     sink.subscribe(count)
     events.forward_calls_to(sink)
     began = time.monotonic()
@@ -246,10 +259,12 @@ def replay(
             workspace,
             workspace.tools,
             coverage=coverage(settings, c, root),
-            send=send,
+            send=armed or send,
             base=since,
             benchmark_run=run,
         )
+        if arm and arm.compact_at is not None:
+            session.compact_at = arm.compact_at
         (out / "start.md").write_text(session.start, encoding="utf-8")
         ending = session.run()
         row.update(
@@ -281,6 +296,16 @@ def replay(
             "said": ending.said,
             "evidence": ending.evidence,
         }
+        # Compaction's limit, and the calls it fired before: none is a finding.
+        kept["compact_at"] = session.compact_at
+        kept["compactions"] = session.compactions
+        if isinstance(ending.error, ArmNotInEffect):
+            # The setting didn't reach the model: the baseline under another name.
+            row["ending"] = "refused"
+            row["stop"] = ending.error.why
+            kept["refused"] = ending.error.detail
+            # The call that showed it reached the model, though the session didn't count it.
+            row["calls"] = send.calls
         if ending.how == "done":
             checked = gate_for(root, workspace, since)
             row["gate_green"] = bool(checked.ok)
@@ -310,6 +335,13 @@ def replay(
         send.ticking()
         row["concurrent_tick"] = send.tick_seen
         row["tick_calls"] = send.tick_calls
+        overlapped = spend.others(started_at, datetime.now(UTC), spend.own_calls(sink_path))
+        row["other_calls"] = None if overlapped is None else sum(overlapped.values())
+        row["other_aliases"] = spend.keys(overlapped) if overlapped else None
+        kept["other_calls"] = overlapped
+        if armed is not None and armed.reasoning:
+            row["max_call_reasoning_tokens"] = max(armed.reasoning)
+            kept["reasoning_by_call"] = armed.reasoning
         with contextlib.suppress(OSError):
             kept["history"] = history(settings.crew_events, c.repo, c.card)
         (out / "result.json").write_text(
@@ -325,9 +357,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--all", action="store_true", help="every case, one at a time")
     parser.add_argument("--model", help="a LiteLLM alias in place of the Developer's")
     parser.add_argument("--cap", type=int, help="calls a run may make (default: config's)")
+    parser.add_argument("--arm", help=f"one setting changed: {', '.join(NAMES)}")
     args = parser.parse_args(argv)
     if bool(args.cases) == args.all:
         parser.error("name the cases, or --all")
+    try:
+        chosen_arm = arm(args.arm) if args.arm else None
+    except UnknownArm as exc:
+        parser.error(str(exc))
+    if chosen_arm and chosen_arm.alias and args.model:
+        parser.error(f"{chosen_arm.name} sets its own alias; leave out --model")
+    model = args.model or (chosen_arm.alias if chosen_arm else None)
     try:
         chosen = list(CASES.values()) if args.all else [case(n) for n in args.cases]
     except UnknownCase as exc:
@@ -337,7 +377,7 @@ def main(argv: list[str] | None = None) -> int:
 
     settings = load()
     spec = role_spec("developer")
-    alias = args.model or str(spec.get("llm"))
+    alias = model or str(spec.get("llm"))
     timeout = float((spec.get("llm_params") or {}).get("timeout", 3600))
     try:
         key = builders_key(settings)
@@ -360,15 +400,15 @@ def main(argv: list[str] | None = None) -> int:
     # The crew's sandbox keeps its uv cache under the current directory: the work's.
     with contextlib.chdir(settings.work_dir):
         for c in chosen:
-            send = Sender(settings, key, cap=args.cap, alias=args.model, timeout=timeout)
+            send = Sender(settings, key, cap=args.cap, alias=model, timeout=timeout)
             try:
-                row = replay(c, settings, send, alias)
+                row = replay(c, settings, send, alias, arm=chosen_arm)
             finally:
                 send.close()
             failed += row["ending"] in ("refused", "crashed")
             green = row["gate_green"]
             print(
-                f"{c.name}: {row['ending']}"
+                f"{c.name}{' [' + row['arm'] + ']' if row['arm'] else ''}: {row['ending']}"
                 f"{' (' + row['stop'] + ')' if row['stop'] else ''}, "
                 f"gate {'-' if green is None else 'green' if green else 'red'}, "
                 f"{row.get('calls', 0)} calls, {row['tool_calls']} tool calls "
