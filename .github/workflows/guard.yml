@@ -1,0 +1,47 @@
+# This repository's own checks, beside the template's (checks.yml). The
+# repository is public and keeps numbers only: run records hold prompts and
+# answers and stay on the Mac (ADR 0004 in mqucifer/project-print), and every
+# host is named by a key whose value stays on the Mac.
+#
+# `tests` runs lint and the tests on the runner. The template's `checks` job
+# checks nothing until the crew's record (.crew/project.yaml) exists at takeover,
+# and its image has no git, which the crew dependency and the tests need.
+
+name: guard
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: No prompt text, answers or run records
+        run: python3 scripts/check_no_prompts.py
+
+      - name: No addresses or hostnames
+        run: python3 scripts/check_addresses.py
+
+  tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+
+      - name: Lint
+        run: uv run --locked --extra dev ruff check .
+
+      # Each check's planted failures are tests/scripts/: a check that stops
+      # catching its fault fails here.
+      - name: Tests
+        run: uv run --locked --extra dev pytest -q

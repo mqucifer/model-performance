@@ -1,0 +1,74 @@
+"""The sender calls only the proxy, with the key it's given, and stops at its cap."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import httpx
+import pytest
+
+from common.config import load
+from common.litellm import CallCapReached, Sender
+
+ANSWER = {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}]}
+
+
+def sender(tmp_path: Path, seen: list[httpx.Request], status: int = 200, **kw) -> Sender:
+    def answer(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(status, json=ANSWER if status == 200 else {"echo": "the prompt"})
+
+    kw.setdefault("tick", lambda: False)
+    return Sender(load(home=tmp_path), "sk-test", transport=httpx.MockTransport(answer), **kw)
+
+
+def test_a_call_goes_to_the_proxy_with_the_key(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+    assert sender(tmp_path, seen)({"model": "crew-code-think", "messages": []}) == ANSWER
+    assert str(seen[0].url) == "http://localhost:4000/chat/completions"
+    assert seen[0].headers["Authorization"] == "Bearer sk-test"
+
+
+def test_an_alias_replaces_the_roles_model(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+    send = sender(tmp_path, seen, alias="crew-candidate")
+    send({"model": "crew-code-think", "messages": []})
+    assert json.loads(seen[0].content)["model"] == "crew-candidate"
+    assert send.models == {"crew-candidate"}
+
+
+def test_the_call_past_the_cap_is_refused_before_it_is_sent(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+    send = sender(tmp_path, seen, cap=2)
+    send({"model": "m"})
+    send({"model": "m"})
+    with pytest.raises(CallCapReached):
+        send({"model": "m"})
+    assert len(seen) == 2
+
+
+def test_a_refusal_says_its_status_and_not_its_body(tmp_path: Path) -> None:
+    with pytest.raises(httpx.HTTPStatusError) as raised:
+        sender(tmp_path, [], status=400)({"model": "m"})
+    assert "400" in str(raised.value)
+    assert "prompt" not in str(raised.value)
+
+
+def test_lists_says_whether_the_proxy_knows_an_alias(tmp_path: Path) -> None:
+    def answer(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "http://localhost:4000/models"
+        return httpx.Response(200, json={"data": [{"id": "crew-code-think"}]})
+
+    send = Sender(load(home=tmp_path), "k", transport=httpx.MockTransport(answer))
+    assert send.lists("crew-code-think")
+    assert not send.lists("crew-candidate")
+    assert send.calls == 0
+
+
+def test_calls_made_while_a_tick_runs_are_counted(tmp_path: Path) -> None:
+    ticks = iter([False, True, True])
+    send = sender(tmp_path, [], tick=lambda: next(ticks))
+    for _ in range(3):
+        send({"model": "m"})
+    assert (send.tick_calls, send.tick_seen) == (2, True)
