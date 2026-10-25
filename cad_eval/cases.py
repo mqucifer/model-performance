@@ -159,6 +159,29 @@ class Load:
 
 
 @dataclass(frozen=True)
+class Vents:
+    """Open area through a part along `axis`: lines on a grid of `step` mm over the
+    rectangle `over` (the range along each of the two axes across it, in order), each
+    open where it meets no material. The open area is the open lines times `step`²: at
+    least `area` mm²."""
+
+    name: str
+    over: tuple[tuple[float, float], tuple[float, float]]
+    area: float
+    step: float = 3.0
+    axis: str = "z"
+
+    def points(self) -> list[tuple[float, float]]:
+        (a0, a1), (b0, b1) = self.over
+        na, nb = int((a1 - a0) / self.step) + 1, int((b1 - b0) / self.step) + 1
+        return [
+            (round(a0 + i * self.step, 3), round(b0 + j * self.step, 3))
+            for i in range(na)
+            for j in range(nb)
+        ]
+
+
+@dataclass(frozen=True)
 class Gap:
     """How a member meets another part: a mate the case gives, or another member.
 
@@ -200,6 +223,7 @@ class Member:
     # The range of the closest distance between the member's own solids, which must
     # not overlap: a print-in-place joint's clearance.
     own_gap: Span | None = None
+    vents: Vents | None = None
 
     def probes(self) -> list[Point]:
         found = [*self.inside.values(), *self.outside.values()]
@@ -262,6 +286,55 @@ mate = (
     .cut(cq.Workplane("XY").box(5, 10, 12, centered=(False, True, False)).translate((1.5, 0, 0)))
 )
 """
+
+# The Sponsor's case's boards, from their published drawings, in its frame: the Pi's top
+# face at Z = 0, the board from X = 0 to 85 and Y = 0 to 56 (Raspberry Pi Ltd,
+# "Raspberry Pi 5" mechanical drawing, in the Pi 5 product brief, p. 3). Neither maker
+# publishes a board's thickness, so nothing here depends on one.
+#
+# The Pi, 0.5 mm clear all round (its 85 × 56 outline), from 13 mm below its top (its
+# own thickness and the kit's 12 mm standoffs, the least it could be) to 4.4 mm above
+# it, the tallest part the drawing dimensions: the gap the SSDs sit in, and the board.
+# Columns 3 mm round its 2.7 mm holes (58 × 49 mm, 3.5 mm in) are left for the standoffs.
+PI5_HOLES = [(x, y) for x in (3.5, 61.5) for y in (3.5, 52.5)]
+PI5_KEEP_OUT = f"""
+mate = cq.Workplane("XY").box(86, 57, 17.4, centered=False).translate((-0.5, -0.5, -13))
+for x, y in {PI5_HOLES!r}:
+    mate = mate.cut(cq.Workplane("XY").workplane(offset=-14).center(x, y).circle(3).extrude(20))
+"""
+# The NVMe Base Duo (Pimoroni, "nvme-base-duo-drawing.png" on its product page): 87.60
+# mm long, its holes 4.50 mm in from its flex cable's edge and 3.50 mm from its bottom
+# edge, on the Pi's pattern, so it runs from X = -1.0 to 86.6. Pimoroni gives no height
+# along Y and no thickness: it's kept out only from its bottom edge to its far holes'
+# line (Y = 0 to 52.5), 0.5 mm clear, and through 1 mm below its top, the least board
+# it could be.
+NVME_BASE_KEEP_OUT = (
+    "mate = cq.Workplane('XY').box(88.6, 53, 1.6, centered=False).translate((-1.5, -0.5, -14.6))"
+)
+# Each port's axis, out through the walls, must be clear (the Pi 5 drawing): USB-C at X =
+# 11.2 and the micro HDMIs at 25.8 and 39.2 on the Y = 0 edge, half their published
+# heights above the board (3.2 and 3.4 mm); Ethernet at Y = 10.2 and the USBs at 29.1
+# and 47 on the X = 85 edge, past their 3 mm overhang, 1 mm above the board, which
+# they stand on. Their heights aren't published, nor the microSD's place: not checked.
+PI5_PORTS = (
+    line("usb_c", (11.2, -0.6, 1.6), (11.2, -20, 1.6), n=60, share=(0.0, 0.0)),
+    line("hdmi_0", (25.8, -0.6, 1.7), (25.8, -20, 1.7), n=60, share=(0.0, 0.0)),
+    line("hdmi_1", (39.2, -0.6, 1.7), (39.2, -20, 1.7), n=60, share=(0.0, 0.0)),
+    line("ethernet", (88.6, 10.2, 1.0), (110, 10.2, 1.0), n=60, share=(0.0, 0.0)),
+    line("usb_29", (88.6, 29.1, 1.0), (110, 29.1, 1.0), n=60, share=(0.0, 0.0)),
+    line("usb_47", (88.6, 47, 1.0), (110, 47, 1.0), n=60, share=(0.0, 0.0)),
+    # The flex cable's path, round the Base's edge (X = -1) on its connector's centre
+    # line (Y = 29.89, Pimoroni's drawing) up to the Pi's: 2.5 mm of room past the
+    # Base's edge, inside the case, and clear from the Base up past the Pi. Its width
+    # isn't published, so only its centre line is checked.
+    line("flex_room", (-1.1, 29.89, -6), (-3.6, 29.89, -6), n=30, share=(0.0, 0.0)),
+    line("flex_cable", (-2.5, 29.89, -14), (-2.5, 29.89, 1), n=60, share=(0.0, 0.0)),
+)
+# A boss under each hole, under the Base: material round each hole's axis, 2 mm out,
+# 2 mm under the lowest the Base's top could be with a 1.6 mm board under it.
+PI5_SUPPORTS = tuple(
+    ring(f"boss_{x}_{y}", (x, y, -17.2), 2.0, n=36, share=(0.5, 1.0)) for x, y in PI5_HOLES
+)
 
 CASES: dict[str, Case] = {
     c.name: c
@@ -863,8 +936,30 @@ CASES: dict[str, Case] = {
                 ),
             ),
         ),
+        # The Sponsor's case (mqucifer/model-performance#16, 2026-10-25): a case for a
+        # Raspberry Pi 5 with a Pimoroni NVMe Base Duo under it. Its keep-outs and port
+        # axes are only what the boards' drawings publish (`cad_eval/README.md`).
+        Case(
+            "pi5-nvme-case",
+            8,
+            tuple(
+                Member(
+                    name,
+                    within=((-20, 110), (-20, 80), (-50, 50)),
+                    samples=PI5_PORTS + (supports if name == "base" else ()),
+                    gaps=(Gap("pi5"), Gap("nvme_base"), *((Gap("base"),) if name == "lid" else ())),
+                    vents=(
+                        Vents("over_the_pi", ((5, 80), (5, 51)), area=300.0)
+                        if name == "lid"
+                        else None
+                    ),
+                )
+                for name, supports in (("base", PI5_SUPPORTS), ("lid", ()))
+            ),
+            mates={"pi5": PI5_KEEP_OUT, "nvme_base": NVME_BASE_KEEP_OUT},
+        ),
     )
 }
-# The first run's cases (mqucifer/model-performance#16): one of each kind in its middle,
-# and the hardest tight feature and assembly, easiest first.
-FIRST = ("snap-hook", "pin-clevis", "shelf-bracket", "m8-bolt", "caster-wheel")
+# The first run's cases (mqucifer/model-performance#16): one of each kind, the hardest
+# tight feature and assembly, and the Sponsor's case, easiest first.
+FIRST = ("pin-clevis", "shelf-bracket", "m8-bolt", "caster-wheel", "pi5-nvme-case")

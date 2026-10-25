@@ -7,8 +7,9 @@ It is never written into the part's directory, so a session can't change it, and
 file to measure (STEP or STL, relative to /work), and optionally points to probe and
 a mating part's CadQuery source. The harder cases (`cad_eval/cases.py`) may also ask
 for the overlap and the gap with other parts (`against`), between the shape's own
-solids (`self`), its cylindrical faces (`cylinders`), and a plane section's area
-properties (`section`). It prints one line, `MARK` then JSON: the facts, or
+solids (`self`), its cylindrical faces (`cylinders`), a plane section's area
+properties (`section`), and which lines along an axis meet it (`rays`). It prints
+one line, `MARK` then JSON: the facts, or
 `error`. The host compares them with the part's spec (`cad_eval/checks.py`).
 
 Standard library, CadQuery and trimesh: what the image holds.
@@ -209,6 +210,25 @@ def section(shape, request: dict) -> dict:  # noqa: ANN001
     }
 
 
+def rays(shape, request: dict) -> list[bool]:  # noqa: ANN001
+    """Whether a line along `axis` through each point meets the shape: a vent is where
+    one doesn't."""
+    from OCP.BRepIntCurveSurface import BRepIntCurveSurface_Inter  # noqa: PLC0415
+    from OCP.gp import gp_Dir, gp_Lin, gp_Pnt  # noqa: PLC0415
+
+    index = "xyz".index(request["axis"])
+    direction = [0.0, 0.0, 0.0]
+    direction[index] = 1.0
+    hits = []
+    for across in request["points"]:
+        point = list(across)
+        point.insert(index, 0.0)
+        found = BRepIntCurveSurface_Inter()
+        found.Init(shape.wrapped, gp_Lin(gp_Pnt(*point), gp_Dir(*direction)), 1e-6)
+        hits.append(bool(found.More()))
+    return hits
+
+
 def measure(request: dict) -> dict:
     out: dict = {"path": request["path"]}
     path = Path(request["path"])
@@ -239,6 +259,8 @@ def measure(request: dict) -> dict:
             out["cylinders"] = cylinders(shape)
         if request.get("section"):
             out["section"] = section(shape, request["section"])
+        if request.get("rays"):
+            out["rays"] = rays(shape, request["rays"])
     except Exception as exc:  # noqa: BLE001
         out["error"] = f"it loads but can't be measured: {type(exc).__name__}: {exc}"[:500]
     return out

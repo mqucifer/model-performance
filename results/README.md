@@ -105,3 +105,14 @@ one crew's argument rule refuses, here over the evaluation's own tools.
 | `checks_passed`, `checks_total` | the dimension checks behind `within_tolerance`, named in the run's `checks.json` |
 | `calls` | model calls. A part stops at its cap (40, or `--cap`; the first run's was 20) as `interrupted` with `call_cap` |
 | `calls_to_done` | the calls a part took to reach `done`, or null without one: what the next run's cap is set from |
+
+**The harder cases** (mqucifer/model-performance#16, `cad_eval/README.md`) are rows in
+this file too: `case` is the case, `tier` is 6 to 8, and `checks_*` count every
+member's checks. Five fields are theirs alone, absent from the 30 parts' rows:
+
+| Field | What it is |
+|---|---|
+| `kind` | `tight` (tier 6), `assembly` (7) or `worded` (8) |
+| `parts_total`, `parts_fit` | the case's members, each its own STEP file, and those that passed every check of their own, fits included (null without a `done`) |
+| `load_ok` | the simplified load check (a section's bending stress against PLA's strength over 4), or null for a case without one or without a `done`. It never means "strong enough" |
+| `fault` | whose the failure is: `model`, `tool`, `infra` or `budget`; null for a case that passed |

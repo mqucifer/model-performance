@@ -11,7 +11,7 @@ import pytest
 
 from cad_eval import cases, checks
 from cad_eval import run as cad
-from cad_eval.cases import CASES, Gap, Holes, Load, Member, line, ring
+from cad_eval.cases import CASES, Gap, Holes, Load, Member, Vents, line, ring
 from cad_eval.parts import PARTS
 from cad_eval.session import SYSTEM_CASE
 from common import results
@@ -37,8 +37,9 @@ def measured(m: Member, **override: Any) -> dict[str, Any]:
     return {**found, **override}
 
 
-def test_there_are_twenty_cases_of_three_kinds_each_with_its_spec_and_solutions() -> None:
-    assert len(CASES) == 20
+def test_there_are_21_cases_of_three_kinds_each_with_its_spec_and_solutions() -> None:
+    # Twenty, and the Sponsor's Raspberry Pi 5 case.
+    assert len(CASES) == 21
     assert {c.kind for c in CASES.values()} == {"tight", "assembly", "worded"}
     assert not set(CASES) & set(PARTS)
     for case in CASES.values():
@@ -52,11 +53,12 @@ def test_there_are_twenty_cases_of_three_kinds_each_with_its_spec_and_solutions(
                 assert gap.other in names or gap.other in case.mates, (case.name, gap.other)
             assert m.bbox or m.within, (case.name, m.name)
     assert {CASES[n].kind for n in cases.FIRST} == {"tight", "assembly", "worded"}
+    assert len(cases.FIRST) == 5 and "pi5-nvme-case" in cases.FIRST
 
 
 def test_assemblies_have_two_to_five_members_and_the_others_one() -> None:
     for case in CASES.values():
-        if case.kind == "assembly":
+        if case.kind == "assembly" or case.name == "pi5-nvme-case":
             assert 2 <= len(case.members) <= 5
             assert case.outputs() != ["part.step"]
         else:
@@ -137,6 +139,30 @@ def test_the_load_check_is_the_bending_stress_at_its_section() -> None:
     assert not checks.load(Load("bag", "x", 5, force_n=60), section, box).ok
     assert not checks.load(spec, {"area": 0.0}).ok
     assert "simplified" in checks.load(spec, section).expected
+
+
+def test_vents_are_the_open_lines_on_their_grid() -> None:
+    vents = Vents("top", ((0, 9), (0, 3)), area=20.0)
+    assert vents.points() == [(x, y) for x in (0, 3, 6, 9) for y in (0, 3)]
+    m = Member("lid", bbox=((0, 1),) * 3, vents=vents)
+    three_open = [True] * 5 + [False] * 3
+    assert [c.found for c in checks.member(m, measured(m, rays=three_open))][-1] == 27.0
+    assert checks.member(m, measured(m, rays=three_open))[-1].ok
+    shut = checks.member(m, measured(m, rays=[True] * 8))[-1]
+    assert (shut.name, shut.ok, shut.found) == ("vents.top", False, 0.0)
+    assert not checks.member(m, measured(m, rays=[False] * 3))[-1].ok
+
+
+def test_the_pi_case_checks_only_what_the_drawings_publish() -> None:
+    case = CASES["pi5-nvme-case"]
+    assert case.outputs() == ["base.step", "lid.step"]
+    base, lid = case.members
+    names = {s.name for s in base.samples}
+    assert {"usb_c", "hdmi_0", "hdmi_1", "ethernet", "usb_29", "usb_47", "flex_cable"} <= names
+    assert sum(n.startswith("boss_") for n in names) == 4
+    assert lid.vents is not None and base.vents is None
+    assert {g.other for g in lid.gaps} == {"pi5", "nvme_base", "base"}
+    assert "microsd" not in " ".join(names).lower()
 
 
 @pytest.mark.parametrize(

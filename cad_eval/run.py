@@ -87,6 +87,8 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
             request["cylinders"] = True
         if m.load is not None:
             request["section"] = {"axis": m.load.axis, "at": m.load.at}
+        if m.vents is not None:
+            request["rays"] = {"axis": m.vents.axis, "points": m.vents.points()}
         found[m.name] = request
     return found
 

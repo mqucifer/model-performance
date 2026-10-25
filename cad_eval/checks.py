@@ -120,6 +120,11 @@ def member(m: Member, measured: dict[str, Any]) -> list[Check]:
         )
     if m.own_gap is not None:
         found.extend(gapped("own", (0.0, 0.01), m.own_gap, measured.get("self")))
+    if m.vents is not None:
+        hits = measured.get("rays") or []
+        area = round((len(hits) - sum(hits)) * m.vents.step**2, 1) if hits else None
+        ok = area is not None and len(hits) == len(m.vents.points()) and area >= m.vents.area
+        found.append(Check(f"vents.{m.vents.name}", ok, f">= {m.vents.area} mm²", area))
     return found
 
 
