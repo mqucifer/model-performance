@@ -90,8 +90,8 @@ A case runs in the same session, tools and container as a part. It is checked th
 same way (`compiles`, `closed_mesh`, `within_tolerance`), and its row goes in the same
 `results/cad_eval.jsonl`, with five fields of its own (`results/README.md`). A case
 may have several **members**, each its own STEP file, which its one script writes. The
-case's prompt (`session.SYSTEM_CASE`) and its `done` name those files. The 30 parts'
-prompt, tools and rows are unchanged.
+case's prompt (`session.system_for`) and its `done` name those files, a one-part
+case's `part.step` too. The 30 parts' prompt, tools and rows are unchanged.
 
 | Tier, kind | Cases | Where they come from |
 |---|---|---|

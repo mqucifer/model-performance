@@ -13,7 +13,7 @@ from cad_eval import cases, checks
 from cad_eval import run as cad
 from cad_eval.cases import CASES, Gap, Holes, Load, Member, Vents, line, ring
 from cad_eval.parts import PARTS
-from cad_eval.session import SYSTEM_CASE
+from cad_eval.session import SYSTEM, system_for
 from common import results
 from tests.cad_eval.test_run import Run, answer, call
 
@@ -276,7 +276,7 @@ def test_an_assembly_made_to_spec_passes_and_its_row_says_so(tmp_path: Path) -> 
         None,
     )
     # The case's own prompt and `done`, and its files named.
-    assert r.bodies[0]["messages"][0]["content"] == SYSTEM_CASE
+    assert r.bodies[0]["messages"][0]["content"] == system_for(CASES["pin-clevis"].outputs())
     done = [t for t in r.bodies[0]["tools"] if t["function"]["name"] == "done"][0]
     assert "`clevis.step`, `tongue.step`, `pin.step`" in done["function"]["description"]
     checked = json.loads((r.records(row) / "checks.json").read_text())
@@ -325,6 +325,20 @@ def test_a_case_that_never_finishes_is_counted_with_no_checks(tmp_path: Path) ->
     row = go(r, "m8-bolt")
     assert (row["ending"], row["stop"], row["fault"]) == ("blocked", "no_tool_call", "model")
     assert row["parts_fit"] is None and row["compiles"] is None
+
+
+@pytest.mark.parametrize("name", list(CASES))
+def test_each_cases_prompt_names_every_file_it_must_write(name: str) -> None:
+    prompt = system_for(CASES[name].outputs())
+    for output in CASES[name].outputs():
+        assert f"`{output}`" in prompt
+    assert prompt != SYSTEM
+
+
+def test_a_one_part_case_is_told_part_step(tmp_path: Path) -> None:
+    r = Run(tmp_path, [answer(), answer(), answer()])
+    go(r, "shelf-bracket")
+    assert "the part as STEP to `part.step`" in r.bodies[0]["messages"][0]["content"]
 
 
 def test_the_30_parts_rows_have_none_of_the_cases_fields(tmp_path: Path) -> None:

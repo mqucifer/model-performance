@@ -36,7 +36,7 @@ from typing import Any
 from cad_eval import cases, checks, container
 from cad_eval.cases import CASES, Case
 from cad_eval.parts import FIRST, PARTS, Part, UnknownPart, part
-from cad_eval.session import SYSTEM, SYSTEM_CASE, Session
+from cad_eval.session import SYSTEM, Session, system_for
 from cad_eval.tools import PartTools
 from common import crew, records, results
 from common.config import Settings, load
@@ -225,7 +225,7 @@ def evaluate(
             alias,
             out / "events.jsonl",
             max_tokens=max_tokens,
-            system=SYSTEM_CASE if case else SYSTEM,
+            system=system_for(case.outputs()) if case else SYSTEM,
         )
         ending = session.run()
         row["ending"], row["stop"] = ending.how, ending.stop or None

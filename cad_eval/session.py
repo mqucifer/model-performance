@@ -42,18 +42,30 @@ directory, with `cq.exporters.export(result, "{OUTPUT}")`. Units are millimetres
 a clean start and checked. If the spec can't be made, call `blocked` and say why.
 - The part must be one closed solid, placed exactly as the spec says. There's no \
 network, and only CadQuery and its dependencies are installed."""
-# The harder cases' (`cad_eval/cases.py`): one script writes every file the spec names.
+# The harder cases' (`cad_eval/cases.py`): one script writes every file the case names.
+# Each file is named here, in the prompt: a one-part case's spec names none, and on
+# 2026-10-25 the first run's shelf bracket, told only "the file the spec names", wrote
+# `bracket.step` (mqucifer/model-performance#16).
 SYSTEM_CASE = """You make 3D-printable parts in CadQuery 2.8 (Python), from a spec, \
 with tools, in a directory of your own.
 
-- Write a script with `write`. It must save each part the spec names as STEP, to the \
-file the spec names for it, with `cq.exporters.export(part, "<name>.step")`. Units \
-are millimetres.
+- Write a script with `write`. It must save {saves}, with \
+`cq.exporters.export(part, "<file>")`. Units are millimetres.
 - Run it with `run`, and measure what it made with `inspect` against the spec.
 - When it matches the spec, call `done` with the script's path. It's run again from \
 a clean start and checked. If the spec can't be made, call `blocked` and say why.
 - Each part must be closed solids, as many as the spec says, placed exactly as the \
 spec says. There's no network, and only CadQuery and its dependencies are installed."""
+
+
+def system_for(outputs: list[str]) -> str:
+    """A harder case's prompt, naming the STEP file each of its parts is saved to."""
+    if len(outputs) == 1:
+        saves = f"the part as STEP to `{outputs[0]}` in the directory"
+    else:
+        named = ", ".join(f"`{o}`" for o in outputs)
+        saves = f"each part the spec names as STEP, to its own file in the directory: {named}"
+    return SYSTEM_CASE.format(saves=saves)
 
 
 @dataclass
@@ -138,6 +150,8 @@ class Session:
         self._record(
             "call",
             n=self.calls,
+            # The proxy's request id, which its spend log keeps (`common/spend.py`).
+            response_id=answer.get("id"),
             finish=choices[0].get("finish_reason"),
             message=choices[0].get("message"),
             usage=usage(answer),
