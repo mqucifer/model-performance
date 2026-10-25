@@ -196,6 +196,37 @@ answers (the Developer's), or a model whose schema has changed since. They're sc
 the request's own form, and say what the model does with that prompt, not what today's
 crew would do.
 
+**The 27B baseline, round 1, 2026-10-25 18:42–21:14 UTC** (crew 099879f, each request's own
+alias, `crew-code-think` or `crew-analysis`, seed 1, one call per case, no concurrent tick).
+From 19:25 UTC m14-hard-eval's CAD baseline shared the Spark, 4 sessions to this one (the
+Sponsor's rule for quality runs): 17 of the 26 rows have `other_calls` above 0. Validity,
+empty and runaway answers don't depend on load. Times do, so read them only beside
+`other_calls`.
+
+| Bucket | Cases | Valid | Production's answer, same scorer | Crew's verdict | Empty, runaway, cut | Median s (production) | Median thinking tokens (production) |
+|---|---|---|---|---|---|---|---|
+| dev-first | 6 | 4 | 5 | 3 | 0 | 352 (540) | 4,824 (12,918) |
+| dev-repair | 4 | 4 | 2 | 2 | 0 | 350 (316) | 6,330 (5,416) |
+| qa-verdict | 5 | 5 | 5 | 5 | 0 | 230 (151) | 2,798 (2,541) |
+| criteria | 3 | 3 | 3 | 3 | 0 | 570 (226) | 11,429 (7,428) |
+| split | 3 | 3 | 3 | 3 | 0 | 723 (408) | 11,428 (10,742) |
+| settle | 3 | 3 | 2 | 2 | 0 | 144 (118) | 3,049 (3,582) |
+| architect | 2 | 2 | 2 | 2 | 0 | 409 (285) | 6,195 (4,541) |
+| **execution** | 18 | 16 | 15 | 13 | 0 | 326 (302) | |
+| **judgement** | 8 | 8 | 7 | 7 | 0 | 409 (285) | |
+
+- **The two invalid answers are both the Developer's two-part form** (`block_names`): the
+  fields name their blocks as `@@b1` or `@@b1@@`, not `b1`. Production's answer to one of
+  them (e14cc9f1) made the same kind of mistake, and crew refused it.
+- **No empty, runaway or cut answer in 26.** Production had one empty answer among these
+  cases (f761a097); its replay answered, in its form.
+- **Thinking varies call to call more than the averages show:** the same criteria check
+  (7a627c0d) thought 12,807 tokens against production's 2,942. One round says little per
+  case, which is why model-fit-29 asks for three.
+- **Times:** the 9 rows with no other call on the proxy (the Developer's, before the CAD
+  run, and one settle) took a median 306 s against production's 499 s for the same
+  requests. Production ran beside the crew's own ticks, so neither side was idle.
+
 | Field | What it is |
 |---|---|
 | `bucket`, `group` | the kind of call (`dev-first`, `dev-repair`, `qa-verdict`, `criteria`, `split`, `settle`, `architect`) and its role group, `execution` or `judgement` |
