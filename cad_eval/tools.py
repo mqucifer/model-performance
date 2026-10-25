@@ -357,8 +357,11 @@ class PartTools:
         result: dict[str, Any] = {"script": script, "code": ran.code, "tail": ran.output[-TAIL:]}
         measured: dict[str, Any] = {}
         for name, request in requests.items():
-            if ran.code != 0 or not (self.directory / request["path"]).is_file():
+            written = (self.directory / request["path"]).is_file()
+            if ran.code != 0 or not written:
                 error = f"no {request['path']} after exit {ran.code}"
+                if written:
+                    error = f"exit {ran.code}: {request['path']} was written, but the script failed"
                 measured[name] = {"path": request["path"], "error": error}
             else:
                 measured[name] = self.measure_request(request)

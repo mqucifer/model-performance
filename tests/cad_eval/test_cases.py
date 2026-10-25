@@ -219,6 +219,7 @@ def test_the_pi_case_checks_only_what_the_drawings_publish() -> None:
         ({"ending": "blocked", "stop": "said"}, {}, {}, "model"),
         ({"ending": "blocked", "stop": "no_tool_call"}, {}, {"measure_unfinished": 2}, "tool"),
         ({"ending": "interrupted", "stop": "call_cap"}, {}, {}, "budget"),
+        ({"ending": "blocked", "stop": "backstop"}, {}, {}, "budget"),
         ({"ending": "interrupted", "stop": "call_failed"}, {}, {}, "infra"),
         ({"ending": "refused", "stop": "no_image"}, {}, {}, "infra"),
         ({"ending": "crashed", "stop": "KeyError"}, {}, {}, "tool"),
@@ -381,3 +382,19 @@ def test_other_calls_count_what_overlapped_but_not_the_runs_own(tmp_path: Path) 
     row = Run(tmp_path, replies, measured=part_measured("spacer")).go(read_spend=lambda _sql: log)
     assert (row["other_calls"], row["other_aliases"]) == (2, "claude-builders+crew")
     assert cad.own_calls(Path("nowhere")) == set()
+
+
+def test_a_case_is_capped_by_calls_never_by_model_time(tmp_path: Path) -> None:
+    import time  # noqa: PLC0415
+
+    replies = [answer(call("write", {"path": "a.py", "content": ""}, n)) for n in range(5)]
+    replies.append(answer(call("done", {"script": "a.py"})))
+    r = Run(tmp_path, replies)
+    clock = iter(range(0, 100_000, 2000))
+    original = time.monotonic
+    try:
+        time.monotonic = lambda: next(clock)  # every call "takes" 2000 s
+        row = go(r, "living-hinge")
+    finally:
+        time.monotonic = original
+    assert row["stop"] != "backstop" and row["calls"] == 6

@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -40,7 +41,7 @@ from typing import Any
 from cad_eval import cases, checks, container, skills
 from cad_eval.cases import CASES, Case
 from cad_eval.parts import FIRST, PARTS, Part, UnknownPart, part
-from cad_eval.session import SYSTEM, Session, system_for
+from cad_eval.session import BACKSTOP_S, SYSTEM, Session, system_for
 from cad_eval.tools import ARMS, PartTools
 from common import crew, records, results, spend
 from common.config import Settings, load
@@ -102,7 +103,7 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
 # Whose a failure is, in a word: the model's (a wrong design, or no design), a tool's
 # (the evaluation's own tools failed it), the infrastructure's (the container, the
 # proxy, the model's server: nothing about the case), or the budget's (the call cap
-# ended it before an answer: no verdict on the design).
+# or a backstop ended it before an answer: no verdict on the design).
 INFRA_STOPS = {"call_failed", "workspace_gone", "no_image", "container_start"}
 TOOL_ERRORS = ("the measure didn't finish", "it loads but can't be measured")
 
@@ -118,7 +119,7 @@ def fault(row: dict[str, Any], measured: dict[str, Any], troubles: dict[str, int
         return "tool"
     if row["ending"] == "refused" or row["stop"] in INFRA_STOPS:
         return "infra"
-    if row["stop"] == "call_cap":
+    if row["stop"] in ("call_cap", "backstop"):
         return "budget"
     if row["ending"] == "done":
         errors = [str(m.get("error", "")) for m in measured.values()]
@@ -264,6 +265,10 @@ def evaluate(
             max_tokens=max_tokens,
             system=system_for(case.outputs()) if case else SYSTEM,
             start=skills.start_line() if arm == "skill" else "",
+            # A harder case is capped by its calls alone, never by time, so its result
+            # doesn't depend on the Spark's load (the operator, 2026-10-25): under
+            # load an hour of model time is a handful of calls.
+            backstop_s=math.inf if case else BACKSTOP_S,
         )
         ending = session.run()
         row["ending"], row["stop"] = ending.how, ending.stop or None
@@ -458,6 +463,8 @@ def main(argv: list[str] | None = None) -> int:
     except UnknownPart as exc:
         parser.error(str(exc.args[0]))
     total = args.total if args.total is not None else args.cap * len(chosen)
+    if args.parallel > 1 and not all(isinstance(p, Case) for p in chosen):
+        parser.error("--parallel runs the harder cases only: the 30 parts' runs stay one at a time")
 
     from crew_org.calls import role_spec  # noqa: PLC0415
 
@@ -491,8 +498,6 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         preflight.close()
 
-    if args.parallel > 1 and not all(isinstance(p, Case) for p in chosen):
-        parser.error("--parallel runs the harder cases only: the 30 parts' runs stay one at a time")
     room = parallel_room()
     if args.parallel > room:
         print(
