@@ -48,6 +48,7 @@ SUITES: dict[str, set[str]] = {
         "compactions",
         "troubles",  # empty, cut-off or malformed answers
         "start_chars",
+        "record_authored",  # the session read the case's authored record, not the base's own
     },
     "cad_eval": set(),
 }
