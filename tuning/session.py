@@ -5,8 +5,9 @@
 The Sponsor caps each benchmark workspace at 1.5 GiB (mqucifer/model-performance#7),
 so 6 to 8 fit in Docker Desktop's 12 GiB. crew at the pin caps its sandbox at 2g, in
 the module constant `MEMORY` that both its sandbox and its services read, with no
-public setting: proposed as a crew issue. Until then the constant is set here, in this
-process only, before the replay starts.
+public setting. It becomes one in mqucifer/crew#821's step 2 (workspace caps). Until
+then, and until the pin moves to it, the constant is set here, in this process only,
+before the replay starts; this module goes once crew has the setting.
 """
 
 from __future__ import annotations

@@ -59,7 +59,7 @@ docs (docs.sglang.ai: "Server Arguments", "Hyperparameter Tuning"):
 
 Starts N `replay` sessions together, each its own process, a few seconds apart. The
 cases are taken in order and repeated to make N. Each session's workspace is capped at
-**1.5 GiB** (`tuning/session.py`, the Sponsor's cap), where crew's sandbox has 2g.
+**1.5 GiB** (`tuning/session.py`, the Sponsor's cap), where crew's sandbox has 2g. That override goes once crew has the setting (mqucifer/crew#821, step 2) and the pin moves.
 
 **Before it starts,** it refuses while a tick runs, and when Docker's free memory
 (`docker info`'s total less `docker stats`' use) can't hold N × 1.5 GiB plus 0.5 GiB
