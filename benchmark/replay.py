@@ -219,7 +219,7 @@ def replay(
                 },
             }
         )
-        kept["ending"] = {
+        kept["session_ending"] = {
             "how": ending.how,
             "stop": ending.stop,
             "why": ending.why,

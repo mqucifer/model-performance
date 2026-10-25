@@ -159,6 +159,8 @@ def test_a_blocked_session_counts_its_malformed_call(
     out = tmp_path / ".local/share/model-performance/records/benchmark" / row["case"] / row["run"]
     assert {p.name for p in out.iterdir()} >= {"start.md", "events.jsonl", "result.json"}
     assert json.loads((results / "benchmark.jsonl").read_text()) == {"suite": "benchmark", **row}
+    kept = json.loads((out / "result.json").read_text())
+    assert (kept["ending"], kept["session_ending"]["how"]) == ("blocked", "blocked")
 
 
 def test_the_cap_ends_the_session_as_interrupted(
