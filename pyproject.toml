@@ -29,7 +29,7 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["swap", "common"]
+packages = ["swap", "common", "benchmark"]
 
 [tool.ruff]
 line-length = 100
