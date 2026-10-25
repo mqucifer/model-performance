@@ -41,6 +41,7 @@ from typing import Any
 from cad_eval import cases, checks, container, skills
 from cad_eval.cases import CASES, Case
 from cad_eval.parts import FIRST, PARTS, Part, UnknownPart, part
+from cad_eval.send import StreamingSender
 from cad_eval.session import BACKSTOP_S, SYSTEM, Session, system_for
 from cad_eval.tools import ARMS, PartTools
 from common import crew, records, results, spend
@@ -239,6 +240,7 @@ def evaluate(
         row.update(overhang_mm2=None, bridges=None, longest_bridge_mm=None)
         # The arm (null for the baseline), the cases run at once, and the first compile.
         row.update(arm=arm, concurrency=concurrency, calls_to_first_compile=None)
+        row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
     kept: dict[str, Any] = {}
     send.ticking()
     began = time.monotonic()
@@ -275,6 +277,10 @@ def evaluate(
         row["calls_to_done"] = session.calls if ending.how == "done" else None
         if case is not None:
             row["calls_to_first_compile"] = session.first_compile
+            row["runaways"] = len(session.runaways)
+            if session.runaways:
+                row["runaway_reasoning_tokens"] = sum(r["reasoning"] for r in session.runaways)
+                row["runaway_content_tokens"] = sum(r["content"] for r in session.runaways)
         kept["said"] = ending.said
         if ending.how == "done" and case is not None:
             final = tools.final_case(str(ending.said["script"]), requests(case))
@@ -528,7 +534,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"{p.name}: not run, the run's {total} calls are spent", flush=True)
                 return
             budget["reserved"] += cap
-        send = Sender(settings, key, cap=cap, alias=args.model, timeout=timeout)
+        # A harder case's calls are streamed (`cad_eval/send.py`); the 30 parts' stay whole.
+        sending = StreamingSender if isinstance(p, Case) else Sender
+        send = sending(settings, key, cap=cap, alias=args.model, timeout=timeout)
         try:
             row = evaluate(
                 p,

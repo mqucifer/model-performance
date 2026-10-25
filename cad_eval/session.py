@@ -90,6 +90,9 @@ class Session:
     calls: int = 0
     # The call after which a `run` first exited 0 with every output written.
     first_compile: int | None = None
+    # Calls that ran to the token limit (`length`) or that crew's cut ended (`runaway`):
+    # each one's reasoning and content tokens, as far as it reached.
+    runaways: list[dict[str, int]] = field(default_factory=list)
     model_s: float = 0.0
     usage: Counter[str] = field(default_factory=Counter)
     # Each tool call's outcome (ok, malformed, ill_typed, failed), and calls by tool.
@@ -156,6 +159,12 @@ class Session:
         choices = answer.get("choices") if isinstance(answer, dict) else None
         if not choices:
             return {}, Ending("interrupted", "call_failed", {"error": "no choices"})
+        if choices[0].get("finish_reason") in ("length", "runaway"):
+            used = usage(answer)
+            reasoning = used.get("reasoning_tokens", 0)
+            self.runaways.append(
+                {"reasoning": reasoning, "content": used.get("completion_tokens", 0) - reasoning}
+            )
         self._record(
             "call",
             n=self.calls,
