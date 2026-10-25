@@ -14,6 +14,7 @@ import pytest
 from crew_org.tools import workspace as crew_workspace
 
 from benchmark import replay as bench
+from benchmark.arms import Arm, arm
 from benchmark.cases import Case
 from common.config import load
 from common.litellm import Sender
@@ -97,6 +98,8 @@ def run(
     cap: int = 10,
     start_code: int = 0,
     given: str | None = None,
+    arm: Arm | None = None,
+    bodies: list[dict[str, Any]] | None = None,
     tags: dict[str, Any] | None = None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[dict[str, Any], list[FakeWorkspace], Path]:
@@ -106,13 +109,13 @@ def run(
     monkeypatch.setattr(bench, "record", lambda c: given)
     settings = load(home=tmp_path)
     replies = iter(answers)
-    send = Sender(
-        settings,
-        "k",
-        cap=cap,
-        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=next(replies))),
-        tick=lambda: True,
-    )
+
+    def reply(request: httpx.Request) -> httpx.Response:
+        if bodies is not None:
+            bodies.append(json.loads(request.content))
+        return httpx.Response(200, json=next(replies))
+
+    send = Sender(settings, "k", cap=cap, transport=httpx.MockTransport(reply), tick=lambda: True)
     made: list[FakeWorkspace] = []
 
     def checkout_for(c: Case, run_id: str) -> Path:
@@ -136,6 +139,7 @@ def run(
         checkout_for=checkout_for,
         workspace_for=workspace_for,
         results_dir=results,
+        arm=arm,
         tags=tags,
     )
     return row, made, results
@@ -281,3 +285,112 @@ def test_every_carried_record_is_one_crew_reads(tmp_path: Path) -> None:
         (tmp_path / ".crew").mkdir(exist_ok=True)
         (tmp_path / ".crew" / "project.yaml").write_text(given)
         assert read_record(tmp_path) is not None, c.name
+
+
+def thought(response: dict[str, Any], reasoning: int) -> dict[str, Any]:
+    usage = {**response["usage"], "completion_tokens_details": {"reasoning_tokens": reasoning}}
+    return {**response, "usage": usage}
+
+
+def kept(tmp_path: Path, row: dict[str, Any]) -> dict[str, Any]:
+    out = tmp_path / ".local/share/model-performance/records/benchmark" / row["case"] / row["run"]
+    return json.loads((out / "result.json").read_text())
+
+
+BLOCKED = call("blocked", json.dumps({"missing": "the data", "kind": "fact"}))
+
+
+def test_an_arm_sends_its_fields_and_names_itself(
+    tmp_path: Path, repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bodies: list[dict[str, Any]] = []
+    row, _, results = run(
+        tmp_path,
+        repo,
+        [thought(answer(BLOCKED), 0)],
+        arm=arm("think-off"),
+        bodies=bodies,
+        monkeypatch=monkeypatch,
+    )
+    assert (row["ending"], row["arm"], row["max_call_reasoning_tokens"]) == (
+        "blocked",
+        "think-off",
+        0,
+    )
+    assert bodies[0]["chat_template_kwargs"] == {"enable_thinking": False}
+    assert json.loads((results / "benchmark.jsonl").read_text())["arm"] == "think-off"
+    off = {"chat_template_kwargs": {"enable_thinking": False}}
+    assert kept(tmp_path, row)["arm"]["body"] == off
+
+
+def test_thinking_that_stays_on_refuses_the_arm(
+    tmp_path: Path, repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    row, made, _ = run(
+        tmp_path,
+        repo,
+        [thought(answer(call("view", json.dumps({"path": "README.md"}))), 300)],
+        arm=arm("think-off"),
+        monkeypatch=monkeypatch,
+    )
+    assert (row["ending"], row["stop"], row["calls"]) == ("refused", "arm_not_applied", 1)
+    assert row["max_call_reasoning_tokens"] == 300
+    assert made[0].stopped
+    assert "call 1 spent 300" in kept(tmp_path, row)["refused"]
+
+
+def test_dropped_reasoning_leaves_the_request_not_the_session(
+    tmp_path: Path, repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = answer(call("view", json.dumps({"path": "README.md"})))
+    first["choices"][0]["message"]["reasoning_content"] = "Look first."
+    bodies: list[dict[str, Any]] = []
+    row, _, _ = run(
+        tmp_path,
+        repo,
+        [first, answer(BLOCKED)],
+        arm=arm("reasoning-dropped"),
+        bodies=bodies,
+        monkeypatch=monkeypatch,
+    )
+    assert row["ending"] == "blocked"
+    sent = [m for m in bodies[1]["messages"] if m["role"] == "assistant"]
+    assert sent and all("reasoning_content" not in m for m in sent)
+
+
+def test_a_compaction_arm_records_its_limit_and_when_it_fired(
+    tmp_path: Path, repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    view = call("view", json.dumps({"path": "README.md"}))
+    row, _, _ = run(
+        tmp_path,
+        repo,
+        [answer(view), answer(view), answer(BLOCKED)],
+        arm=arm("compact-1"),
+        monkeypatch=monkeypatch,
+    )
+    record = kept(tmp_path, row)
+    assert record["compact_at"] == 1000
+    # The fake's prompt is 1000 tokens a call: it compacts before call 2, and can't get under.
+    assert [c["turn"] for c in record["compactions"]] == [2]
+    assert (row["compactions"], row["stop"]) == (1, "context_full")
+
+
+def test_a_baseline_run_says_no_arm(
+    tmp_path: Path, repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    row, _, _ = run(tmp_path, repo, [answer(BLOCKED)], monkeypatch=monkeypatch)
+    assert (row["arm"], row["max_call_reasoning_tokens"]) == (None, None)
+    assert kept(tmp_path, row)["compact_at"] == 125_000
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["sprint-metrics-567", "--arm", "warp-9"],
+        ["sprint-metrics-567", "--arm", "effort-medium", "--model", "crew-code"],
+    ],
+)
+def test_main_refuses_an_unknown_arm_or_two_aliases(argv: list[str]) -> None:
+    with pytest.raises(SystemExit):
+        bench.main(argv)

@@ -17,6 +17,13 @@ ending don't. Compare times only between rows with the same load. The Spark's
 own queue isn't read: nothing probes SGLang directly, and LiteLLM's replies
 don't carry it.
 
+`other_calls` counts every other call through the proxy that overlapped the run:
+ticks, builders, and anything else sharing the Spark (`common/spend.py`). It reads
+LiteLLM's own log, `LiteLLM_SpendLogs`, with a SELECT, and leaves out the run's own
+calls by request id; `other_aliases` names their key aliases. It's null when the log
+can't be read, never 0. **Read times as under load wherever `other_calls` is above 0.**
+`arm` is the one setting changed against the baseline, or null for the baseline.
+
 ## `benchmark.jsonl`: the session replay
 
 **The baseline starts fresh, and doesn't compare with Stage R's numbers.** Stage R
@@ -73,6 +80,70 @@ at about 66k prompt tokens. The next call, a second later, succeeded. That row
 model, and is kept as it ran. The case was run again straight after
 (`20261025T093512Z`), and the table shows that run.
 
+**The arms, sprint-metrics-567, 2026-10-25 15:46–16:45 UTC** (mqucifer/model-performance#5,
+`replay --arm`, crew 099879f, a 150-call cap, one run each; `benchmark/arms.py` names
+each arm's request field and value). One run per arm, so each line shows a direction,
+not a rate:
+
+| Arm | Sets | Ending | Gate | Calls | Reasoning tokens, per call | Answer tokens | Model s | Cached | Compactions | Other calls |
+|---|---|---|---|---|---|---|---|---|---|---|
+| baseline | `crew-code-think`: `reasoning_effort: low` | done | green | 55 | 5,832, 106 | 19,540 | 680.4 | 97.9% | 0 | (none read) |
+| think-off | `chat_template_kwargs: {enable_thinking: false}` | done | green | 124 | 0, 0 | 18,899 | 682.6 | 97.9% | 1 | 0 |
+| effort-medium | `crew-analysis`: `reasoning_effort: medium` | done | green | 53 | 15,114, 285 | 11,620 | 907.9 | 97.6% | 0 | 0 |
+| reasoning-dropped | `reasoning_content` left out of each request | done | green | 57 | 21,723, 381 | 14,874 | 1056.8 | 97.6% | 0 | 6 |
+| compact-50 | compaction at 50k estimated tokens | blocked (`context_full`) | - | 46 | 13,847, 301 | 8,815 | 780.1 | 88.7% | 10 | 27 |
+
+Answer tokens are completion tokens less reasoning tokens; cached is cached tokens
+over prompt tokens.
+- **Thinking off** reached `done` too, but took 124 calls to the baseline's 55, with
+  the same model time and 2.3× the prompt tokens (10.6M). Its one compaction came when
+  the history passed 125k. Thinking bought fewer, better-aimed calls, not a different outcome.
+- **More thinking, less said:** at medium effort, reasoning per call rose 2.7×, the
+  answer fell 41%, and the calls stayed level (53). Model time rose by a third with no load.
+- **Dropping the kept reasoning made each call think more** (381 tokens a call, 3.6×)
+  and slower. Six of its calls overlapped m10-qa-tasks's QA session, so its time is under load.
+- **compact-50: crew's masking at the pin can't hold a session under 50k.** Compaction
+  fired first before call 13 (50.4k → 29.8k), then before calls 23, 28, 29, 32, 38,
+  44, 45, 46 and 47, freeing less each time (the last, 53.5k → 50.4k). Then the session
+  stopped as `context_full`. What masking leaves is the start and what the model wrote.
+  It ran no tests and made 8 edits. That's the form research-compaction.md moves past,
+  filed as mqucifer/crew#906. Its time is under load: 24 calls of the QA session and
+  3 under the `print-shop` key overlapped it.
+- **Not kept as a row:** a `budget-128` run (15:45 UTC, `custom_params:
+  {thinking_budget: 128}`) ended at call 6 of 6, at 772 reasoning tokens. The Spark's
+  SGLang has neither `--enable-strict-thinking` nor `--enable-custom-logit-processor`,
+  so a budget isn't enforced. The Sponsor dropped the budget arm the same day: long
+  thinking is a symptom of what the context or the tools didn't give. Its records stay
+  on the Mac.
+
+**What the crew already spent thinking, per role** (observed in production, not a
+controlled arm; `python -m benchmark.spent --since 2026-10-19T00:00Z --until
+2026-10-25T15:44Z`). From crew's event log, read-only: sprint-metrics Sprints 30–35 and
+15, crew-presentation Sprints 31 and 15. Each role ran on its own alias, stories and
+load:
+
+| Role | Alias | Calls | Reasoning / completion | Reasoning per call: median, p90, max | Answer tokens | Cut off | Empty | Compactions |
+|---|---|---|---|---|---|---|---|---|
+| Developer | crew-code-think | 2,087 | 0.71 | 63, 1,312, 17,390 | 473,244 | 0 | 0 | 14 |
+| QA Engineer | crew-code-think | 1,342 | 0.88 | 287, 4,141, 27,213 | 253,098 | 0 | 0 | 0 |
+| Business Analyst | crew-analysis | 555 | 0.83 | 287, 4,333, 18,541 | 147,145 | 0 | 0 | 4 |
+| DevOps Engineer | crew-code-think | 385 | 0.89 | 187, 3,103, 32,769 | 60,460 | 1 | 0 | 0 |
+| Architect | crew-analysis | 321 | 0.77 | 135, 4,077, 25,859 | 122,367 | 0 | 0 | 0 |
+| UX Designer | crew-analysis | 288 | 0.84 | 118, 4,489, 11,841 | 70,159 | 0 | 0 | 0 |
+| Product Owner | crew-analysis | 194 | 0.86 | 343, 5,379, 32,770 | 55,607 | 1 | 0 | 0 |
+| Code Reviewer | crew-code-think | 61 | 0.94 | 3,812, 8,118, 12,875 | 15,095 | 0 | 0 | 0 |
+| Scrum Master | crew-analysis | 6 | 0.95 | 5,344, 10,498, 10,498 | 2,155 | 0 | 0 | 0 |
+
+- Every role but the Developer (0.71) and the Architect (0.77) spends over four-fifths
+  of its output thinking. For most roles the median is small and the tail long, with a p90
+  14 to 38 times the median. Those tails are the calls to read for what the context or
+  the tools didn't give. The Code Reviewer and the Scrum Master think long on every
+  call instead (p90 about twice the median).
+- **Compaction has fired live,** 18 times since 2026-10-21, all in sprint-metrics: 14
+  Developer sessions and 4 Business Analyst ones, up to three times in one session.
+  The Developer's controlled numbers are the arms above. Replaying calls per role
+  through other models is mqucifer/model-performance#10's.
+
 | Field | What it is |
 |---|---|
 | `ending` | `done`, `blocked` or `interrupted`, as crew's session ended it; or `refused` (it couldn't start) or `crashed` |
@@ -84,6 +155,7 @@ model, and is kept as it ran. The case was run again straight after
 | `*_tokens` | the session's token counts, as LiteLLM reports them |
 | `edits_applied`, `test_runs`, `compactions`, `troubles`, `start_chars` | what the session did, by crew's counts |
 | `record_authored` | the session read the case's authored record, not the base's own |
+| `max_call_reasoning_tokens` | one call's most reasoning tokens, in an arm's run; null in the baseline's |
 | `sessions`, `serving`, `batch` | set on a concurrent run's sessions only (`tuning/`): how many ran at once, the Spark's SGLang setting (`record`, or e.g. `mem-fraction-static:0.88`), and the run's `tuning.jsonl` row. Absent: one session, on the record |
 
 ## `cad_eval.jsonl`: the CAD-code evaluation
