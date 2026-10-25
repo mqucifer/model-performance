@@ -3,12 +3,15 @@
     uv run cad-eval spacer l-bracket
     uv run cad-eval --first          # one part per tier: the first run
     uv run cad-eval --all --model crew-candidate --cap 40
+    uv run cad-eval --hard-first     # the harder cases' first five (mqucifer/model-performance#16)
+    uv run cad-eval --hard           # every harder case, at a time the operator gives
 
 Each part gets a fresh directory and its own container from the CadQuery image, held
 by crew's sandbox, and a session with the Developer's model through LiteLLM on :4000
 with the builders' key. At `done` its script is run again from a clean start and what
 it writes is checked: it compiles, its mesh is closed, its dimensions are within
-tolerance.
+tolerance. A harder case (`cad_eval/cases.py`) writes a STEP file per member, each
+checked by its own measures, and its row says whose a failure is (`fault`).
 
 The run's records (its events, the files it wrote, its checks and result) go to the
 records directory on the Mac; its numbers go to `results/cad_eval.jsonl`. Every ending
@@ -30,11 +33,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from cad_eval import checks, container
+from cad_eval import cases, checks, container
+from cad_eval.cases import CASES, Case
 from cad_eval.parts import FIRST, PARTS, Part, UnknownPart, part
-from cad_eval.session import Session
+from cad_eval.session import SYSTEM, Session, system_for
 from cad_eval.tools import PartTools
-from common import crew, records, results
+from common import crew, records, results, spend
 from common.config import Settings, load
 from common.litellm import Sender, builders_key
 
@@ -51,7 +55,110 @@ class Refused(Exception):
         self.detail = detail
 
 
-def directory(settings: Settings, p: Part, run: str) -> Path:
+def lookup(name: str) -> Part | Case:
+    """A part of the 30, or a harder case."""
+    if name in CASES:
+        return CASES[name]
+    try:
+        return part(name)
+    except UnknownPart:
+        raise UnknownPart(
+            f"no part or case {name!r}; the parts are {', '.join(PARTS)}; "
+            f"the cases are {', '.join(CASES)}"
+        ) from None
+
+
+def requests(case: Case) -> dict[str, dict[str, Any]]:
+    """Each member's measure: its probes, and only the measures its checks need."""
+    members = {m.name for m in case.members}
+    found = {}
+    for m in case.members:
+        request: dict[str, Any] = {"path": f"{m.name}.step", "probes": m.probes(), "print": True}
+        if m.gaps:
+            request["against"] = [
+                {"name": g.other, "path": f"{g.other}.step"}
+                if g.other in members
+                else {"name": g.other, "source": case.mates[g.other]}
+                for g in m.gaps
+            ]
+        if m.own_gap is not None:
+            request["self"] = True
+        if m.holes:
+            request["cylinders"] = True
+        if m.load is not None:
+            request["section"] = {"axis": m.load.axis, "at": m.load.at}
+        if m.vents is not None:
+            request["rays"] = {"axis": m.vents.axis, "points": m.vents.points()}
+        found[m.name] = request
+    return found
+
+
+# Whose a failure is, in a word: the model's (a wrong design, or no design), a tool's
+# (the evaluation's own tools failed it), the infrastructure's (the container, the
+# proxy, the model's server: nothing about the case), or the budget's (the call cap
+# ended it before an answer: no verdict on the design).
+INFRA_STOPS = {"call_failed", "workspace_gone", "no_image", "container_start"}
+TOOL_ERRORS = ("the measure didn't finish", "it loads but can't be measured")
+
+
+def fault(row: dict[str, Any], measured: dict[str, Any], troubles: dict[str, int]) -> str | None:
+    """Whose the failure is, or None for a case that passed every check.
+
+    A `blocked` the model said is counted the model's here; its reason, in the
+    records, is read by hand in the write-up, since a missing tool may be what it
+    says (`cad_eval/README.md`).
+    """
+    if row["ending"] == "crashed":
+        return "tool"
+    if row["ending"] == "refused" or row["stop"] in INFRA_STOPS:
+        return "infra"
+    if row["stop"] == "call_cap":
+        return "budget"
+    if row["ending"] == "done":
+        errors = [str(m.get("error", "")) for m in measured.values()]
+        if any(e.startswith(TOOL_ERRORS) for e in errors):
+            return "tool"
+        if row["compiles"] and row["closed_mesh"] and row["within_tolerance"]:
+            return None
+        return "model"
+    return "tool" if troubles else "model"
+
+
+def judge(case: Case, final: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """A case's row fields from its final run, and its named checks for `checks.json`."""
+    measured = final["measured"]
+    found: list[dict[str, Any]] = []
+    passed = 0
+    load_ok = None
+    # Overhangs and bridges, recorded for the members that passed: never a check
+    # (the Sponsor, 2026-10-25: printability is a second pass on a part's files).
+    printing: list[dict[str, Any]] = []
+    for m in case.members:
+        own = checks.member(m, measured[m.name])
+        passed += all(c.ok for c in own)
+        if all(c.ok for c in own) and measured[m.name].get("print"):
+            printing.append(measured[m.name]["print"])
+        for c in own:
+            found.append({**asdict(c), "member": m.name})
+            if c.name.startswith("load."):
+                load_ok = c.ok if load_ok is None else load_ok and c.ok
+    ran = final["code"] == 0
+    row = {
+        "compiles": ran and all(checks.valid(measured[m.name]) for m in case.members),
+        "closed_mesh": all(checks.closed(measured[m.name]) for m in case.members),
+        "within_tolerance": all(c["ok"] for c in found),
+        "checks_passed": sum(c["ok"] for c in found),
+        "checks_total": len(found),
+        "parts_fit": passed,
+        "load_ok": load_ok,
+        "overhang_mm2": round(sum(p["overhang_mm2"] for p in printing), 1) if printing else None,
+        "bridges": sum(p["bridges"] for p in printing) if printing else None,
+        "longest_bridge_mm": max(p["longest_bridge_mm"] for p in printing) if printing else None,
+    }
+    return row, found
+
+
+def directory(settings: Settings, p: Part | Case, run: str) -> Path:
     path = settings.work_dir / SUITE / f"{p.name}-{run}"
     path.mkdir(parents=True)
     return path
@@ -67,8 +174,24 @@ def keep(source: Path, out: Path) -> None:
             shutil.copy2(found, target)
 
 
+def own_calls(events: Path) -> set[str]:
+    """The run's own request ids: each `call` event's `response_id`, as the proxy logs it."""
+    ids: set[str] = set()
+    if not events.exists():
+        return ids
+    with events.open(encoding="utf-8") as fh:
+        for line in fh:
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(event, dict) and event.get("kind") == "call" and event.get("response_id"):
+                ids.add(str(event["response_id"]))
+    return ids
+
+
 def evaluate(
-    p: Part,
+    p: Part | Case,
     settings: Settings,
     send: Sender,
     alias: str,
@@ -77,15 +200,17 @@ def evaluate(
     workspace_for: Callable[[Path, str], Any] = container.held,
     image_id: Callable[[], str | None] = container.image_id,
     results_dir: Path = results.RESULTS,
+    read_spend: Callable[[str], str] | None = None,
 ) -> dict[str, Any]:
     """One part end to end: its row, written to the results once the run has ended."""
     run = records.run_id()
+    started_at = datetime.now(UTC)
     out = records.run_dir(settings, SUITE, p.name, run)
     row: dict[str, Any] = {
         "case": p.name,
         "tier": p.tier,
         "run": run,
-        "at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "at": started_at.isoformat(timespec="seconds"),
         "crew_commit": crew.commit(),
         "model_alias": alias,
         "image": container.IMAGE,
@@ -98,11 +223,17 @@ def evaluate(
         "checks_total": None,
         "calls_to_done": None,
     }
+    case = p if isinstance(p, Case) else None
+    if case is not None:
+        row.update(kind=case.kind, parts_total=len(case.members), parts_fit=None)
+        row.update(load_ok=None, fault=None)
+        row.update(overhang_mm2=None, bridges=None, longest_bridge_mm=None)
     kept: dict[str, Any] = {}
     send.ticking()
     began = time.monotonic()
     root: Path | None = None
     workspace: Any = None
+    tools: PartTools | None = None
     session: Session | None = None
     try:
         kept["image_id"] = image_id()
@@ -113,13 +244,28 @@ def evaluate(
         started = workspace.start()
         if not started.ok:
             raise Refused("container_start", started.output[-3000:])
-        tools = PartTools(root, workspace)
-        session = Session(p.spec(), tools, send, alias, out / "events.jsonl", max_tokens=max_tokens)
+        tools = PartTools(root, workspace, case.outputs() if case else None)
+        session = Session(
+            p.spec(),
+            tools,
+            send,
+            alias,
+            out / "events.jsonl",
+            max_tokens=max_tokens,
+            system=system_for(case.outputs()) if case else SYSTEM,
+        )
         ending = session.run()
         row["ending"], row["stop"] = ending.how, ending.stop or None
         row["calls_to_done"] = session.calls if ending.how == "done" else None
         kept["said"] = ending.said
-        if ending.how == "done":
+        if ending.how == "done" and case is not None:
+            final = tools.final_case(str(ending.said["script"]), requests(case))
+            judged, found_checks = judge(case, final)
+            row.update(judged)
+            final["checks"] = found_checks
+            (out / "checks.json").write_text(json.dumps(final, indent=1), encoding="utf-8")
+            kept["measured"] = final["measured"]
+        elif ending.how == "done":
             final = tools.final(str(ending.said["script"]), p.probes(), p.mate)
             measured = final["measured"]
             found = checks.dimensions(p, measured)
@@ -143,6 +289,15 @@ def evaluate(
             keep(root, out)
             shutil.rmtree(root, ignore_errors=True)
         row.update(counts(session))
+        # Every other call through the proxy while this one ran (`common/spend.py`).
+        overlapped = spend.others(
+            started_at, datetime.now(UTC), own_calls(out / "events.jsonl"), read_spend
+        )
+        row["other_calls"] = None if overlapped is None else sum(overlapped.values())
+        row["other_aliases"] = spend.keys(overlapped) if overlapped else None
+        if case is not None:
+            troubles = tools.troubles if tools is not None else {}
+            row["fault"] = fault(row, kept.pop("measured", {}), troubles)
         row["wall_s"] = round(time.monotonic() - began, 1)
         send.ticking()
         row["concurrent_tick"] = send.tick_seen
@@ -181,21 +336,33 @@ def counts(session: Session | None) -> dict[str, Any]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="cad-eval", description=__doc__.split("\n\n")[0])
-    parser.add_argument("parts", nargs="*", help=f"one or more of: {', '.join(PARTS)}")
+    parser.add_argument("parts", nargs="*", help=f"one or more of: {', '.join([*PARTS, *CASES])}")
     chosen_by = parser.add_mutually_exclusive_group()
     chosen_by.add_argument("--first", action="store_true", help="one part per tier")
     chosen_by.add_argument("--all", action="store_true", help="every part, one at a time")
+    chosen_by.add_argument("--hard", action="store_true", help="every harder case")
+    chosen_by.add_argument("--hard-first", action="store_true", help="the harder cases' first five")
     parser.add_argument("--model", help="a LiteLLM alias in place of the Developer's")
     parser.add_argument("--cap", type=int, default=CAP_PER_PART, help="calls a part may make")
     parser.add_argument(
         "--total", type=int, help="calls the whole run may make (default: the cap for each part)"
     )
     args = parser.parse_args(argv)
-    if bool(args.parts) == (args.first or args.all):
-        parser.error("name the parts, or --first, or --all")
+    if bool(args.parts) == (args.first or args.all or args.hard or args.hard_first):
+        parser.error("name the parts, or --first, --all, --hard or --hard-first")
     try:
-        names = list(PARTS) if args.all else list(FIRST) if args.first else args.parts
-        chosen = [part(n) for n in names]
+        names = (
+            list(PARTS)
+            if args.all
+            else list(FIRST)
+            if args.first
+            else list(CASES)
+            if args.hard
+            else list(cases.FIRST)
+            if args.hard_first
+            else args.parts
+        )
+        chosen = [lookup(n) for n in names]
     except UnknownPart as exc:
         parser.error(str(exc.args[0]))
     total = args.total if args.total is not None else args.cap * len(chosen)
@@ -250,6 +417,7 @@ def main(argv: list[str] | None = None) -> int:
             failed += row["ending"] in ("refused", "crashed")
             print(
                 f"{p.name} (tier {p.tier}): {row['ending']}"
+                f"{', fault ' + str(row['fault']) if 'fault' in row else ''}"
                 f"{' (' + row['stop'] + ')' if row['stop'] else ''}; "
                 f"compiles {row['compiles']}, closed {row['closed_mesh']}, "
                 f"within {row['within_tolerance']} "

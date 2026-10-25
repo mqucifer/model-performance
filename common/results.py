@@ -75,6 +75,16 @@ SUITES: dict[str, set[str]] = {
         "checks_passed",
         "checks_total",
         "calls_to_done",  # the calls a part took to `done`, or null without one
+        # The harder cases' (mqucifer/model-performance#16): absent from the 30 parts' rows.
+        "kind",  # tight, assembly or worded
+        "parts_total",  # the case's members, each its own STEP file
+        "parts_fit",  # the members that passed every check of their own, fits included
+        "load_ok",  # the simplified load check, or null without one or without a `done`
+        "fault",  # model, tool, infra or budget, or null for a case that passed
+        # Printed as placed, over the members that passed: recorded, never checked.
+        "overhang_mm2",  # faces facing down steeper than 45° from vertical, off the bed
+        "bridges",  # patches facing straight down, off the bed
+        "longest_bridge_mm",  # the longest of their spans
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed

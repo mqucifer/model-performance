@@ -4,14 +4,17 @@
   exit 0, and wrote a STEP file that loads as a valid shape.
 - `closed_mesh`: that shape's mesh, at the measure's tolerance, is watertight with a
   consistent winding: a volume a slicer can fill.
-- `within_tolerance`: every dimension check passes, as `Part` declares them.
+- `within_tolerance`: every dimension check passes, as `Part` declares them, or for
+  a harder case, every check of each member, as `cad_eval/cases.py` declares them.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
+from cad_eval.cases import ALLOWED_MPA, Holes, Load, Member, Sample, Span
 from cad_eval.parts import Part
 
 
@@ -63,3 +66,151 @@ def closed(measured: dict[str, Any]) -> bool:
 
 def valid(measured: dict[str, Any]) -> bool:
     return "error" not in measured and bool(measured.get("valid")) and measured.get("solids", 0) > 0
+
+
+def member(m: Member, measured: dict[str, Any]) -> list[Check]:
+    """A harder case's member: each of its checks that it declares, on what was measured."""
+    if "error" in measured or "bbox" not in measured:
+        return [Check("measured", False, "a shape", measured.get("error"))]
+    found = [Check("solids", measured["solids"] == m.solids, m.solids, measured["solids"])]
+    box = measured["bbox"]
+    if m.bbox is not None:
+        for axis, want, got in zip("xyz", m.bbox, box, strict=True):
+            for end, w, g in (("min", want[0], got[0]), ("max", want[1], got[1])):
+                found.append(Check(f"bbox.{axis}.{end}", abs(g - w) <= m.tol, w, g))
+    if m.within is not None:
+        for axis, (low, high), (got_low, got_high) in zip("xyz", m.within, box, strict=True):
+            ok = got_low >= low - m.tol and got_high <= high + m.tol
+            found.append(Check(f"within.{axis}", ok, [low, high], [got_low, got_high]))
+    for axis, span, (got_low, got_high) in zip("xyz", m.spans or (None,) * 3, box, strict=True):
+        if span is not None:
+            size = round(got_high - got_low, 4)
+            found.append(Check(f"span.{axis}", span[0] <= size <= span[1], list(span), size))
+    volume = measured["volume"]
+    if m.volume is not None:
+        ok = abs(volume - m.volume) <= m.volume_rel * m.volume
+        found.append(Check("volume", ok, round(m.volume, 3), volume))
+    if m.volume_range is not None:
+        low, high = m.volume_range
+        found.append(Check("volume", low <= volume <= high, [low, high], volume))
+    answers = measured.get("inside") or []
+    expected = [(n, True) for n in m.inside] + [(n, False) for n in m.outside]
+    if len(answers) != len(m.probes()):
+        return [*found, Check("probes", False, len(m.probes()), len(answers))]
+    for (name, want), got in zip(expected, answers, strict=False):
+        found.append(Check(f"{'in' if want else 'out'}.{name}", got == want, want, got))
+    at = len(expected)
+    for sample in m.samples:
+        got = answers[at : at + len(sample.points)]
+        at += len(sample.points)
+        found.extend(sampled(sample, got))
+    for holes in m.holes:
+        count = holes_found(holes, measured.get("cylinders") or [])
+        found.append(Check(f"holes.{holes.name}", count >= holes.count, holes.count, count))
+    if m.load is not None:
+        found.append(load(m.load, measured.get("section") or {}, box))
+    for gap in m.gaps:
+        found.extend(
+            gapped(
+                f"gap.{gap.other}",
+                gap.interference,
+                gap.distance,
+                (measured.get("against") or {}).get(gap.other),
+            )
+        )
+    if m.own_gap is not None:
+        found.extend(gapped("own", (0.0, 0.01), m.own_gap, measured.get("self")))
+    if m.vents is not None:
+        hits = measured.get("rays") or []
+        area = round((len(hits) - sum(hits)) * m.vents.step**2, 1) if hits else None
+        ok = area is not None and len(hits) == len(m.vents.points()) and area >= m.vents.area
+        found.append(Check(f"vents.{m.vents.name}", ok, f">= {m.vents.area} mm²", area))
+    return found
+
+
+def sampled(sample: Sample, inside: list[bool]) -> list[Check]:
+    share = round(sum(inside) / len(inside), 4) if inside else 0.0
+    low, high = sample.share
+    found = [Check(f"share.{sample.name}", low <= share <= high, list(sample.share), share)]
+    if sample.changes is not None:
+        pairs = zip(inside, inside[1:] + inside[:1] if sample.closed else inside[1:], strict=False)
+        changes = sum(a != b for a, b in pairs)
+        low_c, high_c = sample.changes
+        ok = low_c <= changes <= high_c
+        found.append(Check(f"changes.{sample.name}", ok, list(sample.changes), changes))
+    if sample.gaps is not None:
+        widths = gap_widths(inside, sample.spacing)
+        low_g, high_g = sample.gaps
+        ok = bool(widths) and all(low_g <= w <= high_g for w in widths)
+        found.append(Check(f"gaps.{sample.name}", ok, list(sample.gaps), widths))
+    return found
+
+
+def gap_widths(inside: list[bool], spacing: float) -> list[float]:
+    """Each run of points outside between two inside, as a width in mm: the run's
+    points and one spacing more, the distance between the material on either side."""
+    widths, run, started = [], 0, False
+    for point in inside:
+        if point:
+            if started and run:
+                widths.append(round((run + 1) * spacing, 3))
+            started, run = True, 0
+        elif started:
+            run += 1
+    return widths
+
+
+def holes_found(holes: Holes, cylinders: list[dict[str, Any]]) -> int:
+    """The distinct hole axes along `holes.axis` of a radius in range: a hole cut in
+    halves, as OCCT often makes one, counts once."""
+    index = "xyz".index(holes.axis)
+    axes: list[tuple[float, float]] = []
+    for c in cylinders:
+        if not c.get("hole") or abs(abs(c["axis"][index]) - 1) > 1e-3:
+            continue
+        if not holes.radius[0] <= c["radius"] <= holes.radius[1]:
+            continue
+        across = tuple(round(v, 2) for k, v in enumerate(c["origin"]) if k != index)
+        if all(math.dist(across, a) > 0.05 for a in axes):
+            axes.append(across)  # type: ignore[arg-type]
+    return len(axes)
+
+
+def stress(spec: Load, section: dict[str, Any], box: Any = None) -> float | None:
+    """The bending stress at the section, MPa, by `Load`'s simplification; None with no
+    material there. `box` is the part's bounding box, for a load at its far end."""
+    if not section.get("area"):
+        return None
+    arm = spec.arm_mm
+    if arm is None:
+        arm = box["xyz".index(spec.axis)][1] - spec.at
+    normal, along = "xyz".index(spec.axis), "xyz".index(spec.along)
+    (across,) = {0, 1, 2} - {normal, along}
+    second = section["moments"][across][across]
+    low, high = section["bbox"][along]
+    centre = section["centroid"][along]
+    far = max(abs(high - centre), abs(centre - low))
+    if second <= 0:
+        return None
+    return round(spec.force_n * arm * far / second, 3)
+
+
+def load(spec: Load, section: dict[str, Any], box: Any = None) -> Check:
+    found = stress(spec, section, box)
+    ok = found is not None and found <= ALLOWED_MPA
+    return Check(f"load.{spec.name}", ok, f"<= {round(ALLOWED_MPA, 2)} MPa (simplified)", found)
+
+
+def gapped(
+    name: str, interference: Span, distance: Span | None, found: dict[str, Any] | None
+) -> list[Check]:
+    if not found or "error" in found:
+        return [Check(name, False, "measured", (found or {}).get("error"))]
+    overlap = found.get("interference")
+    ok = overlap is not None and interference[0] <= overlap <= interference[1]
+    checks = [Check(f"{name}.interference", ok, list(interference), overlap)]
+    if distance is not None:
+        gap = found.get("distance")
+        ok = gap is not None and distance[0] <= gap <= distance[1]
+        checks.append(Check(f"{name}.distance", ok, list(distance), gap))
+    return checks
