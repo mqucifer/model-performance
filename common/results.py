@@ -37,6 +37,11 @@ SHARED = {
     "cached_tokens",
     "concurrent_tick",  # whether a crew tick ran at any point: it shares the model
     "tick_calls",  # the calls made while one ran
+    # Every other call through the proxy that overlapped the run, from LiteLLM's log
+    # (`common/spend.py`), and their key aliases: null if the log couldn't be read.
+    "other_calls",
+    "other_aliases",
+    "arm",  # the one setting changed against the baseline, or null for the baseline
 }
 # Each suite's own fields, beside the shared ones.
 SUITES: dict[str, set[str]] = {
@@ -49,7 +54,6 @@ SUITES: dict[str, set[str]] = {
         "troubles",  # empty, cut-off or malformed answers
         "start_chars",
         "record_authored",  # the session read the case's authored record, not the base's own
-        "arm",  # the one setting changed (benchmark/arms.py), or null for the baseline
         "max_call_reasoning_tokens",  # one call's most, as the arm saw them; null without one
     },
     "cad_eval": {

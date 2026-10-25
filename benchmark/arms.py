@@ -1,15 +1,15 @@
 """The arms: one setting changed against the baseline (mqucifer/model-performance#5).
 
     uv run replay sprint-metrics-567 --arm think-off
-    uv run replay sprint-metrics-567 --arm budget-128
+    uv run replay sprint-metrics-567 --arm compact-50
 
 An arm is what's sent, or how the session runs, and nothing else: a LiteLLM alias,
 fields added to each request's body, the reasoning the history sends back, or where
 the session compacts. It wraps the run's `Sender`, so `common.litellm` is the one way
 a model is called, unchanged. A row without an arm is the baseline.
 
-Each arm names the request field and value it sets, because "effort" and "budget"
-mean different things in LiteLLM and SGLang:
+Each arm names the request field and value it sets, because "effort" means different
+things in LiteLLM and SGLang:
 
 - `think-off`: `chat_template_kwargs: {enable_thinking: false}` in each body, on
   `crew-code-think`'s sampling. Qwen's template then writes no thinking.
@@ -23,15 +23,14 @@ mean different things in LiteLLM and SGLang:
 - `compact-<k>`: the session compacts at k thousand estimated tokens, not crew's 125k.
   The form is crew's at the pin. The records say on which calls it fired; never
   firing is a finding, not a failure.
-- `budget-<n>`: `custom_params: {thinking_budget: n}` in each body. SGLang enforces
-  it only when launched with `--enable-strict-thinking` or
-  `--enable-custom-logit-processor`; without either it's a hint to the template.
+
+No arm caps thinking (the Sponsor, 2026-10-25, on mqucifer/model-performance#5): long
+thinking is read as a symptom of what the context or the tools didn't give.
 
 An arm whose setting can be seen in the answer is checked on every call: thinking
-off must spend no reasoning tokens, and a budget no more than its own. The first
-call that breaks it ends the run as `refused`, with why in a word
-(`arm_not_applied`, `budget_unenforced`): the setting didn't reach the model, so the
-run would measure the baseline under another name.
+off must spend no reasoning tokens. The first call that breaks it ends the run as
+`refused`, `arm_not_applied`: the setting didn't reach the model, so the run would
+measure the baseline under another name.
 """
 
 from __future__ import annotations
@@ -40,9 +39,6 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
-
-# A budget's answer may close its thinking a few tokens past the budget: the end tag.
-BUDGET_SLACK = 8
 
 
 class ArmNotInEffect(RuntimeError):
@@ -69,8 +65,6 @@ class Arm:
     compact_at: int | None = None
     # The most reasoning tokens a call may spend, if the arm sets it.
     max_reasoning: int | None = None
-    # The word a call over `max_reasoning` ends the run with.
-    over: str = "arm_not_applied"
 
     def describe(self) -> dict[str, Any]:
         """What the arm sets, whole, for the run's records."""
@@ -96,25 +90,17 @@ FIXED = {
     "effort-medium": Arm("effort-medium", alias="crew-analysis"),
     "reasoning-dropped": Arm("reasoning-dropped", drop_reasoning=True),
 }
-SIZED = re.compile(r"(compact|budget)-(\d+)")
-NAMES = (*FIXED, "compact-<k>", "budget-<n>")
+SIZED = re.compile(r"compact-(\d+)")
+NAMES = (*FIXED, "compact-<k>")
 
 
 def arm(name: str) -> Arm:
     if name in FIXED:
         return FIXED[name]
     sized = SIZED.fullmatch(name)
-    if not sized or int(sized[2]) <= 0:
+    if not sized or int(sized[1]) <= 0:
         raise UnknownArm(f"no arm {name!r}; one of: {', '.join(NAMES)}")
-    kind, n = sized[1], int(sized[2])
-    if kind == "compact":
-        return Arm(name, compact_at=n * 1000)
-    return Arm(
-        name,
-        body={"custom_params": {"thinking_budget": n}},
-        max_reasoning=n + BUDGET_SLACK,
-        over="budget_unenforced",
-    )
+    return Arm(name, compact_at=int(sized[1]) * 1000)
 
 
 def reasoning_tokens(response: dict[str, Any]) -> int:
@@ -148,7 +134,7 @@ class Armed:
         limit = self.arm.max_reasoning
         if limit is not None and spent > limit:
             raise ArmNotInEffect(
-                self.arm.over,
+                "arm_not_applied",
                 f"call {len(self.reasoning)} spent {spent} reasoning tokens, over {limit}",
             )
         return response

@@ -322,40 +322,10 @@ def test_thinking_that_stays_on_refuses_the_arm(
         arm=arm("think-off"),
         monkeypatch=monkeypatch,
     )
-    assert (row["ending"], row["stop"], row["calls"]) == ("refused", "arm_not_applied", 0)
+    assert (row["ending"], row["stop"], row["calls"]) == ("refused", "arm_not_applied", 1)
     assert row["max_call_reasoning_tokens"] == 300
     assert made[0].stopped
     assert "call 1 spent 300" in kept(tmp_path, row)["refused"]
-
-
-def test_a_budget_the_server_ignores_is_a_result_not_a_crash(
-    tmp_path: Path, repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    bodies: list[dict[str, Any]] = []
-    row, _, _ = run(
-        tmp_path,
-        repo,
-        [thought(answer(BLOCKED), 1400)],
-        arm=arm("budget-128"),
-        bodies=bodies,
-        monkeypatch=monkeypatch,
-    )
-    assert (row["ending"], row["stop"]) == ("refused", "budget_unenforced")
-    assert bodies[0]["custom_params"] == {"thinking_budget": 128}
-    assert kept(tmp_path, row)["reasoning_by_call"] == [1400]
-
-
-def test_a_budget_kept_runs_as_usual(
-    tmp_path: Path, repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    row, _, _ = run(
-        tmp_path,
-        repo,
-        [thought(answer(BLOCKED), 120)],
-        arm=arm("budget-128"),
-        monkeypatch=monkeypatch,
-    )
-    assert (row["ending"], row["max_call_reasoning_tokens"]) == ("blocked", 120)
 
 
 def test_dropped_reasoning_leaves_the_request_not_the_session(

@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from benchmark.arms import BUDGET_SLACK, ArmNotInEffect, UnknownArm, arm, reasoning_tokens
+from benchmark.arms import ArmNotInEffect, UnknownArm, arm, reasoning_tokens
 
 
 def echo(seen: list[dict[str, Any]], reasoning: int = 0) -> Any:
@@ -17,14 +17,13 @@ def echo(seen: list[dict[str, Any]], reasoning: int = 0) -> Any:
     return send
 
 
-def test_sized_arms_read_their_size() -> None:
+def test_a_compaction_arm_reads_its_size() -> None:
     assert arm("compact-50").compact_at == 50_000
-    budget = arm("budget-128")
-    assert budget.body == {"custom_params": {"thinking_budget": 128}}
-    assert budget.max_reasoning == 128 + BUDGET_SLACK
 
 
-@pytest.mark.parametrize("name", ["warp-9", "budget-0", "compact-", "budget-1.5", "think-off "])
+@pytest.mark.parametrize(
+    "name", ["warp-9", "compact-0", "compact-", "compact-1.5", "budget-128", "think-off "]
+)
 def test_an_unknown_arm_is_refused(name: str) -> None:
     with pytest.raises(UnknownArm):
         arm(name)

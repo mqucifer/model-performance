@@ -35,7 +35,7 @@ from typing import Any
 from benchmark.arms import NAMES, Arm, ArmNotInEffect, UnknownArm, arm
 from benchmark.cases import CASES, Case, UnknownCase, case, record, story
 from benchmark.history import history
-from common import crew, records, results
+from common import crew, records, results, spend
 from common.config import Settings, load
 from common.litellm import Sender, builders_key
 
@@ -183,10 +183,11 @@ def replay(
     checkout_for = checkout_for or (lambda c, run: checkout(settings.work_dir, c, run))
     run = records.run_id()
     out = records.run_dir(settings, SUITE, c.name, run)
+    started_at = datetime.now(UTC)
     row: dict[str, Any] = {
         "case": c.name,
         "run": run,
-        "at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "at": started_at.isoformat(timespec="seconds"),
         "crew_commit": crew.commit(),
         "model_alias": alias,
         "ending": None,
@@ -213,7 +214,8 @@ def replay(
             tool_results["malformed" if malformed else "ok"] += 1
 
     send.ticking()
-    sink = events.EventSink(out / "events.jsonl")
+    sink_path = out / "events.jsonl"
+    sink = events.EventSink(sink_path)
     sink.subscribe(count)
     events.forward_calls_to(sink)
     began = time.monotonic()
@@ -302,6 +304,8 @@ def replay(
             row["ending"] = "refused"
             row["stop"] = ending.error.why
             kept["refused"] = ending.error.detail
+            # The call that showed it reached the model, though the session didn't count it.
+            row["calls"] = send.calls
         if ending.how == "done":
             checked = gate_for(root, workspace, since)
             row["gate_green"] = bool(checked.ok)
@@ -331,6 +335,10 @@ def replay(
         send.ticking()
         row["concurrent_tick"] = send.tick_seen
         row["tick_calls"] = send.tick_calls
+        overlapped = spend.others(started_at, datetime.now(UTC), spend.own_calls(sink_path))
+        row["other_calls"] = None if overlapped is None else sum(overlapped.values())
+        row["other_aliases"] = spend.keys(overlapped) if overlapped else None
+        kept["other_calls"] = overlapped
         if armed is not None and armed.reasoning:
             row["max_call_reasoning_tokens"] = max(armed.reasoning)
             kept["reasoning_by_call"] = armed.reasoning
