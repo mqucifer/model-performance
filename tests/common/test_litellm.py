@@ -19,6 +19,7 @@ def sender(tmp_path: Path, seen: list[httpx.Request], status: int = 200, **kw) -
         seen.append(request)
         return httpx.Response(status, json=ANSWER if status == 200 else {"echo": "the prompt"})
 
+    kw.setdefault("tick", lambda: False)
     return Sender(load(home=tmp_path), "sk-test", transport=httpx.MockTransport(answer), **kw)
 
 
@@ -63,3 +64,11 @@ def test_lists_says_whether_the_proxy_knows_an_alias(tmp_path: Path) -> None:
     assert send.lists("crew-code-think")
     assert not send.lists("crew-candidate")
     assert send.calls == 0
+
+
+def test_calls_made_while_a_tick_runs_are_counted(tmp_path: Path) -> None:
+    ticks = iter([False, True, True])
+    send = sender(tmp_path, [], tick=lambda: next(ticks))
+    for _ in range(3):
+        send({"model": "m"})
+    assert (send.tick_calls, send.tick_seen) == (2, True)

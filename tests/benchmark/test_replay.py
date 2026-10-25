@@ -108,6 +108,7 @@ def run(
         "k",
         cap=cap,
         transport=httpx.MockTransport(lambda r: httpx.Response(200, json=next(replies))),
+        tick=lambda: True,
     )
     made: list[FakeWorkspace] = []
 
@@ -154,6 +155,7 @@ def test_a_blocked_session_counts_its_malformed_call(
     assert row["malformed_tool_calls"] == 1
     assert row["gate_green"] is None
     assert row["prompt_tokens"] == 2000
+    assert (row["concurrent_tick"], row["tick_calls"]) == (True, 2)
     assert made[0].stopped
     assert not (tmp_path / "worktrees" / row["run"]).exists()
     out = tmp_path / ".local/share/model-performance/records/benchmark" / row["case"] / row["run"]
@@ -191,7 +193,7 @@ def test_a_checkout_that_fails_is_refused(tmp_path: Path, monkeypatch: pytest.Mo
     row = bench.replay(
         CASE,
         settings,
-        Sender(settings, "k", cap=0),
+        Sender(settings, "k", cap=0, tick=lambda: False),
         "crew-code-think",
         checkout_for=fails,
         results_dir=tmp_path / "results",

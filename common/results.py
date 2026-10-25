@@ -28,13 +28,15 @@ SHARED = {
     "ending",  # how it ended, in a word
     "calls",
     "tool_calls",
-    "malformed_tool_calls",  # arguments that weren't a JSON object
+    "malformed_tool_calls",  # not well formed: bad JSON, no such tool, wrong arguments
     "model_s",
     "wall_s",
     "prompt_tokens",
     "completion_tokens",
     "reasoning_tokens",
     "cached_tokens",
+    "concurrent_tick",  # whether a crew tick ran at any point: it shares the model
+    "tick_calls",  # the calls made while one ran
 }
 # Each suite's own fields, beside the shared ones.
 SUITES: dict[str, set[str]] = {

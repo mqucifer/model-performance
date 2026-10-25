@@ -10,6 +10,13 @@ Each row names the crew commit it ran (`crew_commit`) and the LiteLLM alias it
 called (`model_alias`). Compare rows only when they share both, or when the
 difference is the thing being measured.
 
+**Load:** `concurrent_tick` says whether a `crew tick` ran at any point in the run,
+and `tick_calls` how many of its calls were made while one did. The tick shares
+the model, so `model_s` and `wall_s` depend on it, while calls, tokens and the
+ending don't. Compare times only between rows with the same load. The Spark's
+own queue isn't read: nothing probes SGLang directly, and LiteLLM's replies
+don't carry it.
+
 ## `benchmark.jsonl`: the session replay
 
 **The baseline starts fresh, and doesn't compare with Stage R's numbers.** Stage R

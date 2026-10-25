@@ -160,6 +160,7 @@ def replay(
             ).startswith("session.arguments")
             tool_results["malformed" if malformed else "ok"] += 1
 
+    send.ticking()
     sink = events.EventSink(out / "events.jsonl")
     sink.subscribe(count)
     events.forward_calls_to(sink)
@@ -252,6 +253,9 @@ def replay(
         row["wall_s"] = round(time.monotonic() - began, 1)
         row["tool_calls"] = sum(tool_results.values())
         row["malformed_tool_calls"] = tool_results["malformed"]
+        send.ticking()
+        row["concurrent_tick"] = send.tick_seen
+        row["tick_calls"] = send.tick_calls
         with contextlib.suppress(OSError):
             kept["history"] = history(settings.crew_events, c.repo, c.card)
         (out / "result.json").write_text(
@@ -314,7 +318,8 @@ def main(argv: list[str] | None = None) -> int:
                 f"{' (' + row['stop'] + ')' if row['stop'] else ''}, "
                 f"gate {'-' if green is None else 'green' if green else 'red'}, "
                 f"{row.get('calls', 0)} calls, {row['tool_calls']} tool calls "
-                f"({row['malformed_tool_calls']} malformed), {row.get('model_s', 0)} model s; "
+                f"({row['malformed_tool_calls']} malformed), {row.get('model_s', 0)} model s, "
+                f"tick during {row['tick_calls']} calls; "
                 f"records {settings.records_dir / SUITE / c.name / row['run']}"
             )
     return 1 if failed else 0

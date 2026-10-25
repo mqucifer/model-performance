@@ -75,6 +75,7 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
+
 def run_dir(slug: str, label: str = "") -> Path:
     root = Path(os.environ.get("INFRA_RESULTS", "~/infra-results")).expanduser()
     run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + (f"-{label}" if label else "")
