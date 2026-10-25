@@ -21,6 +21,7 @@ dev = [
 [project.scripts]
 swap = "swap.cli:main"
 replay = "benchmark.replay:main"
+cad-eval = "cad_eval.run:main"
 
 [build-system]
 requires = ["hatchling"]

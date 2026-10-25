@@ -49,7 +49,25 @@ SUITES: dict[str, set[str]] = {
         "troubles",  # empty, cut-off or malformed answers
         "start_chars",
     },
-    "cad_eval": set(),
+    "cad_eval": {
+        "tier",  # the part's difficulty, 1 to 5
+        "stop",  # what ended it, in a word, when it isn't `done`
+        "image",  # the CadQuery image's tag
+        # Tool calls in BFCL's categories, beside the shared malformed count.
+        "ill_typed_tool_calls",  # well formed by crew's rule, but a value of the wrong type
+        "failed_tool_calls",  # well formed, but the tool couldn't do what it asked
+        "reliable_tool_calls",
+        "tool_reliability",  # reliable / tool_calls, or null with none
+        "writes",
+        "runs",
+        "inspects",
+        # The part, checked at `done`, or null without one.
+        "compiles",
+        "closed_mesh",
+        "within_tolerance",
+        "checks_passed",
+        "checks_total",
+    },
 }
 # A short name: an id, a commit, a time, an alias. No spaces, so no sentence fits.
 NAME = re.compile(r"[A-Za-z0-9_.:@/+-]{1,80}")
