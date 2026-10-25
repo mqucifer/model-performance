@@ -1,0 +1,453 @@
+"""The cases: E1's own first-try answer calls, by id, with their production outcome.
+
+Chosen by `uv run role-fit select` (`select.py` says how) and kept here, so every
+run replays the same calls. Each holds numbers and short names only: the call's
+request (its prompt) is copied from LiteLLM's spend log to the records directory
+on the Mac by `uv run role-fit extract`, and never reaches the repository.
+
+Not in E1's window: sprint-metrics#567's own Developer calls, which ran on
+2026-10-11 before mqucifer/crew#633 changed the prompts. The benchmark replays
+that story whole (`benchmark/`); here it is QA's verdict on it.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from role_fit.select import BUCKETS
+
+
+@dataclass(frozen=True)
+class Case:
+    id: str  # the call's response_id, LiteLLM's request_id
+    bucket: str
+    role: str
+    card: int | None
+    schema: str  # the answer model it asked for
+    attempt: int | None  # the delivery's attempt, for the Developer
+    # Production, from the crew's events: answered in its form on the first try, or
+    # refused (and whether for an empty answer), with its finish, tokens and seconds.
+    prod_valid: bool
+    prod_empty: bool
+    prod_finish: str
+    prod_prompt_tokens: int | None
+    prod_completion_tokens: int | None
+    prod_reasoning_tokens: int | None
+    prod_duration_s: float | None
+
+    @property
+    def group(self) -> str:
+        return GROUPS[self.bucket]
+
+
+GROUPS = {b.name: b.group for b in BUCKETS}
+
+CASES = (
+    Case(
+        "e14cc9f19ab44372995bc34fbbc7899d",
+        "dev-first",
+        "developer",
+        569,
+        "FirstOrDone",
+        1,
+        False,
+        False,
+        "stop",
+        40745,
+        17348,
+        10122,
+        453.973,
+    ),
+    Case(
+        "f30877cd33a744648ce75f6f90ff6988",
+        "dev-first",
+        "developer",
+        609,
+        "FirstOrDone",
+        1,
+        False,
+        False,
+        "stop",
+        38938,
+        25043,
+        18461,
+        659.257,
+    ),
+    Case(
+        "87240811ed0d4174b3b2a501ca14b44c",
+        "dev-first",
+        "developer",
+        586,
+        "FirstOrDone",
+        1,
+        False,
+        False,
+        "stop",
+        35892,
+        22353,
+        15464,
+        580.818,
+    ),
+    Case(
+        "abc8433741f24f2b8911c051622a979a",
+        "dev-first",
+        "developer",
+        585,
+        "FirstOrDone",
+        1,
+        True,
+        False,
+        "stop",
+        49910,
+        13839,
+        3268,
+        499.072,
+    ),
+    Case(
+        "0339b567758d4cb8a1d32cc89d0e69d5",
+        "dev-first",
+        "developer",
+        606,
+        "FirstOrDone",
+        1,
+        True,
+        False,
+        "stop",
+        42366,
+        15403,
+        10373,
+        427.14,
+    ),
+    Case(
+        "ab9c5c5448184069a3fd7b9003e47b55",
+        "dev-first",
+        "developer",
+        603,
+        "FirstOrDone",
+        1,
+        True,
+        False,
+        "stop",
+        37320,
+        28966,
+        21099,
+        839.352,
+    ),
+    Case(
+        "f761a09734374a308e3bfd88b12fefb8",
+        "dev-repair",
+        "developer",
+        585,
+        "Implementation",
+        2,
+        False,
+        True,
+        "stop",
+        51119,
+        14504,
+        14504,
+        764.955,
+    ),
+    Case(
+        "2a689c13c50f45ed9d7a975ae0a7255d",
+        "dev-repair",
+        "developer",
+        588,
+        "Implementation",
+        2,
+        False,
+        False,
+        "stop",
+        42011,
+        9925,
+        4313,
+        280.927,
+    ),
+    Case(
+        "85bb3d37a4d74a7296eea80a72813b1a",
+        "dev-repair",
+        "developer",
+        603,
+        "Implementation",
+        2,
+        True,
+        False,
+        "stop",
+        51891,
+        2606,
+        227,
+        93.837,
+    ),
+    Case(
+        "db580a8d75454cfc8b1017959ec0d9f4",
+        "dev-repair",
+        "developer",
+        569,
+        "Implementation",
+        2,
+        True,
+        False,
+        "stop",
+        37235,
+        12121,
+        6518,
+        350.517,
+    ),
+    Case(
+        "71df6e411904422ea55b212fbf074e0e",
+        "qa-verdict",
+        "qa_engineer",
+        585,
+        "QAVerdict",
+        None,
+        True,
+        False,
+        "stop",
+        85827,
+        4743,
+        3210,
+        180.18,
+    ),
+    Case(
+        "5e684dd4c5534a4db2751477dace341d",
+        "qa-verdict",
+        "qa_engineer",
+        569,
+        "QAVerdict",
+        None,
+        True,
+        False,
+        "stop",
+        69088,
+        5086,
+        2541,
+        151.097,
+    ),
+    Case(
+        "b9ced4f06d5f4fc3a7c1a39b9d152134",
+        "qa-verdict",
+        "qa_engineer",
+        567,
+        "QAVerdict",
+        None,
+        True,
+        False,
+        "stop",
+        67933,
+        4561,
+        2755,
+        173.287,
+    ),
+    Case(
+        "e2416540698d4403b5f115fc2a3f2dbd",
+        "qa-verdict",
+        "qa_engineer",
+        568,
+        "QAVerdict",
+        None,
+        True,
+        False,
+        "stop",
+        34770,
+        4420,
+        2454,
+        97.394,
+    ),
+    Case(
+        "7ba97a6305754f4fa53548e5ad9ea48c",
+        "qa-verdict",
+        "qa_engineer",
+        603,
+        "QAVerdict",
+        None,
+        True,
+        False,
+        "stop",
+        29181,
+        2918,
+        1346,
+        68.796,
+    ),
+    Case(
+        "52a8d519bc94492d955cdc4850d9337c",
+        "criteria",
+        "qa_engineer",
+        561,
+        "CriteriaCheck",
+        None,
+        True,
+        False,
+        "stop",
+        46998,
+        7980,
+        7969,
+        323.537,
+    ),
+    Case(
+        "9c3e05d17975411491dddf0ecbf3a0ba",
+        "criteria",
+        "qa_engineer",
+        599,
+        "CriteriaCheck",
+        None,
+        True,
+        False,
+        "stop",
+        31276,
+        7439,
+        7428,
+        226.205,
+    ),
+    Case(
+        "7a627c0d5ea34108a44071716038a481",
+        "criteria",
+        "qa_engineer",
+        598,
+        "CriteriaCheck",
+        None,
+        True,
+        False,
+        "stop",
+        29423,
+        3789,
+        2942,
+        102.22,
+    ),
+    Case(
+        "575b534357e542e98bc815b0b899f40f",
+        "split",
+        "product_owner",
+        597,
+        "EpicProposal",
+        None,
+        True,
+        False,
+        "stop",
+        130685,
+        7097,
+        5459,
+        406.097,
+    ),
+    Case(
+        "51046fa4ea0b4595846c71bc0347318f",
+        "split",
+        "business_analyst",
+        598,
+        "StoryProposal",
+        None,
+        True,
+        False,
+        "stop",
+        81968,
+        13783,
+        10877,
+        458.307,
+    ),
+    Case(
+        "4c916f9090a24828ae9223ba4a3d109f",
+        "split",
+        "business_analyst",
+        599,
+        "StoryProposal",
+        None,
+        True,
+        False,
+        "stop",
+        68024,
+        13328,
+        10742,
+        408.202,
+    ),
+    Case(
+        "a7c97dc5f4164b3ea17105c0adce9438",
+        "settle",
+        "product_owner",
+        600,
+        "Settlement",
+        2,
+        False,
+        False,
+        "stop",
+        12904,
+        6892,
+        6108,
+        222.367,
+    ),
+    Case(
+        "aba58435425f42b4b30afc7c2e6628ac",
+        "settle",
+        "product_owner",
+        599,
+        "Settlement",
+        2,
+        True,
+        False,
+        "stop",
+        10429,
+        3984,
+        3582,
+        118.412,
+    ),
+    Case(
+        "6a8a33595b80489a8046a252bec7b43f",
+        "settle",
+        "product_owner",
+        598,
+        "Settlement",
+        2,
+        True,
+        False,
+        "stop",
+        9654,
+        3180,
+        2678,
+        95.248,
+    ),
+    Case(
+        "7ea15916b1bc4fdaaffa901302599977",
+        "architect",
+        "architect",
+        598,
+        "DesignNote",
+        None,
+        True,
+        False,
+        "stop",
+        96517,
+        7954,
+        6025,
+        333.512,
+    ),
+    Case(
+        "9654fe21bc124009ae114ea9d58ee185",
+        "architect",
+        "architect",
+        561,
+        "DesignNote",
+        None,
+        True,
+        False,
+        "stop",
+        93690,
+        5788,
+        3057,
+        235.787,
+    ),
+)
+
+
+class UnknownCase(KeyError):
+    pass
+
+
+def chosen(names: list[str]) -> list[Case]:
+    """The cases named by id or bucket, in order; every case when none is named."""
+    if not names:
+        return list(CASES)
+    out = []
+    for name in names:
+        found = [c for c in CASES if name in (c.id, c.bucket, c.group)]
+        if not found:
+            raise UnknownCase(f"no case, bucket or group {name!r}")
+        out += [c for c in found if c not in out]
+    return out
