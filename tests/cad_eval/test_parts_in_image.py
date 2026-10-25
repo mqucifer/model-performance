@@ -8,6 +8,7 @@ skipped where the image isn't built (CI): run them on the Mac after
 from __future__ import annotations
 
 import contextlib
+import os
 import shutil
 from pathlib import Path
 
@@ -28,7 +29,7 @@ def tools(tmp_path_factory: pytest.TempPathFactory):
     directory = tmp_path_factory.mktemp("part")
     # crew's sandbox keeps its uv cache under the current directory: not the checkout.
     with contextlib.chdir(tmp_path_factory.mktemp("work")):
-        workspace = container.held(directory, f"test-{directory.name}")
+        workspace = container.held(directory, f"test-{directory.name}-{os.getpid()}")
         assert workspace.start().ok
         try:
             yield PartTools(directory, workspace)

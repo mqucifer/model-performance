@@ -24,6 +24,8 @@ class Ran:
 class FakeWorkspace:
     # What `measure.py` reports, and what each `python <script>` run exits with.
     measured: dict[str, Any] = field(default_factory=dict)
+    # A harder case's: what each member's file measures, by its path.
+    measured_by: dict[str, dict[str, Any]] = field(default_factory=dict)
     exits: list[int] = field(default_factory=list)
     writes: dict[str, str] = field(default_factory=dict)
     directory: Any = None
@@ -46,7 +48,8 @@ class FakeWorkspace:
             import json  # noqa: PLC0415
 
             path = json.loads(command[3])["path"]
-            return Ran("measure", 0, measure.MARK + json.dumps({"path": path, **self.measured}))
+            found = self.measured_by.get(path, self.measured)
+            return Ran("measure", 0, measure.MARK + json.dumps({"path": path, **found}))
         code = self.exits.pop(0) if self.exits else 0
         if code == 0 and self.directory is not None:
             for name, text in self.writes.items():

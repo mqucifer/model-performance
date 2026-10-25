@@ -177,3 +177,75 @@ one crew's argument rule refuses, here over the evaluation's own tools.
 | `checks_passed`, `checks_total` | the dimension checks behind `within_tolerance`, named in the run's `checks.json` |
 | `calls` | model calls. A part stops at its cap (40, or `--cap`; the first run's was 20) as `interrupted` with `call_cap` |
 | `calls_to_done` | the calls a part took to reach `done`, or null without one: what the next run's cap is set from |
+
+**The harder cases** (mqucifer/model-performance#16, `cad_eval/README.md`) are rows in
+this file too: `case` is the case, `tier` is 6 to 8, and `checks_*` count every
+member's checks. Five fields are theirs alone, absent from the 30 parts' rows:
+
+| Field | What it is |
+|---|---|
+| `kind` | `tight` (tier 6), `assembly` (7) or `worded` (8) |
+| `parts_total`, `parts_fit` | the case's members, each its own STEP file, and those that passed every check of their own, fits included (null without a `done`) |
+| `load_ok` | the simplified load check (a section's bending stress against PLA's strength over 4), or null for a case without one or without a `done`. It never means "strong enough" |
+| `fault` | whose the failure is: `model`, `tool`, `infra` or `budget`; null for a case that passed |
+
+**The harder cases' first run, 2026-10-25 16:45–17:47 UTC** (crew 099879f,
+`crew-code-think`, a 20-call cap per case, no concurrent tick), and the rerun of two
+of them, 17:48–18:26 UTC, after a fix to the case prompt:
+
+| Case | Kind | Ending | Fault | Checks | Parts fit | Calls | Tool reliability | Model s | Other calls |
+|---|---|---|---|---|---|---|---|---|---|
+| pin-clevis | assembly | done | | 44/44 | 3/3 | 5 | 0.857 | 355.7 | 5 |
+| shelf-bracket | worded | done | infra | 0/1 | 0/1 | 9 | 1.0 | 339.0 | 4 |
+| m8-bolt | tight | interrupted (cap) | budget | | | 20 | 1.0 | 1524.2 | 6 |
+| caster-wheel | assembly | done | | 72/72 | 5/5 | 12 | 0.95 | 571.5 | 3 |
+| pi5-nvme-case | worded | done | model | 30/34 | 0/2 | 5 | 0.833 | 839.9 | 1 |
+| shelf-bracket (rerun) | worded | done | model | 7/8 | 0/1 | 10 | 1.0 | 387.4 | 0 |
+| m8-bolt (rerun) | tight | interrupted (cap) | budget | | | 20 | 0.95 | 1851.5 | 0 |
+
+- **shelf-bracket's first row is the harness's fault, marked `infra`.** A one-part
+  case's prompt said "the file the spec names", and its spec names none. So it wrote
+  `bracket.step`, and the clean rerun found no `part.step`. The prompt now names
+  `part.step` (`session.system_for`).
+  - Its own `bracket.step`, checked in the image as a diagnostic (not a row), passes
+    7 of 8: everything but the screw holes.
+  - The rerun's `part.step` fails the same one check. Both times its holes are 4.0 mm
+    across for 4 mm screws, where ISO 273's clearance holes are 4.3 to 4.8 mm.
+- **m8-bolt didn't reach `done` in 20 calls, twice.** The thread is where it breaks.
+  - First run: it looked for `cq.makeHelix`, missed `cq.Wire.makeHelix`, and spent
+    the run building a B-spline helix through OCP.
+  - Rerun: it found `cq.Wire.makeHelix` and a valid helix, then spent the rest on the
+    sweep and OCP's names. One call named a tool that isn't here (`edit`), its one
+    malformed call.
+- **pi5-nvme-case is done, but doesn't fit its boards** (30 of 34 checks):
+  - its lid sits at Z = 3.9 to 5.9, through the Pi's parts (4.4 mm on its drawing)
+    and far below the USB and Ethernet sockets;
+  - its base's wall cuts into the NVMe Base Duo's published 87.6 mm length;
+  - it leaves no room for the flex cable.
+  
+  The port openings, the bosses, the vents and a separate lid pass.
+- **`other_calls`** for the first five are every call in LiteLLM's spend log that
+  overlapped the row's window (`at` + `wall_s`), less the row's own `calls`.
+  - Their events didn't keep the response id then. They do now, and a run counts its
+    own calls out by id, as `common/spend.py` does for the benchmark.
+  - The builders' key shows exactly the row's own calls in four windows, and one more
+    in pin-clevis's (m12-arms' last call).
+  - The others were `print-shop`'s: m13-print-settings' proof calls.
+- **Overhangs were added after this run,** so these rows don't have them. The passing
+  parts' files were measured afterwards, in the image: see the PR.
+
+**Where it breaks, from these seven runs:**
+- **Assemblies with a clear spec pass:** three parts and five, with every clearance in
+  range, in 5 and 12 calls.
+- **Where the model fails, the fault is the model's, not a tool's:**
+  - a CadQuery feature it doesn't know its way to (a swept thread);
+  - a dimension it isn't given and doesn't know (a screw's clearance hole);
+  - a design against real parts where it ignores the parts' published heights and
+    sizes it was given (the Pi case).
+- **No tool failed:** the one malformed call was a tool name from elsewhere, and the
+  measures all finished.
+
+This is evidence for M14's arms: a skill and a signature lookup for the first failure,
+engineering references for the second, the boards' models for the third
+(mqucifer/model-performance#21, #22, #23). It's five cases, not 21: the arms' baseline
+runs all 21.

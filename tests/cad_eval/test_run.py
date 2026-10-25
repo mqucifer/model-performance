@@ -74,6 +74,8 @@ class Run:
             return self.workspace
 
         kw.setdefault("image_id", lambda: "sha256:abc")
+        # LiteLLM's spend log, read in a test as empty: never the proxy's database.
+        kw.setdefault("read_spend", lambda _sql: "")
         return cad.evaluate(
             PARTS[name],
             self.settings,
