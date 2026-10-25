@@ -45,9 +45,10 @@ def test_dry_run_prints_every_step_in_order(
     assert code == 0
     err = capsys.readouterr().err
     expected = [
-        "[dry-run] ssh $SPARK_USER@$SPARK_ADDR: true",
+        "[dry-run] ssh $SPARK_ADDR: true",
         "model=crew-local",
         "has crew-candidate",
+        "config -q   < compose/spark/sglang/compose.yaml",
         "swap 1/3: stop the 27B",
         "docker stop qwen3.8-27b-sglang",
         "swap 2/3: start Qwen/Qwen3.8-8B on sglang",
@@ -60,6 +61,7 @@ def test_dry_run_prints_every_step_in_order(
         "restore 2/3: bring the 27B back on sglang (start-dflash)",
         "./start-dflash.sh",
         "restore 3/3: wait until crew-local answers",
+        "prune once unused (nothing was deleted): weights",
         "the 27B answers again; exiting 0",
     ]
     position = 0
@@ -92,7 +94,7 @@ def test_dry_run_refuses_while_a_tick_runs(
     infra: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(runners, "ticks_running", lambda: True)
-    code = cli.main(["m", "--dry-run", "--infra-dir", str(infra), "--", "bench"])
+    code = cli.main(["org/m", "--dry-run", "--infra-dir", str(infra), "--", "bench"])
     assert code == core.REFUSED
     assert "tick is running" in capsys.readouterr().err
 
@@ -109,9 +111,10 @@ def test_real_run_without_the_spark_address_is_refused(
 ) -> None:
     hosts = tmp_path / "hosts.env"
     hosts.write_text("# no values yet\n")
-    code = cli.main(["m", "--infra-dir", str(infra), "--hosts", str(hosts), "--", "x"])
+    code = cli.main(["org/m", "--infra-dir", str(infra), "--hosts", str(hosts), "--", "x"])
     assert code == core.REFUSED
-    assert "SPARK_ADDR, SPARK_USER not set" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "SPARK_ADDR not set" in err and "SPARK_USER" not in err
 
 
 def test_the_commands_own_options_stay_its_own() -> None:
