@@ -157,6 +157,7 @@ load:
 | `record_authored` | the session read the case's authored record, not the base's own |
 | `inputs_manifest`, `input_delivery_history`, `input_design_system_css` | what the run's fetched inputs were: the captured copies' manifest's sha256, and each input's (`benchmark/README.md`, "Inputs"); null for a case with none, and absent from rows before 2026-10-26 |
 | `max_call_reasoning_tokens` | one call's most reasoning tokens, in an arm's run; null in the baseline's |
+| `sessions`, `serving`, `batch` | set on a concurrent run's sessions only (`tuning/`): how many ran at once, the Spark's SGLang setting (`record`, or e.g. `mem-fraction-static:0.88`), and the run's `tuning.jsonl` row. Absent: one session, on the record |
 
 ## `cad_eval.jsonl`: the CAD-code evaluation
 
@@ -604,3 +605,31 @@ and a rerun, in two processes) shared a run id. The records refused the second r
 than overwrite, so drawer-cabinet's baseline rerun didn't run the first time. A taken
 id now gets the next suffix (`cad_eval/run.py`, `fresh_run`), and the case was run
 again.
+
+## `tuning.jsonl`: concurrent runs on the Spark
+
+One row per `concurrent` run (`tuning/README.md`, mqucifer/model-performance#7). It answers
+the charter's question 1: how much the Spark serves at once, and on which serving setup. Its
+sessions' own rows are in `benchmark.jsonl`, with this row's `run` as their `batch`.
+The shared fields are the sessions' summed (`calls`, `*_tokens`, `model_s`,
+`tick_calls`), except `wall_s`, which is the whole run's, and `other_calls`: the calls
+that overlapped the run and are none of its sessions'. A session's own `other_calls`
+counts its siblings too, so read the run's row for what else used the Spark.
+
+| Field | What it is |
+|---|---|
+| `sessions`, `serving` | how many ran at once, and the SGLang setting under test (`record`: infra's launch as it is) |
+| `workspace_memory`, `docker_free_gib` | each workspace's cap, and Docker's free memory before the run |
+| `stories`, `done`, `gate_green` | sessions started, ended `done`, and passed first time: the gate green at `done` |
+| `story_wall_s_mean`, `story_wall_s_max` | wall-clock per story, over its sessions |
+| `ttft_p50_s`, `ttft_p95_s` | SGLang's time to first token over the run's requests |
+| `itl_p50_s`, `itl_p95_s`, `decode_tps_p50` | SGLang's time between output tokens per request, and one session's decode speed from it (1 / `itl_p50_s`). At about 20 tokens/s a 65k-token answer runs an hour, LiteLLM's timeout (#7, 2026-10-25) |
+| `session_tps_mean` | each session's completion tokens over its model seconds, averaged. Model seconds include prefill and queueing, so it's below `decode_tps_p50` |
+| `aborted` | requests SGLang aborted over the run, such as on a client's disconnect: the lost requests |
+| `queue_max`, `running_max` | the most requests waiting, and running, at once |
+| `cache_hit_mean`, `kv_use_max` | the radix cache's hit rate, and the most of the KV cache in use (0 to 1) |
+| `spec_accept_mean`, `gen_throughput_mean` | the draft's accepted tokens per step, and tokens generated per second |
+| `grafana` | whether the Spark's series were read from Grafana; false leaves them null |
+
+The Spark's numbers are read from Grafana (Alloy's scrape of SGLang's metrics), never
+from the Spark, at a 15 s step: a peak shorter than that can be missed.

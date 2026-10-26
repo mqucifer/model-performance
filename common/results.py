@@ -55,6 +55,9 @@ SUITES: dict[str, set[str]] = {
         "start_chars",
         "record_authored",  # the session read the case's authored record, not the base's own
         "max_call_reasoning_tokens",  # one call's most, as the arm saw them; null without one
+        "sessions",  # how many sessions ran at once (mqucifer/model-performance#7); absent: one
+        "serving",  # the SGLang setting under test, e.g. mem-fraction-static:0.88, or record
+        "batch",  # the concurrent run it ran in: its tuning row's `run`
         # What the run's fetched inputs were (`benchmark/inputs.py`): the captured copies'
         # manifest's sha256, and each input's; null for a case with none.
         "inputs_manifest",
@@ -128,6 +131,33 @@ SUITES: dict[str, set[str]] = {
         "prod_reasoning_tokens",
         "prod_duration_s",
         "prod_hedges_per_10k",
+    },
+    # One row per concurrent run of the benchmark (mqucifer/model-performance#7).
+    "tuning": {
+        "sessions",  # how many ran at once
+        "serving",  # the SGLang setting under test, or record
+        "workspace_memory",  # each workspace's cap, e.g. 1536m
+        "docker_free_gib",  # Docker's free memory before the run
+        "stories",  # sessions started
+        "done",
+        "gate_green",  # first-time passes: green gate at done
+        "story_wall_s_mean",
+        "story_wall_s_max",
+        "ttft_p50_s",  # SGLang's time to first token over the run, from Grafana
+        "ttft_p95_s",
+        "itl_p50_s",  # SGLang's time between output tokens, per request
+        "itl_p95_s",
+        "decode_tps_p50",  # 1 / itl_p50_s: one session's decode speed, tokens/s
+        "aborted",  # requests SGLang aborted over the run: lost requests
+        "session_tps_mean",  # each session's completion tokens over its model seconds, averaged
+        "queue_max",  # sglang_num_queue_reqs
+        "running_max",  # sglang_num_running_reqs
+        "cache_hit_mean",  # sglang_cache_hit_rate
+        "kv_use_max",  # sglang_token_usage
+        "mamba_use_max",  # sglang_mamba_usage
+        "spec_accept_mean",  # sglang_spec_accept_length
+        "gen_throughput_mean",  # sglang_gen_throughput, tokens/s
+        "grafana",  # whether the series were read and copied to the Mac
     },
 }
 # A short name: an id, a commit, a time, an alias. No spaces, so no sentence fits.

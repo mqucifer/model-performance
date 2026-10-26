@@ -45,5 +45,5 @@ def test_text_is_refused(tmp_path: Path, extra: dict, why: str) -> None:
 
 def test_an_unknown_suite_is_refused() -> None:
     assert problems({"suite": "other"}) == [
-        "suite must be one of ['benchmark', 'cad_eval', 'role_fit']"
+        "suite must be one of ['benchmark', 'cad_eval', 'role_fit', 'tuning']"
     ]
