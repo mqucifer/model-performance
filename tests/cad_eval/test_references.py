@@ -79,13 +79,14 @@ def tools(tmp_path: Path, arm: str) -> PartTools:
 
 
 def test_each_arm_offers_its_own_skills_and_lookup_only_with_cadquery(tmp_path: Path) -> None:
-    assert ARMS == ("skill", "refs", "skill-refs", "refs-measure")
+    assert ARMS == ("skill", "refs", "skill-refs", "refs-measure", "refs-measure-view")
     names = {arm: [s["function"]["name"] for s in tools(tmp_path, arm).specs][5:] for arm in ARMS}
     assert names == {
         "skill": ["skill", "lookup"],
         "refs": ["skill"],
         "skill-refs": ["skill", "lookup"],
         "refs-measure": ["skill", "measure"],
+        "refs-measure-view": ["skill", "measure", "view"],
     }
     refs = tools(tmp_path, "refs")
     assert refs.call("skill", '{"name": "ref-fasteners"}').outcome == "ok"

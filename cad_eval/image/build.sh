@@ -4,5 +4,7 @@
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 tag=${1:-model-performance/cadquery:2.8.0}
-docker build -t "$tag" "$here"
+# Extra apt packages, for a tag that adds them: libosmesa6 for `-osmesa`.
+extra=${2:-}
+docker build --build-arg EXTRA_PACKAGES="$extra" -t "$tag" "$here"
 docker image inspect --format '{{.Id}}' "$tag"

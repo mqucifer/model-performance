@@ -412,3 +412,37 @@ tool: `measure`.
 - **How its calls are judged:** like every tool's. A query it can't read, or a file
   that isn't there, is `failed`. An answer of "no faces for that selector" is the tool
   doing what it was asked.
+
+## `refs-measure-view`: looking at the parts (mqucifer/model-performance#29)
+
+One isometric picture misled the model in the image proof (#23), and the Pi 5 case's
+lid went through the board, which a section would have shown. The `refs-measure-view`
+arm is `refs-measure` with one more tool: `view`.
+
+    uv run cad-eval --hard --arm refs-measure-view --parallel 2
+
+- **What it draws:** any of the model's own STEP files, in standard engineering views.
+  - **Views:** `top`, `front`, `side`, `iso`, `exploded` (assembly parts pushed out
+    from their centre), or a `section x=40` (looking at the cut, the cut face in dark
+    grey).
+  - **Keep-outs:** the case's mating parts, as its spec describes them, are always
+    drawn in, translucent red. The case's checks are never drawn.
+- **How:** VTK renders offscreen (`render.py`), each part flat-shaded in its own
+  colour, with its feature edges in black: sharp edges, boundaries and silhouettes.
+  Gear teeth and holes read by their edges.
+- **Only the latest view stays.** A tool's reply can't carry a picture, so it goes to
+  the model in a message of its own after the turn's replies. An earlier picture is
+  replaced by a one-line note, so the prompt holds one picture at a time. Each
+  picture is kept in the run's records (`views/<n>.png`).
+- **What the row records:** `views` (pictures drawn) and `image_tokens` (the prompt
+  tokens they cost, as LiteLLM reports them), beside the other token counts.
+
+**The view image adds only the rendering library.**
+- **The problem:** the CadQuery image has no display, and neither EGL nor OSMesa, so
+  VTK can't render offscreen in it.
+- **The fix:** the arm runs in `model-performance/cadquery:2.8.0-osmesa`, built from
+  the same Dockerfile, pinned base and frozen requirements, plus one apt package:
+  `build.sh model-performance/cadquery:2.8.0-osmesa libosmesa6`. So the CadQuery path
+  is unchanged, and each row's `image` names the tag it ran in.
+- **Status:** the other arms stay on `2.8.0` until the tag is promoted for all of them,
+  after #27's screen, with the image tests re-proved on it.

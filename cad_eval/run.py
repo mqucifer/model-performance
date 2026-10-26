@@ -230,7 +230,7 @@ def evaluate(
         "at": started_at.isoformat(timespec="seconds"),
         "crew_commit": crew.commit(),
         "model_alias": alias,
-        "image": container.IMAGE,
+        "image": skills.image_for(arm) if isinstance(p, Case) else container.IMAGE,
         "ending": None,
         "stop": None,
         "compiles": None,
@@ -253,6 +253,7 @@ def evaluate(
         # here may probe SGLang directly (null on rows from before 2026-10-26).
         row["serving"] = serving
         row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
+        row.update(views=None, image_tokens=None)
     kept: dict[str, Any] = {}
     send.ticking()
     began = time.monotonic()
@@ -261,15 +262,28 @@ def evaluate(
     tools: PartTools | None = None
     session: Session | None = None
     try:
-        kept["image_id"] = image_id()
+        image = row["image"]
+        # The view arm's image is the same CadQuery image plus OSMesa.
+        kept["image_id"] = (
+            container.image_id(image) if image_id is container.image_id else image_id()
+        )
         if kept["image_id"] is None:
-            raise Refused("no_image", f"{container.IMAGE} isn't built: cad_eval/image/build.sh")
+            raise Refused("no_image", f"{image} isn't built: cad_eval/image/build.sh")
         root = directory(settings, p, run)
-        workspace = workspace_for(root, f"cad-{p.name}-{run}")
+        if workspace_for is container.held:
+            workspace = container.held(root, f"cad-{p.name}-{run}", image=image)
+        else:
+            workspace = workspace_for(root, f"cad-{p.name}-{run}")
         started = workspace.start()
         if not started.ok:
             raise Refused("container_start", started.output[-3000:])
-        tools = PartTools(root, workspace, case.outputs() if case else None, arm=arm)
+        tools = PartTools(
+            root,
+            workspace,
+            case.outputs() if case else None,
+            arm=arm,
+            keepouts=list(case.mates.values()) if case else None,
+        )
         session = Session(
             p.spec(),
             tools,
@@ -290,6 +304,8 @@ def evaluate(
         if case is not None:
             row["calls_to_first_compile"] = session.first_compile
             row["runaways"] = len(session.runaways)
+            row["views"] = session.views
+            row["image_tokens"] = session.usage.get("image_tokens", 0)
             if session.runaways:
                 row["runaway_reasoning_tokens"] = sum(r["reasoning"] for r in session.runaways)
                 row["runaway_content_tokens"] = sum(r["content"] for r in session.runaways)

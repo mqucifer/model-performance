@@ -32,6 +32,7 @@ ARMS: dict[str, tuple[tuple[str, ...], bool, tuple[str, ...]]] = {
     "refs": (("references",), False, ()),
     "skill-refs": (("cadquery", "references"), True, ()),
     "refs-measure": (("references",), False, ("measure",)),
+    "refs-measure-view": (("references",), False, ("measure", "view")),
 }
 # What the start adds where an arm has `measure`: check the part against the values the
 # spec states, never the evaluation's own checks, which the model never sees.
@@ -73,6 +74,20 @@ def for_arm(arm: str | None) -> tuple[str, ...]:
     return ARMS[arm][0] if arm else ()
 
 
+# What the start adds where an arm has `view` (mqucifer/model-performance#29).
+VIEW_LINE = (
+    "Look at your parts with `view`: top, front, side, iso, a section, or exploded, with "
+    "the spec's keep-outs drawn in. The picture is to notice a fault; `measure` sizes it."
+)
+
+
+def image_for(arm: str | None) -> str:
+    """The container image an arm runs in: the view image where it has `view`."""
+    from cad_eval import container  # noqa: PLC0415
+
+    return container.IMAGE_VIEW if arm and "view" in ARMS[arm][2] else container.IMAGE
+
+
 def start_for(arm: str | None) -> str:
     """The start's added lines for an arm: its skills, and `measure`'s if it has it."""
     if not arm:
@@ -81,6 +96,8 @@ def start_for(arm: str | None) -> str:
     lines = [start_line(sets)] if sets else []
     if "measure" in tools:
         lines.append(MEASURE_LINE)
+    if "view" in tools:
+        lines.append(VIEW_LINE)
     return "\n".join(lines)
 
 

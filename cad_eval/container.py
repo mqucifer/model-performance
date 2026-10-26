@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 
 IMAGE = "model-performance/cadquery:2.8.0"
+# The same image and CadQuery, plus OSMesa so VTK renders offscreen: the `view` tool's
+# arms run in it (mqucifer/model-performance#29). Only the rendering library differs.
+IMAGE_VIEW = "model-performance/cadquery:2.8.0-osmesa"
 
 
 def held(directory: Path, name: str, image: str = IMAGE) -> Any:

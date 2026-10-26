@@ -31,6 +31,7 @@ from typing import Any
 
 from cad_eval import lookup as lookup_module
 from cad_eval import measure, skills
+from cad_eval import render as render_module
 
 RUN_TIMEOUT = 120
 MEASURE_TIMEOUT = 180
@@ -42,6 +43,9 @@ OUTPUT = "part.step"
 MEASURE_SOURCE = Path(measure.__file__).read_text(encoding="utf-8")
 LOOKUP_SOURCE = Path(lookup_module.__file__).read_text(encoding="utf-8")
 LOOKUP_TIMEOUT = 60
+RENDER_SOURCE = Path(render_module.__file__).read_text(encoding="utf-8")
+RENDER_TIMEOUT = 180
+VIEWS = ("top", "front", "side", "iso", "exploded", "section")
 # A measure that the tool itself failed: not the model's query, not its part.
 TOOL_FAILURES = ("the measure didn't finish", "it loads but can't be measured")
 # The arms (mqucifer/model-performance#21): what each adds to the session's tools.
@@ -130,6 +134,9 @@ class Judged:
     reply: str
     why: str = ""  # the rule or reason, in a word, when it isn't ok
     args: Any = None
+    # A `view`'s picture, as base64 PNG: sent to the model in a message of its own.
+    image: str | None = None
+    painted: float | None = None  # the picture's share that isn't background
 
 
 def parse(raw: Any) -> Any:
@@ -163,9 +170,19 @@ def arm_specs(arm: str) -> list[dict[str, Any]]:
         path="The STEP file to measure, relative to the part's directory.",
         query="What to measure, such as `hole 0,0,5` or `distance >Z <Z`.",
     )
+    view_spec = _spec(
+        "view",
+        "Render your parts to a picture, in the container, with the spec's keep-outs drawn "
+        "in translucent red: `top`, `front`, `side`, `iso`, `exploded`, or a section such "
+        "as `section x=40` (looking at the cut, the cut face in dark grey). Only your "
+        "latest view is kept in the conversation.",
+        files="Your STEP files to draw, separated by spaces, such as `base.step lid.step`.",
+        view="The view: `iso`, `top`, `front`, `side`, `exploded` or `section x=40`.",
+    )
     _, lookup, tools = skills.ARMS[arm]
     found_specs = [SKILL_SPEC, found] if lookup else [SKILL_SPEC]
-    return found_specs + ([measure_spec] if "measure" in tools else [])
+    found_specs += [measure_spec] if "measure" in tools else []
+    return found_specs + ([view_spec] if "view" in tools else [])
 
 
 def well_formed(name: str, args: Any, accepted: dict[str, Any] = ACCEPTED) -> Judged | None:
@@ -212,11 +229,15 @@ class PartTools:
         workspace: Any,
         outputs: list[str] | None = None,
         arm: str | None = None,
+        keepouts: list[str] | None = None,
     ) -> None:
         self.directory = directory
         self.workspace = workspace
         self.outputs = outputs or [OUTPUT]
         self.arm = arm
+        # The case's keep-out bodies (its mating parts, as its spec describes them),
+        # drawn in by `view`: never its checks.
+        self.keepouts = list(keepouts or [])
         self.specs = specs_for(self.outputs) + (arm_specs(arm) if arm else [])
         self.accepted = {s["function"]["name"]: s["function"]["parameters"] for s in self.specs}
         # Whether a `run` has exited 0 with every output written: a first compiling part.
@@ -329,6 +350,47 @@ class PartTools:
         if error.startswith(TOOL_FAILURES):
             return self._failed("measure", "unfinished", error, args)
         return Judged("measure", "ok", json.dumps(found))
+
+    def _view(self, args: dict[str, Any]) -> Judged:
+        """The `view` tool: the model's own files, drawn in the view image's container."""
+        files = args["files"].split()
+        if not files:
+            return self._failed("view", "not_a_query", "Name at least one STEP file.", args)
+        for name in files:
+            missing = self._existing("view", {"path": name})
+            if missing is not None:
+                return missing
+        words = args["view"].split()
+        plane = None
+        if not words or words[0] not in VIEWS:
+            reply = f"`view` is one of {', '.join(VIEWS[:-1])}, or `section x=40`."
+            return self._failed("view", "not_a_query", reply, args)
+        if words[0] == "section":
+            axis, _, at = (words[1] if len(words) == 2 else "").partition("=")
+            try:
+                plane = {"axis": axis, "at": float(at)}
+            except ValueError:
+                plane = None
+            if plane is None or axis not in ("x", "y", "z"):
+                reply = "A section names its plane: `section x=40`, `section z=12.5`."
+                return self._failed("view", "not_a_query", reply, args)
+        request = {"files": files, "view": words[0], "plane": plane, "keepouts": self.keepouts}
+        done = self.execute(
+            ["python", "-I", "-", json.dumps(request)], RENDER_TIMEOUT, stdin=RENDER_SOURCE
+        )
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(render_module.MARK):
+                found = json.loads(line[len(render_module.MARK) :])
+                if "error" in found:
+                    why = "not_a_query" if found["error"].startswith("query:") else "unfinished"
+                    return self._failed("view", why, found["error"], args)
+                caption = "; ".join(found.get("caption", []))
+                reply = f"The {words[0]} view follows, in a picture of its own. {caption}."
+                return Judged("view", "ok", reply, image=found["png"], painted=found.get("painted"))
+        self.troubles["view_unfinished"] = self.troubles.get("view_unfinished", 0) + 1
+        return self._failed(
+            "view", "unfinished", f"The view didn't finish (exit {done.code}).", args
+        )
 
     def _ending(self, name: str, args: dict[str, Any]) -> Judged:
         if name == "done":
