@@ -5,9 +5,10 @@
     uv run tune --set mem-fraction-static=0.88 -- uv run concurrent 6
 
 Starts N `replay` sessions together, each in its own process (crew's event bridge is
-one per process), a few seconds apart so their run ids differ. The benchmark's cases
-are taken in order and repeated to make N. Each workspace is capped at 1.5 GiB, the
-Sponsor's cap, so 6 to 8 fit in Docker Desktop's 12 GiB.
+one per process), a few seconds apart, as every run of this round did (`new_run` keeps
+their ids apart). The benchmark's cases are taken in order and repeated to make N. Each
+workspace is capped at 1.5 GiB, the Sponsor's cap: Docker's free memory held 6 of them
+on 2026-10-26.
 
 Before it starts, it refuses while a `crew tick` runs, and when Docker's free memory
 can't hold N workspaces: the ceiling it reached is a finding, and nothing else on the
@@ -180,8 +181,7 @@ def concurrent(
     from tuning import grafana  # noqa: PLC0415
 
     read_grafana = read_grafana or grafana.copy
-    batch = records.run_id()
-    out = records.run_dir(settings, SUITE, "concurrent", batch)
+    batch, out = records.new_run(settings, SUITE, "concurrent")
     cases = chosen(n, names)
     (out / "plan.json").write_text(
         json.dumps({"sessions": n, "serving": serving, "cases": cases, "cap": cap}),
