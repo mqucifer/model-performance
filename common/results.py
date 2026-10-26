@@ -55,6 +55,11 @@ SUITES: dict[str, set[str]] = {
         "start_chars",
         "record_authored",  # the session read the case's authored record, not the base's own
         "max_call_reasoning_tokens",  # one call's most, as the arm saw them; null without one
+        # What the run's fetched inputs were (`benchmark/inputs.py`): the captured copies'
+        # manifest's sha256, and each input's; null for a case with none.
+        "inputs_manifest",
+        "input_delivery_history",
+        "input_design_system_css",
     },
     "cad_eval": {
         "tier",  # the part's difficulty, 1 to 5
