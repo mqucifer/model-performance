@@ -29,7 +29,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from cad_eval import measure
+from cad_eval import lookup as lookup_module
+from cad_eval import measure, skills
 
 RUN_TIMEOUT = 120
 MEASURE_TIMEOUT = 180
@@ -39,6 +40,10 @@ MAX_PATH = 200
 # What the script the session names at `done` must write: the part, as STEP.
 OUTPUT = "part.step"
 MEASURE_SOURCE = Path(measure.__file__).read_text(encoding="utf-8")
+LOOKUP_SOURCE = Path(lookup_module.__file__).read_text(encoding="utf-8")
+LOOKUP_TIMEOUT = 60
+# The arms (mqucifer/model-performance#21): what each adds to the session's tools.
+ARMS = tuple(skills.ARMS)
 
 
 def _spec(name: str, description: str, **properties: str) -> dict[str, Any]:
@@ -135,16 +140,31 @@ def parse(raw: Any) -> Any:
         return raw
 
 
-def well_formed(name: str, args: Any) -> Judged | None:
+def arm_specs(arm: str) -> list[dict[str, Any]]:
+    """An arm's tools: crew's own `skill`, word for word, and `lookup` where the arm has
+    CadQuery's skill (`cad_eval/skills.py`, `ARMS`)."""
+    from crew_org.session.tools import SKILL_SPEC  # noqa: PLC0415
+
+    found = _spec(
+        "lookup",
+        "Look up CadQuery's names in the installed library: the names that contain the "
+        "fragment, each with its signature and docstring. `OCP.<module>` lists that "
+        "module's classes.",
+        query="A name or a fragment of one, such as `makeHelix` or `Workplane.sweep`.",
+    )
+    return [SKILL_SPEC, found] if skills.ARMS[arm][1] else [SKILL_SPEC]
+
+
+def well_formed(name: str, args: Any, accepted: dict[str, Any] = ACCEPTED) -> Judged | None:
     """The AST category: a `Judged` for a call that isn't well formed, or None."""
     from crew_org.rulebook import Refusal  # noqa: PLC0415
     from crew_org.session.tools import check_arguments  # noqa: PLC0415
 
     try:
-        check_arguments(name, args, ACCEPTED)
+        check_arguments(name, args, accepted)
     except Refusal as refused:
         return Judged(name, "malformed", str(refused), refused.rule, args)
-    properties = ACCEPTED[name]["properties"]
+    properties = accepted[name]["properties"]
     wrong = [
         k
         for k, v in args.items()
@@ -173,11 +193,21 @@ def inside(directory: Path, path: str) -> Path | None:
 class PartTools:
     """The tools over one part's directory and its started container."""
 
-    def __init__(self, directory: Path, workspace: Any, outputs: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        directory: Path,
+        workspace: Any,
+        outputs: list[str] | None = None,
+        arm: str | None = None,
+    ) -> None:
         self.directory = directory
         self.workspace = workspace
         self.outputs = outputs or [OUTPUT]
-        self.specs = specs_for(self.outputs)
+        self.arm = arm
+        self.specs = specs_for(self.outputs) + (arm_specs(arm) if arm else [])
+        self.accepted = {s["function"]["name"]: s["function"]["parameters"] for s in self.specs}
+        # Whether a `run` has exited 0 with every output written: a first compiling part.
+        self.compiled = False
         self.runs: list[dict[str, Any]] = []
         # The tools' own failures, by kind, that weren't the model's: a measure that
         # didn't finish. `run.py` reads them to say whose a failure is.
@@ -185,7 +215,7 @@ class PartTools:
 
     def call(self, name: str, raw: Any) -> Judged:
         args = parse(raw)
-        bad = well_formed(name, args)
+        bad = well_formed(name, args, self.accepted)
         if bad is not None:
             return bad
         if name in ("done", "blocked"):
@@ -232,6 +262,8 @@ class PartTools:
             return missing
         done = self.execute(["python", args["path"]], RUN_TIMEOUT)
         self.runs.append({"path": args["path"], "code": done.code, "seconds": done.seconds})
+        if done.code == 0 and all((self.directory / o).is_file() for o in self.outputs):
+            self.compiled = True
         return Judged("run", "ok", f"exit {done.code} after {done.seconds}s\n{done.output[-TAIL:]}")
 
     def _inspect(self, args: dict[str, Any]) -> Judged:
@@ -240,6 +272,30 @@ class PartTools:
             return missing
         found = self.measure(args["path"])
         return Judged("inspect", "ok", json.dumps(found))
+
+    def _skill(self, args: dict[str, Any]) -> Judged:
+        offered = skills.registry(skills.for_arm(self.arm))
+        found = offered.get(args["name"])
+        if found is None:
+            named = ", ".join(f"`{n}`" for n in offered)
+            return self._failed("skill", "unknown", f"No skill `{args['name']}`: {named}.", args)
+        return Judged("skill", "ok", found.body())
+
+    def _lookup(self, args: dict[str, Any]) -> Judged:
+        """`lookup.py` on the query, run from stdin in the container, as the measure is."""
+        if not args["query"].strip() or len(args["query"]) > MAX_PATH:
+            reply = f"`query` is a name or a fragment, of at most {MAX_PATH} characters."
+            return self._failed("lookup", "not_a_query", reply, args)
+        done = self.execute(
+            ["python", "-I", "-", args["query"]], LOOKUP_TIMEOUT, stdin=LOOKUP_SOURCE
+        )
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(lookup_module.MARK):
+                return Judged("lookup", "ok", line[len(lookup_module.MARK) :])
+        self.troubles["lookup_unfinished"] = self.troubles.get("lookup_unfinished", 0) + 1
+        return self._failed(
+            "lookup", "unfinished", f"The lookup didn't finish (exit {done.code}).", args
+        )
 
     def _ending(self, name: str, args: dict[str, Any]) -> Judged:
         if name == "done":
@@ -301,8 +357,11 @@ class PartTools:
         result: dict[str, Any] = {"script": script, "code": ran.code, "tail": ran.output[-TAIL:]}
         measured: dict[str, Any] = {}
         for name, request in requests.items():
-            if ran.code != 0 or not (self.directory / request["path"]).is_file():
+            written = (self.directory / request["path"]).is_file()
+            if ran.code != 0 or not written:
                 error = f"no {request['path']} after exit {ran.code}"
+                if written:
+                    error = f"exit {ran.code}: {request['path']} was written, but the script failed"
                 measured[name] = {"path": request["path"], "error": error}
             else:
                 measured[name] = self.measure_request(request)

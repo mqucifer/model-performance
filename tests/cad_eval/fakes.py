@@ -44,6 +44,11 @@ class FakeWorkspace:
 
     def exec(self, command: list[str], timeout: int = 0, stdin: str | None = None) -> Ran:
         self.commands.append(command)
+        if command[:3] == ["python", "-I", "-"] and stdin and "CAD_EVAL_LOOKUP" in stdin:
+            import json  # noqa: PLC0415
+
+            found = {"query": command[3], "matches": 1, "found": [{"name": "cq.Wire.makeHelix"}]}
+            return Ran("lookup", 0, "CAD_EVAL_LOOKUP " + json.dumps(found))
         if command[:3] == ["python", "-I", "-"]:
             import json  # noqa: PLC0415
 

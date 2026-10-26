@@ -631,7 +631,7 @@ CASES: dict[str, Case] = {
                     inside={"side": (45.5, 40, 30), "floor": (0, 40, 4.5), "front": (0, -2, 10)},
                     outside={
                         "inside": (0, 40, 30),
-                        "finger_hole": (0, -2, 40),
+                        "finger_hole": (0, -2, 38),
                         "over_body": (0, 0, 52),
                     },
                     gaps=(Gap("cabinet", distance=(0.4, 0.6)),),

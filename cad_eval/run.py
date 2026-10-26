@@ -24,25 +24,33 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import math
+import re
 import shutil
+import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from cad_eval import cases, checks, container
+from cad_eval import cases, checks, container, skills
 from cad_eval.cases import CASES, Case
 from cad_eval.parts import FIRST, PARTS, Part, UnknownPart, part
-from cad_eval.session import SYSTEM, Session, system_for
-from cad_eval.tools import PartTools
+from cad_eval.send import StreamingSender
+from cad_eval.session import BACKSTOP_S, SYSTEM, Session, system_for
+from cad_eval.tools import ARMS, PartTools
 from common import crew, records, results, spend
 from common.config import Settings, load
 from common.litellm import Sender, builders_key
 
 SUITE = "cad_eval"
+# Cases run at once append their rows to one file.
+RESULTS_LOCK = threading.Lock()
 # A part's calls (the operator, 2026-10-25): 20 ended two of the first run's five, so it
 # starts high and comes down from each part's `calls_to_done`.
 CAP_PER_PART = 40
@@ -96,7 +104,7 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
 # Whose a failure is, in a word: the model's (a wrong design, or no design), a tool's
 # (the evaluation's own tools failed it), the infrastructure's (the container, the
 # proxy, the model's server: nothing about the case), or the budget's (the call cap
-# ended it before an answer: no verdict on the design).
+# or a backstop ended it before an answer: no verdict on the design).
 INFRA_STOPS = {"call_failed", "workspace_gone", "no_image", "container_start"}
 TOOL_ERRORS = ("the measure didn't finish", "it loads but can't be measured")
 
@@ -112,7 +120,7 @@ def fault(row: dict[str, Any], measured: dict[str, Any], troubles: dict[str, int
         return "tool"
     if row["ending"] == "refused" or row["stop"] in INFRA_STOPS:
         return "infra"
-    if row["stop"] == "call_cap":
+    if row["stop"] in ("call_cap", "backstop"):
         return "budget"
     if row["ending"] == "done":
         errors = [str(m.get("error", "")) for m in measured.values()]
@@ -190,6 +198,20 @@ def own_calls(events: Path) -> set[str]:
     return ids
 
 
+def fresh_run(settings: Settings, name: str) -> tuple[str, Path]:
+    """A run id and its new records directory. Ids are to the second, so two runs of a
+    case that start in the same second (an arm and a rerun, each its own process) would
+    share one; the second takes the next free suffix, and nothing is written over."""
+    base = records.run_id()
+    for n in range(1, 100):
+        run = base if n == 1 else f"{base}-{n}"
+        try:
+            return run, records.run_dir(settings, SUITE, name, run)
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"no free run id for {name} at {base}")
+
+
 def evaluate(
     p: Part | Case,
     settings: Settings,
@@ -201,11 +223,12 @@ def evaluate(
     image_id: Callable[[], str | None] = container.image_id,
     results_dir: Path = results.RESULTS,
     read_spend: Callable[[str], str] | None = None,
+    arm: str | None = None,
+    concurrency: int = 1,
 ) -> dict[str, Any]:
     """One part end to end: its row, written to the results once the run has ended."""
-    run = records.run_id()
     started_at = datetime.now(UTC)
-    out = records.run_dir(settings, SUITE, p.name, run)
+    run, out = fresh_run(settings, p.name)
     row: dict[str, Any] = {
         "case": p.name,
         "tier": p.tier,
@@ -228,6 +251,9 @@ def evaluate(
         row.update(kind=case.kind, parts_total=len(case.members), parts_fit=None)
         row.update(load_ok=None, fault=None)
         row.update(overhang_mm2=None, bridges=None, longest_bridge_mm=None)
+        # The arm (null for the baseline), the cases run at once, and the first compile.
+        row.update(arm=arm, concurrency=concurrency, calls_to_first_compile=None)
+        row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
     kept: dict[str, Any] = {}
     send.ticking()
     began = time.monotonic()
@@ -244,7 +270,7 @@ def evaluate(
         started = workspace.start()
         if not started.ok:
             raise Refused("container_start", started.output[-3000:])
-        tools = PartTools(root, workspace, case.outputs() if case else None)
+        tools = PartTools(root, workspace, case.outputs() if case else None, arm=arm)
         session = Session(
             p.spec(),
             tools,
@@ -253,10 +279,21 @@ def evaluate(
             out / "events.jsonl",
             max_tokens=max_tokens,
             system=system_for(case.outputs()) if case else SYSTEM,
+            start=skills.start_line(skills.for_arm(arm)) if arm else "",
+            # A harder case is capped by its calls alone, never by time, so its result
+            # doesn't depend on the Spark's load (the operator, 2026-10-25): under
+            # load an hour of model time is a handful of calls.
+            backstop_s=math.inf if case else BACKSTOP_S,
         )
         ending = session.run()
         row["ending"], row["stop"] = ending.how, ending.stop or None
         row["calls_to_done"] = session.calls if ending.how == "done" else None
+        if case is not None:
+            row["calls_to_first_compile"] = session.first_compile
+            row["runaways"] = len(session.runaways)
+            if session.runaways:
+                row["runaway_reasoning_tokens"] = sum(r["reasoning"] for r in session.runaways)
+                row["runaway_content_tokens"] = sum(r["content"] for r in session.runaways)
         kept["said"] = ending.said
         if ending.how == "done" and case is not None:
             final = tools.final_case(str(ending.said["script"]), requests(case))
@@ -305,7 +342,8 @@ def evaluate(
         (out / "result.json").write_text(
             json.dumps({**row, **kept}, indent=1, default=str), encoding="utf-8"
         )
-    results.append(SUITE, row, results_dir)
+    with RESULTS_LOCK:
+        results.append(SUITE, row, results_dir)
     return row
 
 
@@ -334,6 +372,75 @@ def counts(session: Session | None) -> dict[str, Any]:
     }
 
 
+def summary(p: Part | Case, row: dict[str, Any], settings: Settings) -> str:
+    return (
+        f"{p.name} (tier {p.tier}): {row['ending']}"
+        f"{', fault ' + str(row['fault']) if 'fault' in row else ''}"
+        f"{' (' + row['stop'] + ')' if row['stop'] else ''}; "
+        f"compiles {row['compiles']}, closed {row['closed_mesh']}, "
+        f"within {row['within_tolerance']} "
+        f"({row['checks_passed']}/{row['checks_total']}); "
+        f"{row['calls']} calls, {row['tool_calls']} tool calls, "
+        f"reliability {row['tool_reliability']} "
+        f"({row['malformed_tool_calls']} malformed, {row['ill_typed_tool_calls']} "
+        f"ill-typed, {row['failed_tool_calls']} failed); {row['model_s']} model s; "
+        f"records {settings.records_dir / SUITE / p.name / row['run']}"
+    )
+
+
+# Memory kept free for everything else Docker runs (LiteLLM, its database, the crew's
+# own containers) when deciding how many of the sandbox's containers fit at once.
+RESERVE = 1024**3
+UNITS = {
+    **{"B": 1, "KiB": 1024, "MiB": 1024**2, "GiB": 1024**3, "TiB": 1024**4},
+    **{"KB": 1000, "MB": 1000**2, "GB": 1000**3, "TB": 1000**4},
+}
+# A file in the work directory that stops a run from starting more cases: the ones
+# running finish (the operator's, when another builder needs the Spark to itself).
+STOP_FILE = "cad_eval.stop"
+
+
+def size(text: str) -> float:
+    """Bytes in one of `docker stats`'s sizes, such as `1.162GiB`."""
+    found = re.fullmatch(r"([\d.]+)\s*([kKMGT]?i?B)", text.strip())
+    if not found:
+        return 0.0
+    return float(found.group(1)) * UNITS.get(found.group(2).replace("k", "K"), 1)
+
+
+def sandbox_memory() -> float:
+    """The memory the crew's sandbox gives each container, from its own argv."""
+    from crew_org.tools.sandbox import Sandbox  # noqa: PLC0415
+
+    argv = Sandbox(image=container.IMAGE).command(Path("/work"), ["true"], network=False)
+    given = argv[argv.index("--memory") + 1]
+    return size(given.upper().replace("G", "GiB").replace("M", "MiB"))
+
+
+def parallel_room(run: Callable[..., Any] = subprocess.run) -> int:
+    """How many of the sandbox's containers Docker's free memory holds now: its total
+    less what its containers use and a reserve, over each container's memory cap."""
+    try:
+        total = run(
+            ["docker", "info", "--format", "{{.MemTotal}}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout.strip()
+        used = run(
+            ["docker", "stats", "--no-stream", "--format", "{{.MemUsage}}"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        ).stdout.splitlines()
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    if not total.isdigit():
+        return 0
+    taken = sum(size(line.split("/")[0]) for line in used)
+    return max(0, int((int(total) - taken - RESERVE) // sandbox_memory()))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="cad-eval", description=__doc__.split("\n\n")[0])
     parser.add_argument("parts", nargs="*", help=f"one or more of: {', '.join([*PARTS, *CASES])}")
@@ -343,6 +450,15 @@ def main(argv: list[str] | None = None) -> int:
     chosen_by.add_argument("--hard", action="store_true", help="every harder case")
     chosen_by.add_argument("--hard-first", action="store_true", help="the harder cases' first five")
     parser.add_argument("--model", help="a LiteLLM alias in place of the Developer's")
+    parser.add_argument(
+        "--arm", choices=ARMS, help="what the session is given besides the baseline's tools"
+    )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="harder cases run at once: at most what the operator gives, and Docker's memory holds",
+    )
     parser.add_argument("--cap", type=int, default=CAP_PER_PART, help="calls a part may make")
     parser.add_argument(
         "--total", type=int, help="calls the whole run may make (default: the cap for each part)"
@@ -366,14 +482,21 @@ def main(argv: list[str] | None = None) -> int:
     except UnknownPart as exc:
         parser.error(str(exc.args[0]))
     total = args.total if args.total is not None else args.cap * len(chosen)
+    if args.parallel > 1 and not all(isinstance(p, Case) for p in chosen):
+        parser.error("--parallel runs the harder cases only: the 30 parts' runs stay one at a time")
 
     from crew_org.calls import role_spec  # noqa: PLC0415
 
     from swap.runners import ticks_running  # noqa: PLC0415
 
     if ticks_running():
-        print("refused: a crew tick is running, and it shares the model", file=sys.stderr)
-        return 2
+        # The harder cases test correctness, capped by calls, so they share the Spark
+        # with a tick, each row recording it (`concurrent_tick`, `other_calls`): the
+        # operator, 2026-10-25. The 30 parts' runs, which compare times, still wait.
+        if not all(isinstance(p, Case) for p in chosen):
+            print("refused: a crew tick is running, and it shares the model", file=sys.stderr)
+            return 2
+        print("a crew tick is running: each row records it", file=sys.stderr, flush=True)
     if container.image_id() is None:
         print(f"refused: {container.IMAGE} isn't built: cad_eval/image/build.sh", file=sys.stderr)
         return 2
@@ -399,35 +522,57 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         preflight.close()
 
+    room = parallel_room()
+    if args.parallel > room:
+        print(
+            f"refused: --parallel {args.parallel}, but Docker's free memory holds {room} "
+            "of the sandbox's containers",
+            file=sys.stderr,
+        )
+        return 2
+
     settings.work_dir.mkdir(parents=True, exist_ok=True)
-    failed = spent = 0
-    # The crew's sandbox keeps its uv cache under the current directory: the work's.
-    with contextlib.chdir(settings.work_dir):
-        for p in chosen:
-            cap = min(args.cap, total - spent)
+    stop = settings.work_dir / STOP_FILE
+    stop.unlink(missing_ok=True)
+    budget = {"reserved": 0, "failed": 0}
+    lock = threading.Lock()
+
+    def one(p: Part | Case) -> None:
+        with lock:
+            if stop.exists():
+                print(f"{p.name}: not started, {stop} says stop", flush=True)
+                return
+            cap = min(args.cap, total - budget["reserved"])
             if cap < 1:
-                print(f"{p.name}: not run, the run's {total} calls are spent")
-                continue
-            send = Sender(settings, key, cap=cap, alias=args.model, timeout=timeout)
-            try:
-                row = evaluate(p, settings, send, alias, max_tokens=max_tokens)
-            finally:
-                spent += send.calls
-                send.close()
-            failed += row["ending"] in ("refused", "crashed")
-            print(
-                f"{p.name} (tier {p.tier}): {row['ending']}"
-                f"{', fault ' + str(row['fault']) if 'fault' in row else ''}"
-                f"{' (' + row['stop'] + ')' if row['stop'] else ''}; "
-                f"compiles {row['compiles']}, closed {row['closed_mesh']}, "
-                f"within {row['within_tolerance']} "
-                f"({row['checks_passed']}/{row['checks_total']}); "
-                f"{row['calls']} calls, {row['tool_calls']} tool calls, "
-                f"reliability {row['tool_reliability']} "
-                f"({row['malformed_tool_calls']} malformed, {row['ill_typed_tool_calls']} "
-                f"ill-typed, {row['failed_tool_calls']} failed); {row['model_s']} model s; "
-                f"records {settings.records_dir / SUITE / p.name / row['run']}"
+                print(f"{p.name}: not run, the run's {total} calls are spent", flush=True)
+                return
+            budget["reserved"] += cap
+        # A harder case's calls are streamed (`cad_eval/send.py`); the 30 parts' stay whole.
+        sending = StreamingSender if isinstance(p, Case) else Sender
+        send = sending(settings, key, cap=cap, alias=args.model, timeout=timeout)
+        try:
+            row = evaluate(
+                p,
+                settings,
+                send,
+                alias,
+                max_tokens=max_tokens,
+                arm=args.arm,
+                concurrency=args.parallel,
             )
+        finally:
+            with lock:
+                budget["reserved"] -= cap - send.calls
+            send.close()
+        with lock:
+            budget["failed"] += row["ending"] in ("refused", "crashed")
+            print(summary(p, row, settings), flush=True)
+
+    # The crew's sandbox keeps its uv cache under the current directory: the work's.
+    with contextlib.chdir(settings.work_dir), ThreadPoolExecutor(args.parallel) as pool:
+        for done in [pool.submit(one, p) for p in chosen]:
+            done.result()
+    failed = budget["failed"]
     return 1 if failed else 0
 
 

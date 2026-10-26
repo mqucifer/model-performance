@@ -226,3 +226,123 @@ A harder case's row says whose its failure is (`fault`):
 
 A `blocked` the model says is counted the model's. Its reason, in the records, is read
 by hand in the write-up, since a missing tool may be what it names.
+
+## The arms (M14, mqucifer/model-performance#21)
+
+An arm gives the session something more than the baseline and runs the 21 harder
+cases with it, each row naming its `arm` (null for the baseline). They run separately,
+so each says which lever helped.
+
+    uv run cad-eval --hard --parallel 4                 # the baseline
+    uv run cad-eval --hard --arm skill --parallel 4     # the CadQuery skill and lookup
+    uv run cad-eval --hard --arm refs --parallel 4      # the engineering references alone
+    uv run cad-eval --hard --arm skill-refs --parallel 4  # both
+
+**`skill`: the CadQuery skill and a signature lookup.**
+- **The skill** is in the crew's own shape (crew's `session/skills.py`, crew#839).
+  - The start names each skill in one line, crew's `start_line`, after the case's
+    spec.
+  - The session reads one with a `skill` tool, crew's `SKILL_SPEC` word for word.
+  - The text, `skills/cadquery/SKILL.md` and five `references/*.md` in the Agent Skills
+    layout, is one skill per file, so a topic is read only when needed. It covers how
+    to build a part (sketch, then features, then checks), and references for:
+    - sketch and extrude;
+    - selectors;
+    - threads and helices;
+    - assemblies and fits;
+    - errors.
+  - It's distilled from CadQuery's documentation for 2.8.0, the version the image
+    pins, and each file links its pages.
+  - `test_skills_in_image.py` checks every CadQuery name it mentions exists in the
+    installed library, so it can't drift from what the session runs.
+  - **Crew's mechanism, crew's code:** only the registry is here (`cad_eval/skills.py`).
+    Crew's `SKILLS` holds only crew's own skills. Letting it take skills from outside
+    would be a later crew change.
+- **`lookup`** (`lookup.py`) runs in the container, from stdin with `python -I`, as
+  the measure does.
+  - A name or a fragment goes in. Out come the matching names in the installed
+    CadQuery, with their signatures and docstrings' first paragraphs, at most 20.
+  - `OCP.<module>` lists that module's classes.
+  - Its calls are judged in the same categories as every other tool's.
+
+**`refs` and `skill-refs`: engineering references** (mqucifer/model-performance#22).
+- `skills/references/`: a `SKILL.md` index (which table answers which question) and
+  three tables, each a skill of its own, read with the same `skill` tool:
+  - `ref-fasteners`: ISO 273 clearance holes, ISO 262 pitches and tap drills, ISO
+    4032 hex nuts, and a wood screw's clearance (practice);
+  - `ref-fits`: the ISO 286 hole-basis fits and their deviations;
+  - `ref-fdm`: what a printed part needs to fit. That's clearances, holes printing
+    undersize, heat-set insert holes and minimum walls, all marked practice, not a
+    standard. Supports and orientation stay out: printability is a second pass.
+- They're values, not procedures: the skill arm's fit-checking advice cost calls.
+- Every row names its source, and the sources are listed at the foot of each file.
+- ISO standards are cited by number. Their text isn't reproduced: the values come
+  from free reproductions that were checked against each other, and where they
+  disagree both are given.
+- `test_references.py` fails a row without a source. It also checks that ISO 273's
+  M4 holes fall inside the cases' screw-hole checks, since both come from the
+  standard.
+- `refs` offers the references alone, with no CadQuery skill and no `lookup`.
+  `skill-refs` offers both sets and `lookup`. So each lever shows on its own.
+
+**Running cases at once (the Sponsor, 2026-10-25: these runs test correctness, not speed):**
+- `--parallel N` runs N cases at once: at most what the operator gives, and refused
+  above what Docker's free memory holds.
+  - The memory check is Docker's total less what its containers use and a 1 GiB
+    reserve, over the sandbox's 2 GiB cap per container.
+  - The Spark takes 6 sessions at once in all, across ticks, builders and proof runs.
+- Each row records its `concurrency`, and its `other_calls` from LiteLLM's spend log.
+- A case's calls are capped by count, never by time, so its result doesn't depend on
+  the load. **No timing claims are made from these runs.**
+- `touch <work dir>/cad_eval.stop` stops a run from starting more cases, and the ones
+  running finish. That's for the operator, when another builder needs the Spark to
+  itself.
+
+**`calls_to_first_compile`**, on every case's row: the call after which a `run` first
+exited 0 with every output file written. That's the turns spent before a first
+compiling part.
+
+## Runaways: a call that thinks to the token limit
+
+**What happened, 2026-10-25.**
+- bolt-nut's first call in the baseline thought towards the Developer's
+  65,536-token limit.
+- Under that evening's load SGLang wrote about 20 tokens a second per session, so a
+  call that long takes about an hour. The client's one-hour timeout ended it first, at
+  20:50Z.
+- It was first read as an unanswered call (`infra`). The operator traced it in
+  LiteLLM's log: SGLang was still generating, and aborted when LiteLLM disconnected.
+
+**Today's 748 CAD calls, profiled** (before the change below):
+- The longest that succeeded wrote 44,843 completion tokens, 43,346 of them reasoning.
+  The next were 36,396 (34,583 reasoning) and 35,010 (34,579).
+- Their content was at most a few hundred characters, and each ended in a tool call.
+- So these runaways are thinking that doesn't close, not the whitespace crew's cut
+  catches.
+
+**Production parity** (the Sponsor's choice, 2026-10-25):
+- A harder case's calls are streamed (`send.py`: role-fit's sender, with tool calls
+  assembled from their pieces). A streamed call's reads keep coming, so the timeout
+  no longer ends it, and the records hold what it wrote.
+- Crew's own cut is the only cut: the content running on as whitespace past
+  `RUNAWAY_CHARS`.
+- No thinking budget is added. The Sponsor's earlier ruling is that a budget hides
+  the real problem, the context and the tools.
+- A call that thinks to the limit ends as `length`, costs its call, and the session
+  goes on as production's does.
+- The row counts such calls (`runaways`) and the reasoning and content tokens they
+  reached. A runaway is the model's.
+- How many runaways each arm has is a finding of its own: a knowledge arm that
+  shortens the thinking shows it there.
+
+**Rows before the change:** bolt-nut's baseline runaway was a call timeout. It's
+re-marked from that evidence: `runaways` 1, the model's, with the tokens unknown
+(null). bolt-nut's rerun stays `budget`. It ended on the backstop after 20 completed
+calls, none of them a runaway.
+
+**Longer first thoughts with the skill.** In the skill arm, two calls taken for
+runaways weren't: they finished, with tool calls, inside the hour.
+- gear-pair's second call wrote 54,309 tokens, and bolt-nut's 62,218, close to the
+  limit.
+- Both came straight after reading the skill, and both are longer than anything in
+  the 748 calls before.

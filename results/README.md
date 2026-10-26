@@ -147,7 +147,7 @@ load:
 | Field | What it is |
 |---|---|
 | `ending` | `done`, `blocked` or `interrupted`, as crew's session ended it; or `refused` (it couldn't start) or `crashed` |
-| `stop` | what ended it, in a word: a stop (`no_progress`, `backstop`, `ceiling`, `no_tool_call`, `context_full`), an interruption (`call_failed`, `workspace_gone`), or a refusal (`checkout`, `host_venv`, `record_unreadable`, `container_start`, `setup_failed`) |
+| `stop` | what ended it, in a word: a stop (`no_progress`, `backstop`, `ceiling`, `no_tool_call`, `context_full`), an interruption (`call_failed`, `workspace_gone`), or a refusal (`checkout`, `host_venv`, `record_unreadable`, `input_missing`, `container_start`, `setup_failed`) |
 | `gate_green` | the crew's gate at `done` (autofix, then every check), or null without a `done` |
 | `calls` | model calls. A run stops at the call cap (`config.toml`, or `--cap`) as `interrupted` with `call_failed` |
 | `tool_calls`, `malformed_tool_calls` | tool calls, and those the session refused under its argument rule: not a JSON object, no such tool, or an unknown or missing argument |
@@ -155,6 +155,7 @@ load:
 | `*_tokens` | the session's token counts, as LiteLLM reports them |
 | `edits_applied`, `test_runs`, `compactions`, `troubles`, `start_chars` | what the session did, by crew's counts |
 | `record_authored` | the session read the case's authored record, not the base's own |
+| `inputs_manifest`, `input_delivery_history`, `input_design_system_css` | what the run's fetched inputs were: the captured copies' manifest's sha256, and each input's (`benchmark/README.md`, "Inputs"); null for a case with none, and absent from rows before 2026-10-26 |
 | `max_call_reasoning_tokens` | one call's most reasoning tokens, in an arm's run; null in the baseline's |
 | `sessions`, `serving`, `batch` | set on a concurrent run's sessions only (`tuning/`): how many ran at once, the Spark's SGLang setting (`record`, or e.g. `mem-fraction-static:0.88`), and the run's `tuning.jsonl` row. Absent: one session, on the record |
 
@@ -189,6 +190,9 @@ member's checks. Five fields are theirs alone, absent from the 30 parts' rows:
 | `parts_total`, `parts_fit` | the case's members, each its own STEP file, and those that passed every check of their own, fits included (null without a `done`) |
 | `load_ok` | the simplified load check (a section's bending stress against PLA's strength over 4), or null for a case without one or without a `done`. It never means "strong enough" |
 | `fault` | whose the failure is: `model`, `tool`, `infra` or `budget`; null for a case that passed |
+| `arm` | the shared field: what the session was given besides the baseline's tools (`skill`), or null for the baseline (`cad_eval/README.md`, "The arms") |
+| `concurrency` | the cases the run ran at once. The Spark's load follows it, so times aren't compared across rows; calls and checks are |
+| `calls_to_first_compile` | the call after which a `run` first exited 0 with every output file written, or null if none did |
 
 **The harder cases' first run, 2026-10-25 16:45–17:47 UTC** (crew 099879f,
 `crew-code-think`, a 20-call cap per case, no concurrent tick), and the rerun of two
@@ -309,6 +313,298 @@ empty and runaway answers don't depend on load. Times do, so read them only besi
 | `empty`, `runaway`, `cut` | no answer; run on as whitespace and cut off, as crew's call layer does; stopped at its token limit |
 | `thinking_chars`, `hedges_per_10k` | the thinking's length, and its hedges per 10k characters (model-fit-29's list) |
 | `prod_*` | the same request in production, from crew's events and LiteLLM's log |
+
+## Question 2, the skill arm (mqucifer/model-performance#21): what a CadQuery skill and a lookup close
+
+**Answer:**
+- **Closed:** the CadQuery skill and `lookup` fixed the failures that were about
+  CadQuery's API. That's m8-bolt's thread (tight), cable-comb's guessed method name,
+  and spool-holder (worded).
+- **Not closed:** the missing engineering values (screw clearance) and the fits
+  against real parts (the Pi 5 case).
+- **The cost:** reasoning doubled, the first compiling part came at call 7 instead of
+  2, and two tight cases the baseline passes ran out of calls. So 10 of 21 pass
+  against the baseline's 12.
+
+**The runs:**
+- The baseline ran 2026-10-25 19:27–21:16 UTC. The skill arm ran 22:24 UTC to 01:40
+  UTC on the 26th.
+- Both: crew 099879f, `crew-code-think` (thinking on), 4 cases at once, a 20-call cap,
+  one run per case.
+- The skill arm shared the Spark with a crew tick throughout (`concurrent_tick`).
+- Calls are capped by count, so the passes don't depend on that. No timing is
+  compared.
+
+| | Baseline | Skill |
+|---|---|---|
+| Pass | 12 / 21 (tight 6, assembly 4, worded 2) | 10 / 21 (tight 4, assembly 3, worded 3) |
+| The harness's own faults (`tool`), not counted for or against | drawer-cabinet | drawer-cabinet |
+| Calls | 156 | 267 |
+| Reasoning tokens | 343,496 | 715,825 |
+| Median call to a first compiling part | 2 | 7 |
+| Runaways | 1 (bolt-nut) | 0 |
+| Other calls through the proxy meanwhile | 526 | 1,435 |
+
+| Kind | Case | Baseline | Failed checks | Calls (first compile) | Skill | Failed checks | Calls (first compile) |
+|---|---|---|---|---|---|---|---|
+| tight | living-hinge | pass |  | 5 (2) | pass |  | 11 (4) |
+| tight | press-fit-pin | pass |  | 4 (2) | pass |  | 6 (3) |
+| tight | snap-hook | pass |  | 12 (6) | pass |  | 8 (6) |
+| tight | dovetail-slider | pass |  | 4 (2) | budget (call_cap) |  | 20 (5) |
+| tight | print-in-place-hinge | pass |  | 6 (4) | model (done) | volume | 12 (9) |
+| tight | spur-gear | pass |  | 6 (4) | budget (call_cap) |  | 20 (3) |
+| tight | m8-bolt | model (done) | changes.flanks, share.crests, share.flanks | 6 (4) | pass |  | 14 (4) |
+| assembly | pin-clevis | pass |  | 5 (2) | pass |  | 13 (7) |
+| assembly | shaft-bushing-collar | pass |  | 4 (2) | model (done) | bushing:volume, shaft:gap.bushing.distance, shaft:gap.bushing.interference | 12 (7) |
+| assembly | drawer-cabinet | budget (call_cap) |  | 20 (2) | tool (done) | closed_mesh | 10 (7) |
+| assembly | gear-pair | budget (call_cap) |  | 20 (None) | model (done) | gear-a:volume | 14 (12) |
+| assembly | bolt-nut | model (runaway) |  | 0 (None) | budget (call_cap) |  | 20 (None) |
+| assembly | snap-enclosure | pass |  | 5 (2) | pass |  | 15 (13) |
+| assembly | caster-wheel | pass |  | 4 (2) | pass |  | 16 (14) |
+| worded | shelf-bracket | pass |  | 4 (2) | model (done) | holes.screws | 6 (4) |
+| worded | tube-clip | model (done) | holes.screws, share.takes_tube, share.wraps | 8 (5) | model (done) | share.takes_tube | 12 (10) |
+| worded | d-shaft-knob | pass |  | 5 (2) | pass |  | 15 (12) |
+| worded | wall-hook | model (done) | holes.screws | 11 (8) | model (done) | span.y, within.y | 6 (4) |
+| worded | cable-comb | model (done) | measured | 17 (None) | pass |  | 15 (8) |
+| worded | spool-holder | model (done) | holes.screws, share.carries_width | 6 (2) | pass |  | 9 (7) |
+| worded | pi5-nvme-case | model (done) | lid:share.ethernet, lid:share.hdmi_0, lid:share.hdmi_1, lid:share.usb_29, lid:share.usb_47, lid:share.usb_c, lid:vents.over_the_pi | 4 (2) | model (done) | base:share.boss_3.5_3.5, base:share.boss_3.5_52.5, base:share.boss_61.5_3.5, base:share.boss_61.5_52.5, base:share.flex_cable | 13 (11) |
+
+A case's calls column is its calls, then (in brackets) the call after which a run
+first wrote every output. A blank failed-checks cell with a `budget` verdict means
+the case never reached `done`.
+
+**What it fixed:**
+- **m8-bolt passes, 19/19, for the first time in five runs.**
+  - It read `cadquery-threads-helices` and looked up `makeHelix` and `Solid.sweep`.
+    Then it followed the reference's recipe: a helix longer than the thread,
+    `isFrenet=True`, fused onto a core and cut to length.
+  - **Caveat:** that recipe was written by me, from what made my own reference thread
+    valid. It's general CadQuery practice, not this case's numbers. But it's close
+    to the answer, so this pass overstates what a skill written blind would do.
+- **cable-comb passes.** The baseline's script crashed on a guessed method
+  (`isClosed`), the failure `lookup` is for.
+- **spool-holder passes.** It built a spindle through the hub's hole, where the
+  baseline built a cradle round it.
+- **gear-pair reaches `done`** (45 of 46: gear A's volume 2.3% over). The baseline
+  ran out of calls.
+- **tube-clip improves** from 6 to 8 of 9. It now wraps the tube and its screw holes
+  have clearance. It fails only its bore, a deliberate interference grip, against a
+  limit that's this evaluation's own choice.
+- **pi5-nvme-case improves** from 27 to 29 of 34:
+  - both boards are now kept out, 0.5 mm clear;
+  - the lid sits above the Pi's published 4.4 mm parts.
+  
+  It fails the four bosses under the holes and part of the flex cable's path.
+  **Not caught:** its lid, at Z = 8.4, is still below the USB and Ethernet sockets,
+  whose heights aren't published, so no check holds them.
+
+**What it didn't fix, and the next arm for each:**
+- **The Ø4.0 screw clearance** (4 mm screws in 4.0 mm holes; ISO 273 gives 4.3 to
+  4.8).
+  - It's in 6 runs today: shelf-bracket three times (including the skill arm),
+    wall-hook, tube-clip and spool-holder in the baseline.
+  - The skill holds no engineering values. → **#22, engineering references.**
+- **Fit against real parts:** the Pi case's bosses, flex path and socket heights.
+  → **#23, the component library.** The Pi 5's own STEP files would give the
+  sockets' heights.
+- **bolt-nut** never reaches `done`, in any arm. Its baseline call ran away (the
+  only runaway), and the skill arm's ran out of calls.
+
+**What it cost:**
+- **The first pass after reading the skill is much longer.** The baseline's longest
+  call today was 44,843 completion tokens, against 54,309 (gear-pair) and 62,218
+  (bolt-nut), each straight after reading the skill.
+- **Total reasoning doubled,** and the first compile came 5 calls later.
+- **dovetail-slider and spur-gear,** which the baseline passes in 4 and 6 calls, ran
+  out of calls.
+  - dovetail-slider had the part right, to the reference's volume, by its 6th call.
+    It spent the rest checking its fit, as the skill's `cadquery-assemblies-fits`
+    suggests, and never called `done`.
+  - The cases it passes took about 2 to 4 times the calls.
+- **Losses that may be variance:** shaft-bushing-collar (its bushing's bore not cut)
+  and print-in-place-hinge (volume 2.1% over) passed in the baseline.
+  - With one run per case, a single case's flip is weak evidence.
+  - The totals' difference (12 against 10) is no bigger than the number of cases
+    that flipped each way. So the net count doesn't say the skill is worse; the
+    calls spent checking, and the two caps, do.
+
+**The evaluation's own faults, found in these runs:**
+- **drawer-cabinet, both runs:** the spec's finger hole (Ø20 at Z = 40) was tangent
+  to the drawer's top at Z = 50. Cut as the spec said, it leaves one non-manifold
+  edge, so the mesh isn't closed.
+  - In the skill arm, the drawer passed all 30 dimension and fit checks and failed
+    only on that mesh.
+  - In the baseline, it had the drawer right at its 2nd call (59,999 mm³) and spent
+    its other 18 chasing the open mesh, to the cap.
+  - Both rows are kept as they ran, re-marked `tool`.
+  - The spec now centres the hole at Z = 38, 2 mm below the top edge. Its reference
+    passes and its wrong one fails in the image. The case runs again, on the
+    baseline and the skill, when the Spark allows.
+- **bolt-nut, baseline:** its one call thought towards the 65,536-token limit, and
+  the client's one-hour timeout ended it (`cad_eval/README.md`, "Runaways"). The row
+  is re-marked as a runaway, the model's.
+- **Two limits that are this evaluation's choice, not a standard,** decide two
+  failures: tube-clip's bore (at least 19.9 mm for a 20 mm tube) and wall-hook's width
+  (40 to 80 mm for a 40 mm strap).
+
+**For #22 and for M14:**
+- The skill shows that context does close failures: three of the baseline's nine,
+  all about CadQuery's API. The ones left are engineering values and real parts, not
+  CadQuery.
+- So the next arm, #22's references (clearances, fits, fasteners), is aimed squarely
+  at the most frequent failure today. #23's library is aimed at the Pi case.
+- The skill's cost is a finding too:
+  - **The fit-checking advice spends calls.** #22's references should be read for
+    values, not as a procedure to verify.
+  - **A leaner skill** (a short `SKILL.md`, or no fit-checking section) is worth a
+    look before the combined arm.
+- **Nothing here points to training yet.** Every failure the skill closed was
+  knowledge it was handed. The ones left are knowledge the next two arms hand it.
+  That's evidence against an adapter, unless #22 and #23 leave failures standing.
+
+## Question 2, the references arms (mqucifer/model-performance#22): what engineering values close
+
+**Answer:**
+- **The references close the failures that were missing values.**
+  - The screw clearance came out right in 4 of 4 runs with the references alone,
+    against 1 of 5 in the baseline.
+  - The Pi 5 case passes 34/34 for the first time.
+  - So the references alone are the best arm: 14 of 21, against the baseline's 12 and
+    the skill's 11.
+- **With the CadQuery skill they don't add:** 11 of 21. Reading both sets costs
+  calls, and the worded cases fall to 1 of 7.
+- **What's left in every arm is hard CadQuery geometry.** Gears and threads pass in
+  at most one arm each, so not reliably anywhere.
+
+**The runs** were 2026-10-26, crew 099879f, `crew-code-think` (thinking on), with a
+20-call cap and one run per case:
+- **refs:** 02:22 to 06:21 UTC, 1 case at a time until 04:20 (a tick was refining a
+  Goal), then 4;
+- **skill-refs:** 06:21 to 09:11, at 4;
+- **the reruns:** 09:11 to 10:38.
+
+Calls are capped by count, so passes don't depend on the load, and no timing is
+compared.
+
+**The four arms**, each case's verdict, then its calls:
+- `cap` means it never reached `done` in 20 calls.
+- `fail n/m` means it reached `done` and passed n of m checks.
+- **drawer-cabinet's baseline and skill cells are today's reruns** on the fixed spec.
+  The first rows were the harness's own fault (the tangent finger hole). With the
+  rerun, the skill arm passes 11, not the 10 reported in #24.
+
+| Kind | Case | Baseline | Skill | Refs | Skill + refs |
+|---|---|---|---|---|---|
+| tight | living-hinge | pass, 5 | pass, 11 | pass, 4 | pass, 4 |
+| tight | press-fit-pin | pass, 4 | pass, 6 | pass, 5 | pass, 13 |
+| tight | snap-hook | pass, 12 | pass, 8 | pass, 7 | fail 21/22, 18 |
+| tight | dovetail-slider | pass, 4 | cap, 20 | pass, 6 | pass, 11 |
+| tight | print-in-place-hinge | pass, 6 | fail 21/22, 12 | pass, 5 | pass, 8 |
+| tight | spur-gear | pass, 6 | cap, 20 | cap, 20 | cap, 20 |
+| tight | m8-bolt | fail 16/19, 6 | pass, 14 | cap, 20 | fail 16/19, 9 |
+| assembly | pin-clevis | pass, 5 | pass, 13 | pass, 5 | pass, 12 |
+| assembly | shaft-bushing-collar | pass, 4 | fail 38/41, 12 | pass, 5 | pass, 11 |
+| assembly | drawer-cabinet | cap, 20 | pass, 5 | pass, 5 | pass, 8 |
+| assembly | gear-pair | cap, 20 | fail 45/46, 14 | cap, 20 | cap, 20 |
+| assembly | bolt-nut | runaway, 0 | cap, 20 | cap, 20 | pass, 10 |
+| assembly | snap-enclosure | pass, 5 | pass, 15 | cap, 20 | pass, 7 |
+| assembly | caster-wheel | pass, 4 | pass, 16 | pass, 7 | pass, 8 |
+| worded | shelf-bracket | pass, 4 | fail 7/8, 6 | pass, 9 | pass, 10 |
+| worded | tube-clip | fail 6/9, 8 | fail 8/9, 12 | fail 8/9, 16 | fail 8/9, 15 |
+| worded | d-shaft-knob | pass, 5 | pass, 15 | fail 13/14, 7 | cap, 20 |
+| worded | wall-hook | fail 6/7, 11 | fail 5/7, 6 | pass, 11 | fail 6/7, 14 |
+| worded | cable-comb | fail 0/1, 17 | pass, 15 | pass, 4 | fail 9/10, 11 |
+| worded | spool-holder | fail 6/8, 6 | pass, 9 | pass, 16 | cap, 20 |
+| worded | pi5-nvme-case | fail 27/34, 4 | fail 29/34, 13 | pass, 14 | fail 31/34, 9 |
+
+| | baseline | skill | refs | skill-refs |
+|---|---|---|---|---|
+| Pass | 12 / 21 | 11 / 21 | 14 / 21 | 11 / 21 |
+|   tight | 6 | 4 | 5 | 4 |
+|   assembly | 4 | 4 | 4 | 6 |
+|   worded | 2 | 3 | 5 | 1 |
+| Model faults | 7 | 7 | 2 | 6 |
+| Call cap | 2 | 3 | 5 | 4 |
+| Harness (tool) / infra | 0 / 0 | 0 / 0 | 0 / 0 | 0 / 0 |
+| Runaways | 1 | 0 | 0 | 0 |
+| Calls | 156 | 262 | 226 | 258 |
+| Reasoning tokens | 330,818 | 709,088 | 687,134 | 776,122 |
+| Median call to first compile | 2 | 7 | 4 | 9 |
+| Other calls meanwhile | 491 | 1,375 | 597 | 702 |
+
+**Second samples** (reruns of the same case and arm, on the streaming sender):
+- **gear-pair, baseline:** cap again (20 calls), as on 2026-10-25.
+- **bolt-nut, baseline:** cap (20). That's its third baseline run: one runaway, two
+  caps.
+
+**The screw clearance, run by run** (the `holes` check: a hole of Ø4.2 to 5.2 for a
+4 mm screw, along the right axis):
+
+| Arm | Clearance right | Runs |
+|---|---|---|
+| Baseline | 1 of 5 | shelf-bracket passed once in three; wall-hook, tube-clip and spool-holder all Ø4.0 |
+| Skill | 3 of 4 | shelf-bracket missed |
+| Refs | **4 of 4** | shelf-bracket read `ref-fasteners` and drew Ø4.5, "clearance for 4 mm wood screw (practice value)" |
+| Skill + refs | 2 of 3 measured | wall-hook chose Ø4.5 from `ref-fasteners`, but cut it along the wrong axis; spool-holder never reached `done` |
+
+**What the references fixed:**
+- **The screw clearance,** above: the value the baseline lacked in 4 of 5 runs.
+- **pi5-nvme-case passes 34/34**, its first pass in four runs.
+  - It read all four references.
+  - Its base and lid keep out of both boards, with a boss under each hole and room for
+    the flex cable, and its lid now reaches Z = 17.
+  - **Caveat:** the sockets' heights aren't published, so a pass means it fits what's
+    published. #23's component references settle the rest.
+- **The worded cases go from 2 to 5 of 7,** and model faults from 7 to 2.
+
+**What they didn't fix, and why:**
+- **Gears and threads.** spur-gear, m8-bolt, gear-pair and bolt-nut hit the cap with
+  the references, as they mostly do everywhere. They hold no CadQuery, and these
+  failures are building the geometry, not choosing a value.
+- **d-shaft-knob** (13/14): its D-bore is 6.9 mm³ into the shaft, over my 1 mm³
+  allowance for "pushes on snugly". That allowance, like tube-clip's bore (8/9 in
+  every arm), is this evaluation's own choice, not a standard.
+
+**Skill and references together** (`skill-refs`), 11 of 21:
+- **Assemblies are best combined, 6 of 7.** bolt-nut passes (34/34), its only pass in
+  six runs. It read only the CadQuery threads and fits references, not the
+  engineering ones. It's one run, and the thread recipe is the one I wrote (#24's
+  caveat).
+- **Worded cases fall to 1 of 7.** Two hit the cap (d-shaft-knob, spool-holder), which
+  pass with either set alone. wall-hook had the right value on the wrong axis.
+  pi5-nvme-case came to 31/34, where refs alone passed it.
+- **The cost:** the most reasoning of any arm (776k tokens), and the latest first
+  compile (median call 9).
+
+**One run per case, and how much that matters:**
+- Several cases flip between arms with no clear cause: snap-hook,
+  print-in-place-hinge, shaft-bushing-collar, snap-enclosure, d-shaft-knob,
+  cable-comb.
+- A single flip is weak evidence; a pattern across cases isn't. Two patterns hold:
+  - the screw clearance, every run with the references;
+  - the gears and threads, failing in most runs of every arm.
+
+**What this means for #23 and for M14's training decision:**
+- **The references did what knowledge should.** The value failures are gone with them,
+  and the Pi 5 case passes on published data. #23 adds the parts' own heights, the one
+  thing the Pi case can't yet be checked on.
+- **Load less, not more:** the references alone beat both sets together. Before the
+  combined arm with #23, the context to trim is clear. Offer the CadQuery skill's
+  threads and fits topics only for the cases that need them, or keep `SKILL.md` short.
+- **What's left is the gears and threads.** They fail in most runs of every arm, and
+  pass in at most one each. That's the only failure that looks like a capability
+  rather than missing knowledge. But it's also where the variance is widest.
+- So before training is considered for it:
+  - run those four cases several times per arm (3 to 5), to tell a gap from noise;
+  - try the planned measure-tool arm (checking a part's features before `done`),
+    since those cases spend their calls guessing whether the geometry is right.
+- **Nothing here argues for an adapter yet.**
+
+**The harness, fixed in these runs:** two runs of one case in the same second (an arm
+and a rerun, in two processes) shared a run id. The records refused the second rather
+than overwrite, so drawer-cabinet's baseline rerun didn't run the first time. A taken
+id now gets the next suffix (`cad_eval/run.py`, `fresh_run`), and the case was run
+again.
 
 ## `tuning.jsonl`: concurrent runs on the Spark
 

@@ -394,3 +394,16 @@ def test_a_baseline_run_says_no_arm(
 def test_main_refuses_an_unknown_arm_or_two_aliases(argv: list[str]) -> None:
     with pytest.raises(SystemExit):
         bench.main(argv)
+
+
+def test_two_replays_of_a_case_in_the_same_second_both_run(
+    tmp_path: Path, repo: tuple[Path, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from common import records  # noqa: PLC0415
+    from common.results import NAME  # noqa: PLC0415
+
+    monkeypatch.setattr(records, "run_id", lambda now=None: "20261026T110009Z")
+    first, _, _ = run(tmp_path, repo, [answer(BLOCKED)], monkeypatch=monkeypatch)
+    second, _, _ = run(tmp_path, repo, [answer(BLOCKED)], monkeypatch=monkeypatch)
+    assert (first["run"], second["run"]) == ("20261026T110009Z", "20261026T110009Z-2")
+    assert second["ending"] != "refused" and NAME.fullmatch(second["run"])

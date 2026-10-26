@@ -58,6 +58,11 @@ SUITES: dict[str, set[str]] = {
         "sessions",  # how many sessions ran at once (mqucifer/model-performance#7); absent: one
         "serving",  # the SGLang setting under test, e.g. mem-fraction-static:0.88, or record
         "batch",  # the concurrent run it ran in: its tuning row's `run`
+        # What the run's fetched inputs were (`benchmark/inputs.py`): the captured copies'
+        # manifest's sha256, and each input's; null for a case with none.
+        "inputs_manifest",
+        "input_delivery_history",
+        "input_design_system_css",
     },
     "cad_eval": {
         "tier",  # the part's difficulty, 1 to 5
@@ -88,6 +93,13 @@ SUITES: dict[str, set[str]] = {
         "overhang_mm2",  # faces facing down steeper than 45° from vertical, off the bed
         "bridges",  # patches facing straight down, off the bed
         "longest_bridge_mm",  # the longest of their spans
+        # The arms (mqucifer/model-performance#21): `arm` is SHARED.
+        "concurrency",  # the cases the run ran at once
+        "calls_to_first_compile",  # the call after which a `run` first wrote every output
+        # Calls that thought to the token limit, or that crew's whitespace cut ended.
+        "runaways",
+        "runaway_reasoning_tokens",
+        "runaway_content_tokens",
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed
