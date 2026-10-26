@@ -446,3 +446,30 @@ arm is `refs-measure` with one more tool: `view`.
   is unchanged, and each row's `image` names the tag it ran in.
 - **Status:** the other arms stay on `2.8.0` until the tag is promoted for all of them,
   after #27's screen, with the image tests re-proved on it.
+
+## `refs-plan`: a dimensioned plan before code (mqucifer/model-performance#30)
+
+The Pi 5 case's lid went through the board: a plan stating the board's height would have
+caught it before any code. The `refs-plan` arm is `refs` (the best arm so far) with a
+plan stage. It runs in the `2.8.0` image, like `refs`.
+
+    uv run cad-eval --hard --arm refs-plan --parallel 2
+
+- **The plan:** before any `write`, the model sends `plan`, a JSON object with its parts
+  and their files, the interfaces between them, the key sizes (part, name, value and
+  source: spec, reference or chosen), and how the parts fit.
+- **The check, in code (`plan.py`):** each hard case's `STATED` holds the values its spec
+  states in its own text, each on its part, with the spec's tolerance.
+  - **By value on the right part:** a stated value is met when some size on that part
+    lies within the tolerance, whatever the size is called. Equal values on one part
+    may share a size. Names are recorded, never judged.
+  - **The miss** goes back in the spec's words, with the nearest value the plan gave.
+  - **The guard:** only numbers the spec's text gives are checked, never the case's
+    probes, bounds or volumes, so a miss tells the model only what it was told. A test
+    holds each stated value to a number in the spec. The worded cases are checked only
+    on what their text states; the sizes the model chooses are recorded, not judged.
+- **The gate:** `write` and `run` are refused (`no_plan`) until a plan passes, or until
+  3 plans have missed, so a run isn't spent on plans.
+- **What's kept:** each plan's check goes to the run's events, each miss with the plan's
+  sizes it was checked against, so a false miss shows. The row records `plans`,
+  `plan_passed` and `plan_misses` (a count: the words stay in the records).

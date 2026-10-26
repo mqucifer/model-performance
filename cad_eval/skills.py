@@ -33,6 +33,7 @@ ARMS: dict[str, tuple[tuple[str, ...], bool, tuple[str, ...]]] = {
     "skill-refs": (("cadquery", "references"), True, ()),
     "refs-measure": (("references",), False, ("measure",)),
     "refs-measure-view": (("references",), False, ("measure", "view")),
+    "refs-plan": (("references",), False, ("plan",)),
 }
 # What the start adds where an arm has `measure`: check the part against the values the
 # spec states, never the evaluation's own checks, which the model never sees.
@@ -81,6 +82,14 @@ VIEW_LINE = (
 )
 
 
+# What the start adds where an arm has `plan` (mqucifer/model-performance#30).
+PLAN_LINE = (
+    "Before any code, write a dimensioned plan with `plan`: the parts and their files, the "
+    "interfaces between them, the key sizes with their source, and how the parts fit. "
+    "`write` and `run` open once the plan agrees with the spec."
+)
+
+
 def image_for(arm: str | None) -> str:
     """The container image an arm runs in: the view image where it has `view`."""
     from cad_eval import container  # noqa: PLC0415
@@ -98,6 +107,8 @@ def start_for(arm: str | None) -> str:
         lines.append(MEASURE_LINE)
     if "view" in tools:
         lines.append(VIEW_LINE)
+    if "plan" in tools:
+        lines.append(PLAN_LINE)
     return "\n".join(lines)
 
 

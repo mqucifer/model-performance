@@ -30,7 +30,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from cad_eval import lookup as lookup_module
-from cad_eval import measure, skills
+from cad_eval import measure, plan, skills
 from cad_eval import render as render_module
 
 RUN_TIMEOUT = 120
@@ -137,6 +137,9 @@ class Judged:
     # A `view`'s picture, as base64 PNG: sent to the model in a message of its own.
     image: str | None = None
     painted: float | None = None  # the picture's share that isn't background
+    # What the run's events keep beside the call: a plan's check, each miss with the
+    # sizes it was checked against.
+    detail: Any = None
 
 
 def parse(raw: Any) -> Any:
@@ -179,9 +182,19 @@ def arm_specs(arm: str) -> list[dict[str, Any]]:
         files="Your STEP files to draw, separated by spaces, such as `base.step lid.step`.",
         view="The view: `iso`, `top`, `front`, `side`, `exploded` or `section x=40`.",
     )
+    plan_spec = _spec(
+        "plan",
+        "Your dimensioned plan, before any code: checked against the values the spec "
+        "states, and sent back with any it misses. `write` and `run` open once it agrees.",
+        plan='A JSON object: `parts` ([{"name", "file", "what"}]), `interfaces` '
+        '([{"between": [part, part], "what"}]), `sizes` ([{"part", "name", "value" in mm or '
+        'degrees, "source": "spec", "reference" or "chosen"}]), and `fits` ([{"between", '
+        '"kind": "clearance", "interference" or "contact", "value"}]).',
+    )
     _, lookup, tools = skills.ARMS[arm]
     found_specs = [SKILL_SPEC, found] if lookup else [SKILL_SPEC]
     found_specs += [measure_spec] if "measure" in tools else []
+    found_specs += [plan_spec] if "plan" in tools else []
     return found_specs + ([view_spec] if "view" in tools else [])
 
 
@@ -230,6 +243,7 @@ class PartTools:
         outputs: list[str] | None = None,
         arm: str | None = None,
         keepouts: list[str] | None = None,
+        case: str | None = None,
     ) -> None:
         self.directory = directory
         self.workspace = workspace
@@ -238,6 +252,12 @@ class PartTools:
         # The case's keep-out bodies (its mating parts, as its spec describes them),
         # drawn in by `view`: never its checks.
         self.keepouts = list(keepouts or [])
+        self.case = case
+        # The plan stage: plans checked, whether one passed, and the misses over them.
+        self.planned = "plan" in skills.ARMS[arm][2] if arm else False
+        self.plans = 0
+        self.plan_passed = False
+        self.plan_misses = 0
         self.specs = specs_for(self.outputs) + (arm_specs(arm) if arm else [])
         self.accepted = {s["function"]["name"]: s["function"]["parameters"] for s in self.specs}
         # Whether a `run` has exited 0 with every output written: a first compiling part.
@@ -254,7 +274,40 @@ class PartTools:
             return bad
         if name in ("done", "blocked"):
             return self._ending(name, args)
+        if name in ("write", "run") and self.planned and not self.plan_open:
+            reply = "Write your plan with `plan` first: `write` and `run` open once it agrees."
+            return self._failed(name, "no_plan", reply, args)
         return getattr(self, f"_{name}")(args)
+
+    @property
+    def plan_open(self) -> bool:
+        """Whether the gate's open: a plan passed, or `plan.ATTEMPTS` of them missed."""
+        return self.plan_passed or self.plans >= plan.ATTEMPTS
+
+    def _plan(self, args: dict[str, Any]) -> Judged:
+        """The `plan` tool: the plan against the spec's stated values (`plan.py`)."""
+        checked = plan.check(self.case or "", self.outputs, args["plan"])
+        self.plans += 1
+        self.plan_misses += len(checked.said())
+        detail = {
+            "attempt": self.plans,
+            "wrong": checked.wrong,
+            "misses": [vars(m) for m in checked.misses],
+        }
+        if checked.passed:
+            self.plan_passed = True
+            return Judged(
+                "plan", "ok", "The plan agrees with the spec: write your code.", detail=detail
+            )
+        said = "\n".join(f"- {m}" for m in checked.said())
+        after = (
+            "`write` and `run` are open now; keep to the spec's values."
+            if self.plan_open
+            else "Send the plan again with these fixed."
+        )
+        judged = self._failed("plan", "misses", f"The plan misses the spec:\n{said}\n{after}", args)
+        judged.detail = detail
+        return judged
 
     def _failed(self, name: str, why: str, reply: str, args: Any) -> Judged:
         return Judged(name, "failed", reply, why, args)

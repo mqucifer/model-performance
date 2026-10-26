@@ -195,6 +195,7 @@ class Session:
                 why=judged.why,
                 arguments=function.get("arguments"),
                 reply=judged.reply,
+                **({"detail": judged.detail} if judged.detail is not None else {}),
             )
             self.messages.append(
                 {

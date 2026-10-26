@@ -253,7 +253,8 @@ def evaluate(
         # here may probe SGLang directly (null on rows from before 2026-10-26).
         row["serving"] = serving
         row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
-        row.update(views=None, image_tokens=None)
+        row.update(views=None, image_tokens=None, plans=None, plan_passed=None)
+        row.update(plan_misses=None)
     kept: dict[str, Any] = {}
     send.ticking()
     began = time.monotonic()
@@ -283,6 +284,7 @@ def evaluate(
             case.outputs() if case else None,
             arm=arm,
             keepouts=list(case.mates.values()) if case else None,
+            case=case.name if case else None,
         )
         session = Session(
             p.spec(),
@@ -304,6 +306,9 @@ def evaluate(
         if case is not None:
             row["calls_to_first_compile"] = session.first_compile
             row["runaways"] = len(session.runaways)
+            row["plans"] = tools.plans if tools.planned else None
+            row["plan_passed"] = tools.plan_passed if tools.planned else None
+            row["plan_misses"] = tools.plan_misses if tools.planned else None
             row["views"] = session.views
             row["image_tokens"] = session.usage.get("image_tokens", 0)
             if session.runaways:

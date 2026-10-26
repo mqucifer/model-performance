@@ -101,6 +101,9 @@ SUITES: dict[str, set[str]] = {
         "serving",  # the Spark's serving engine and version, as given: sglang-0.5.22
         "views",  # the `view` tool's pictures drawn (mqucifer/model-performance#29)
         "image_tokens",  # the prompt tokens the pictures cost, summed over the calls
+        "plans",  # the `plan` stage's plans checked (mqucifer/model-performance#30)
+        "plan_passed",  # whether one agreed with the spec's stated values
+        "plan_misses",  # the misses over all the plans, a count: the words stay in records
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed
