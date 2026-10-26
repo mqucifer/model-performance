@@ -32,6 +32,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from benchmark import inputs
 from benchmark.arms import NAMES, Arm, ArmNotInEffect, UnknownArm, arm
 from benchmark.cases import CASES, Case, UnknownCase, case, record, story
 from benchmark.history import history
@@ -181,8 +182,7 @@ def replay(
     from crew_org.session import conversation  # noqa: PLC0415
 
     checkout_for = checkout_for or (lambda c, run: checkout(settings.work_dir, c, run))
-    run = records.run_id()
-    out = records.run_dir(settings, SUITE, c.name, run)
+    run, out = records.new_run(settings, SUITE, c.name)
     started_at = datetime.now(UTC)
     row: dict[str, Any] = {
         "case": c.name,
@@ -195,6 +195,9 @@ def replay(
         "gate_green": None,
         "arm": arm.name if arm else None,
         "max_call_reasoning_tokens": None,
+        "inputs_manifest": None,
+        "input_delivery_history": None,
+        "input_design_system_css": None,
     }
     kept: dict[str, Any] = {"base": c.base, "note": c.note}
     armed = arm.wrap(send) if arm else None
@@ -226,11 +229,26 @@ def replay(
             root = checkout_for(c, run)
         except (subprocess.CalledProcessError, OSError) as exc:
             raise Refused("checkout", f"{type(exc).__name__}: {exc}") from exc
-        since = c.base
-        given = record(c)
-        row["record_authored"] = given is not None
-        if given is not None:
-            since = give_record(root, given)
+        # The case's fetched inputs, from the captured copies only, checked by sha256
+        # (`benchmark/inputs.py`, mqucifer/model-performance#32).
+        try:
+            manifest_sha, captured = inputs.for_case(settings, c.name)
+            row.update(inputs.row_fields(manifest_sha, captured))
+            kept["inputs"] = [
+                {"input": i.input, "pin": i.pin, "sha256": i.sha256} for i in captured
+            ]
+            since = c.base
+            given = record(c)
+            row["record_authored"] = given is not None
+            if captured and given is None:
+                raise inputs.InputMissing("no authored record to give the benchmark's setup")
+            if given is not None:
+                given = inputs.setup_record(given, captured)
+                since = give_record(root, given)
+            if captured:
+                inputs.place(root, captured)
+        except inputs.InputMissing as missing:
+            raise Refused("input_missing", str(missing)) from missing
         unfit = conversation.unfit(root)
         if unfit:
             raise Refused("host_venv", unfit)
