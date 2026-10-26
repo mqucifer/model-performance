@@ -547,7 +547,7 @@ compared.
 
 **What the references fixed:**
 - **The screw clearance,** above: the value the baseline lacked in 4 of 5 runs.
-- **pi5-nvme-case passes 34/34**, its first pass in five runs.
+- **pi5-nvme-case passes 34/34**, its first pass in four runs.
   - It read all four references.
   - Its base and lid keep out of both boards, with a boss under each hole and room for
     the flex cable, and its lid now reaches Z = 17.
@@ -564,8 +564,8 @@ compared.
   every arm), is this evaluation's own choice, not a standard.
 
 **Skill and references together** (`skill-refs`), 11 of 21:
-- **Assemblies are best combined, 6 of 7.** bolt-nut passes (34/34) for the first time
-  in seven runs. It read only the CadQuery threads and fits references, not the
+- **Assemblies are best combined, 6 of 7.** bolt-nut passes (34/34), its only pass in
+  six runs. It read only the CadQuery threads and fits references, not the
   engineering ones. It's one run, and the thread recipe is the one I wrote (#24's
   caveat).
 - **Worded cases fall to 1 of 7.** Two hit the cap (d-shaft-knob, spool-holder), which
