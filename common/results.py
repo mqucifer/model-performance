@@ -85,6 +85,13 @@ SUITES: dict[str, set[str]] = {
         "overhang_mm2",  # faces facing down steeper than 45° from vertical, off the bed
         "bridges",  # patches facing straight down, off the bed
         "longest_bridge_mm",  # the longest of their spans
+        # The arms (mqucifer/model-performance#21): `arm` is SHARED.
+        "concurrency",  # the cases the run ran at once
+        "calls_to_first_compile",  # the call after which a `run` first wrote every output
+        # Calls that thought to the token limit, or that crew's whitespace cut ended.
+        "runaways",
+        "runaway_reasoning_tokens",
+        "runaway_content_tokens",
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed

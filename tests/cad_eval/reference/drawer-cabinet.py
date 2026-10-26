@@ -15,7 +15,7 @@ x, y1, z0 = 47 - CLEAR, 77 - CLEAR, 3 + CLEAR
 body = box(-x, x, -0.5, y1, z0, 50).cut(box(-x + 2, x - 2, 1.5, y1 - 2, z0 + 2, 51))
 front = box(-50, 50, -3.5, -0.5, 0.5, 59.5)
 drawer = body.union(front).cut(
-    cq.Workplane("XZ", origin=(0, 2, 0)).center(0, 40).circle(10).extrude(6)
+    cq.Workplane("XZ", origin=(0, 2, 0)).center(0, 38).circle(10).extrude(6)
 )
 cq.exporters.export(cabinet, "cabinet.step")
 cq.exporters.export(drawer, "drawer.step")

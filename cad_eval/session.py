@@ -84,8 +84,15 @@ class Session:
     events: Path
     max_tokens: int = 65536
     system: str = SYSTEM
+    # A line after the spec: the skill arm's start line, naming the skills it may read.
+    start: str = ""
     backstop_s: float = BACKSTOP_S
     calls: int = 0
+    # The call after which a `run` first exited 0 with every output written.
+    first_compile: int | None = None
+    # Calls that ran to the token limit (`length`) or that crew's cut ended (`runaway`):
+    # each one's reasoning and content tokens, as far as it reached.
+    runaways: list[dict[str, int]] = field(default_factory=list)
     model_s: float = 0.0
     usage: Counter[str] = field(default_factory=Counter)
     # Each tool call's outcome (ok, malformed, ill_typed, failed), and calls by tool.
@@ -96,7 +103,10 @@ class Session:
     def run(self) -> Ending:
         self.messages = [
             {"role": "system", "content": self.system},
-            {"role": "user", "content": self.spec},
+            {
+                "role": "user",
+                "content": f"{self.spec}\n\n{self.start}" if self.start else self.spec,
+            },
         ]
         quiet = 0
         while True:
@@ -122,6 +132,8 @@ class Session:
                 ending = self._tools(tool_calls)
             except Gone as gone:
                 return self._ended(Ending("interrupted", "workspace_gone", {"error": str(gone)}))
+            if self.first_compile is None and self.tools.compiled:
+                self.first_compile = self.calls
             if ending is not None:
                 return self._ended(ending)
 
@@ -147,6 +159,12 @@ class Session:
         choices = answer.get("choices") if isinstance(answer, dict) else None
         if not choices:
             return {}, Ending("interrupted", "call_failed", {"error": "no choices"})
+        if choices[0].get("finish_reason") in ("length", "runaway"):
+            used = usage(answer)
+            reasoning = used.get("reasoning_tokens", 0)
+            self.runaways.append(
+                {"reasoning": reasoning, "content": used.get("completion_tokens", 0) - reasoning}
+            )
         self._record(
             "call",
             n=self.calls,
