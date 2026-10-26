@@ -132,15 +132,73 @@ def extend(case_cells: list[Cell]) -> list[Cell]:
     return found
 
 
-def needed(rows: list[dict[str, Any]]) -> dict[tuple, int]:
-    """The runs each cell still needs: to three for the screen, then to five where
-    `extend` says two more could decide its case."""
+def _futures(state: tuple[tuple[int, int], ...], gap_by_pass: bool) -> list[tuple]:
+    """Every way a case's cells can finish, by the rule: each cell's remaining results
+    (to three, then to five where `extend` picks it) and the verdict they end in.
+
+    `state` is each cell's (passes, n). With `gap_by_pass`, a case with a pass in any
+    run is never a gap, so no cell is extended to make it one (a reading of the rule,
+    not the rule as written: see `decisive`).
+    """
+    import itertools  # noqa: PLC0415
+
+    def cell(passes: int, n: int, k: int) -> Cell:
+        runs = [{"fault": None}] * passes + [{"fault": "budget"}] * (n - passes)
+        return Cell("x", k, runs)  # type: ignore[arg-type]
+
+    fill = [max(0, 3 - n) for _, n in state]
+    found = []
+    for first in itertools.product(*[list(itertools.product((1, 0), repeat=f)) for f in fill]):
+        at3 = [(p + sum(r), n + len(r)) for (p, n), r in zip(state, first, strict=True)]
+        cells_at3 = [cell(p, n, k) for k, (p, n) in enumerate(at3)]
+        chosen = {c.arm for c in extend(cells_at3)}
+        if gap_by_pass and any(p for p, _ in at3):
+            chosen = {c.arm for c in cells_at3 if c.arm in chosen and c.passes == 2}
+        more = [2 if k in chosen else 0 for k in range(len(state))]
+        for second in itertools.product(*[list(itertools.product((1, 0), repeat=m)) for m in more]):
+            final = [
+                cell(p + sum(r), n + len(r), k)
+                for k, ((p, n), r) in enumerate(zip(at3, second, strict=True))
+            ]
+            results = tuple(a + b for a, b in zip(first, second, strict=True))
+            found.append((results, verdict(final)))
+    return found
+
+
+def decisive(case_cells: list[Cell], gap_by_pass: bool = False) -> list[Cell]:
+    """The cells whose next run could change their case's final verdict: some sequence of
+    their remaining results, the other cells' held the same, ends in another verdict."""
+    state = tuple((c.passes, c.n) for c in case_cells)
+    futures = _futures(state, gap_by_pass)
+    found = []
+    for k, cell_ in enumerate(case_cells):
+        groups: dict[tuple, set[str]] = {}
+        for results, end in futures:
+            others = results[:k] + results[k + 1 :]
+            groups.setdefault(others, set()).add(end)
+        moves = any(len(ends) > 1 for ends in groups.values())
+        has_next = any(len(results[k]) > 0 for results, _ in futures)
+        if moves and has_next:
+            found.append(cell_)
+    return found
+
+
+def plan(rows: list[dict[str, Any]], gap_by_pass: bool = False) -> list[tuple[str, str | None]]:
+    """The decisive runs, one per cell, in order: gear-pair's cells first (the one case
+    still open on gap or not), then the cells that could decide another case. Re-plan
+    after every run, so a cell stops at its first deciding result."""
     found = cells(rows)
-    want = {key: max(0, 3 - c.n) for key, c in found.items()}
-    for case in CASES:
-        for c in extend([found[(case, arm)] for arm in ARMS]):
-            want[(c.case, c.arm)] = 5 - c.n
-    return {key: k for key, k in want.items() if k}
+    order = ["gear-pair", *[c for c in CASES if c != "gear-pair"]]
+    return [
+        (c.case, c.arm)
+        for case in order
+        for c in decisive([found[(case, arm)] for arm in ARMS], gap_by_pass)
+    ]
+
+
+def needed(rows: list[dict[str, Any]], gap_by_pass: bool = False) -> dict[tuple, int]:
+    """The decisive runs only, one per cell (`plan`): re-plan after each."""
+    return {cell: 1 for cell in plan(rows, gap_by_pass)}
 
 
 # When production serving moved to SGLang v0.5.22 (the operator, 2026-10-26).
@@ -176,20 +234,15 @@ def report(rows: list[dict[str, Any]], records: Path) -> str:
         "| Case | Verdict | " + " | ".join(arm or "baseline" for arm in ARMS) + " |",
         "|---|---|" + "---|" * len(ARMS),
     ]
-    more: list[Cell] = []
     for case in CASES:
         row = [found[(case, arm)] for arm in ARMS]
-        more += extend(row)
         shown = []
         for c in row:
             low, high = wilson(c.passes, c.n)
             shown.append(f"{c.passes}/{c.n} ({low:.0%}–{high:.0%}) {c.state()}")
         lines.append(f"| {case} | **{verdict(row)}** | " + " | ".join(shown) + " |")
-    short = [(c, 3 - c.n) for c in found.values() if c.n < 3]
-    lines += ["", "**Runs still needed for the screen** (to three per cell):", ""]
-    lines += [f"- {c.case}, {c.arm or 'baseline'}: {k} more" for c, k in short] or ["- none"]
-    lines += ["", "**Cells to extend to 5** (they could change their case's verdict):", ""]
-    lines += [f"- {c.case}, {c.arm or 'baseline'}: {c.passes}/{c.n}" for c in more] or ["- none"]
+    lines += ["", "**Decisive runs next** (each could change its case's verdict):", ""]
+    lines += [f"- {case}, {arm or 'baseline'}" for case, arm in plan(rows)] or ["- none"]
     for case in CASES:
         lines += ["", f"### {case}", ""]
         for arm in ARMS:
@@ -291,11 +344,17 @@ def measure_capped(rows: list[dict[str, Any]], records: Path) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="cad_eval.spread", description=__doc__.split("\n\n")[0])
     parser.add_argument("--measure-capped", action="store_true", help="measure capped runs first")
+    parser.add_argument("--next", action="store_true", help="the decisive runs, one per line")
+    parser.add_argument("--gap-by-pass", action="store_true", help="a pass rules out a gap")
     args = parser.parse_args(argv)
     from common.config import load  # noqa: PLC0415
 
     records = load().records_dir / "cad_eval"
     rows = [json.loads(line) for line in (RESULTS / "cad_eval.jsonl").read_text().splitlines()]
+    if args.next:
+        for case, arm in plan(rows, args.gap_by_pass):
+            print(case, arm or "baseline")
+        return 0
     if args.measure_capped:
         print(f"measured {measure_capped(rows, records)} capped runs' last files")
     print(report(rows, records))
