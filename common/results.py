@@ -92,6 +92,7 @@ SUITES: dict[str, set[str]] = {
         "runaways",
         "runaway_reasoning_tokens",
         "runaway_content_tokens",
+        "sample",  # which of a `--repeat` run's samples, 1 to N, or null for a single run
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed
