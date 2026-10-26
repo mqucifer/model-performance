@@ -199,17 +199,9 @@ def own_calls(events: Path) -> set[str]:
 
 
 def fresh_run(settings: Settings, name: str) -> tuple[str, Path]:
-    """A run id and its new records directory. Ids are to the second, so two runs of a
-    case that start in the same second (an arm and a rerun, each its own process) would
-    share one; the second takes the next free suffix, and nothing is written over."""
-    base = records.run_id()
-    for n in range(1, 100):
-        run = base if n == 1 else f"{base}-{n}"
-        try:
-            return run, records.run_dir(settings, SUITE, name, run)
-        except FileExistsError:
-            continue
-    raise FileExistsError(f"no free run id for {name} at {base}")
+    """A run id and its new records directory: the shared `records.new_run`, which gives
+    two runs of a case that start in the same second each their own suffixed id."""
+    return records.new_run(settings, SUITE, name)
 
 
 def evaluate(
