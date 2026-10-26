@@ -154,7 +154,9 @@ def _futures(state: tuple[tuple[int, int], ...], gap_by_pass: bool) -> list[tupl
         chosen = {c.arm for c in extend(cells_at3)}
         if gap_by_pass and any(p for p, _ in at3):
             chosen = {c.arm for c in cells_at3 if c.arm in chosen and c.passes == 2}
-        more = [2 if k in chosen else 0 for k in range(len(state))]
+        # A cell already past three was extended: it goes on to five.
+        chosen |= {k for k, (_, n) in enumerate(at3) if 3 < n < 5}
+        more = [5 - at3[k][1] if k in chosen else 0 for k in range(len(state))]
         for second in itertools.product(*[list(itertools.product((1, 0), repeat=m)) for m in more]):
             final = [
                 cell(p + sum(r), n + len(r), k)

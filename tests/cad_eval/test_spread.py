@@ -207,3 +207,17 @@ def test_a_cell_stops_once_it_can_no_longer_change_its_verdict() -> None:
     # gap" (bolt-nut has a pass) it can't change anything, so it stops.
     rows = today() + [row("bolt-nut", "skill", "budget", 7)]
     assert ("bolt-nut", "skill") not in spread.plan(rows, gap_by_pass=True)
+
+
+def test_an_extended_cell_runs_on_to_five() -> None:
+    """gear-pair on 2026-10-26 at 22:16Z: three cells at 0/3, skill-refs at 1/4. Its
+    fifth run decides gap (1/5) or noise (2/5), so it's still planned."""
+    rows = [row("gear-pair", a, "budget", k) for a in (None, "skill", "refs") for k in range(3)]
+    rows += [row("gear-pair", "skill-refs", "budget", k) for k in (0, 1, 3)]
+    rows += [row("gear-pair", "skill-refs", None, 2)]
+    assert [c for c in spread.plan(rows) if c[0] == "gear-pair"] == [("gear-pair", "skill-refs")]
+    # Its fifth run in: 1/5 is a fail, every cell has failed, and the case is a gap.
+    rows += [row("gear-pair", "skill-refs", "budget", 4)]
+    gear_pair = [spread.cells(rows)[("gear-pair", a)] for a in spread.ARMS]
+    assert spread.verdict(gear_pair) == "gap"
+    assert not [c for c in spread.plan(rows) if c[0] == "gear-pair"]
