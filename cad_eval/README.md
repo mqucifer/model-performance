@@ -279,3 +279,48 @@ so each says which lever helped.
 **`calls_to_first_compile`**, on every case's row: the call after which a `run` first
 exited 0 with every output file written. That's the turns spent before a first
 compiling part.
+
+## Runaways: a call that thinks to the token limit
+
+**What happened, 2026-10-25.**
+- bolt-nut's first call in the baseline thought towards the Developer's
+  65,536-token limit.
+- Under that evening's load SGLang wrote about 20 tokens a second per session, so a
+  call that long takes about an hour. The client's one-hour timeout ended it first, at
+  20:50Z.
+- It was first read as an unanswered call (`infra`). The operator traced it in
+  LiteLLM's log: SGLang was still generating, and aborted when LiteLLM disconnected.
+
+**Today's 748 CAD calls, profiled** (before the change below):
+- The longest that succeeded wrote 44,843 completion tokens, 43,346 of them reasoning.
+  The next were 36,396 (34,583 reasoning) and 35,010 (34,579).
+- Their content was at most a few hundred characters, and each ended in a tool call.
+- So these runaways are thinking that doesn't close, not the whitespace crew's cut
+  catches.
+
+**Production parity** (the Sponsor's choice, 2026-10-25):
+- A harder case's calls are streamed (`send.py`: role-fit's sender, with tool calls
+  assembled from their pieces). A streamed call's reads keep coming, so the timeout
+  no longer ends it, and the records hold what it wrote.
+- Crew's own cut is the only cut: the content running on as whitespace past
+  `RUNAWAY_CHARS`.
+- No thinking budget is added. The Sponsor's earlier ruling is that a budget hides
+  the real problem, the context and the tools.
+- A call that thinks to the limit ends as `length`, costs its call, and the session
+  goes on as production's does.
+- The row counts such calls (`runaways`) and the reasoning and content tokens they
+  reached. A runaway is the model's.
+- How many runaways each arm has is a finding of its own: a knowledge arm that
+  shortens the thinking shows it there.
+
+**Rows before the change:** bolt-nut's baseline runaway was a call timeout. It's
+re-marked from that evidence: `runaways` 1, the model's, with the tokens unknown
+(null). bolt-nut's rerun stays `budget`. It ended on the backstop after 20 completed
+calls, none of them a runaway.
+
+**Longer first thoughts with the skill.** In the skill arm, two calls taken for
+runaways weren't: they finished, with tool calls, inside the hour.
+- gear-pair's second call wrote 54,309 tokens, and bolt-nut's 62,218, close to the
+  limit.
+- Both came straight after reading the skill, and both are longer than anything in
+  the 748 calls before.
