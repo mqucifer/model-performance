@@ -66,6 +66,15 @@ SETTINGS = {
 }
 
 
+# Images the Sponsor has allowed a candidate serving setup on, each pinned by its index
+# digest as infra's record pins v0.5.20's. v0.5.22: the Sponsor, 2026-10-26, on
+# mqucifer/model-performance#7, for its correctness fixes (sglang#43029, sglang#41736).
+IMAGES = {
+    "v0.5.22-cu130": "lmsysorg/sglang:v0.5.22-cu130"
+    "@sha256:e3a4f06001a29542fc4a8638536d9ffc5eb9c9942b08603c09b19a56eae4a1ae",
+}
+
+
 class Refused(ValueError):
     """A setting or launch outside the Sponsor's limits."""
 
@@ -111,6 +120,16 @@ def tuned(launch_text: str, setting: Setting, value: str | None) -> str:
         raise Refused("infra's launch has no --port line to add the flag beside")
     at = match.end()
     return launch_text[:at] + "\n" + match.group(1) + wanted + launch_text[at:]
+
+
+def reimaged(launch_text: str, tag: str) -> str:
+    """infra's launch with its one `image:` line changed to an allowed image, and nothing else."""
+    if tag not in IMAGES:
+        raise Refused(f"{tag} isn't an image the Sponsor has allowed: {', '.join(IMAGES)}")
+    line = re.compile(r"^(\s*image: )\S+$", re.MULTILINE)
+    if len(line.findall(launch_text)) != 1:
+        raise Refused("infra's launch must have exactly one image line")
+    return line.sub(lambda m: m.group(1) + IMAGES[tag], launch_text)
 
 
 def render(launch_text: str, env: Mapping[str, str]) -> dict[str, Any]:
@@ -186,6 +205,22 @@ def prove(
     found = differences(recorded, candidate, flags)
     if found != [setting.flag]:
         raise Refused(f"the tuned launch must differ in {setting.flag} only; it differs in {found}")
+    if candidate["services"]["sglang"]["container_name"] != CONTAINER:
+        raise Refused(f"the tuned launch must run as {CONTAINER}")
+
+
+def prove_image(
+    launch_text: str,
+    tuned_text: str,
+    flags: Callable[[list[str]], dict],
+    rendered: Callable[[str, Mapping[str, str]], dict[str, Any]] = render,
+) -> None:
+    """Refuse unless the launch differs from infra's in its image alone: every flag the same."""
+    recorded = rendered(launch_text, {})
+    candidate = rendered(tuned_text, {"CONTAINER_NAME": CONTAINER})
+    found = differences(recorded, candidate, flags)
+    if found != ["service.image"]:
+        raise Refused(f"the launch must differ in its image only; it differs in {found}")
     if candidate["services"]["sglang"]["container_name"] != CONTAINER:
         raise Refused(f"the tuned launch must run as {CONTAINER}")
 
@@ -274,7 +309,7 @@ def tune(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """`tune --set mem-fraction-static=0.88 [--dry-run] -- COMMAND...`"""
+    """`tune --set mem-fraction-static=0.88 | --image v0.5.22-cu130 [--dry-run] -- COMMAND...`"""
     import argparse  # noqa: PLC0415
     from datetime import UTC, datetime  # noqa: PLC0415
 
@@ -288,16 +323,17 @@ def main(argv: list[str] | None = None) -> int:
     own, command = argv[:split], argv[split + 1 :]
     parser = argparse.ArgumentParser(
         prog="tune",
-        usage="tune --set FLAG[=VALUE] [--dry-run] -- COMMAND...  (FLAG without its --)",
-        description="Serve the 27B with one SGLang setting changed, run COMMAND, "
+        usage="tune (--set FLAG[=VALUE] | --image TAG) [--dry-run] -- COMMAND...",
+        description="Serve the 27B with one SGLang setting or its image changed, run COMMAND, "
         "and always bring the recorded 27B back with docker start.",
     )
-    parser.add_argument(
+    change = parser.add_mutually_exclusive_group(required=True)
+    change.add_argument(
         "--set",
-        required=True,
         dest="spec",
-        help=f"one of {', '.join(f.removeprefix('--') for f in SETTINGS)}",
+        help=f"one of {', '.join(f.removeprefix('--') for f in SETTINGS)}, without its --",
     )
+    change.add_argument("--image", help=f"one of {', '.join(IMAGES)}, with every flag the same")
     parser.add_argument("--dry-run", action="store_true", help="print every step, change nothing")
     parser.add_argument("--infra-dir", type=Path, help="a checkout of mqucifer/infra")
     parser.add_argument(
@@ -310,17 +346,23 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("give the command to run after --")
     try:
         config = load(infra_dir=args.infra_dir)
-        setting, value = parse(args.spec)
         path = config.launch_path(config.baseline)
         launch_text = path.read_text(encoding="utf-8")
-        tuned_text = tuned(launch_text, setting, value)
-        prove(launch_text, tuned_text, setting, checker(config.infra_dir).flags)
+        flags = checker(config.infra_dir).flags
+        if args.image:
+            tuned_text = reimaged(launch_text, args.image)
+            prove_image(launch_text, tuned_text, flags)
+            serving, why, changed = f"image:{args.image}", "a candidate serving setup", "its image"
+        else:
+            setting, value = parse(args.spec)
+            tuned_text = tuned(launch_text, setting, value)
+            prove(launch_text, tuned_text, setting, flags)
+            serving, why, changed = serving_name(setting, value), setting.why, setting.flag
     except (ConfigError, Refused, OSError, subprocess.CalledProcessError) as error:
         say(f"tune: refused: {error}")
         return core.REFUSED
-    serving = serving_name(setting, value)
-    say(f"tune: {serving} ({setting.why}), launch from infra {infra_commit(config.infra_dir)}")
-    say(f"tune: the launch differs from infra's record in {setting.flag} only")
+    say(f"tune: {serving} ({why}), launch from infra {infra_commit(config.infra_dir)}")
+    say(f"tune: the launch differs from infra's record in {changed} only")
 
     if args.dry_run:
         runner: core.Runner = DryRunner(config, {tuned_text: f"{path} with {serving}"})

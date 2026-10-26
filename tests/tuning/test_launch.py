@@ -260,3 +260,57 @@ def test_the_dry_run_prints_every_step_and_changes_nothing(capsys, monkeypatch) 
     assert "differs from infra's record in --mem-fraction-static only" in err
     assert err.count("[dry-run] ssh") == 8
     assert "docker start qwen3.8-27b-sglang" in err
+
+
+# An image-only candidate (the Sponsor, 2026-10-26: v0.5.22).
+
+
+def test_an_allowed_image_changes_the_one_image_line() -> None:
+    text = launch.reimaged(RECORD, "v0.5.22-cu130")
+    assert f"image: {launch.IMAGES['v0.5.22-cu130']}\n" in text
+    assert len(text.splitlines()) == len(RECORD.splitlines())
+    assert "v0.5.20" not in text.split("image:")[1].splitlines()[0]
+
+
+def test_an_image_the_sponsor_hasnt_allowed_is_refused() -> None:
+    with pytest.raises(launch.Refused, match="allowed"):
+        launch.reimaged(RECORD, "nightly")
+
+
+@pytest.mark.skipif(not compose_available(), reason="docker compose isn't installed")
+def test_the_image_is_proved_to_be_the_only_change() -> None:
+    text = launch.reimaged(RECORD, "v0.5.22-cu130")
+    launch.prove_image(RECORD, text, checker_flags())
+    with pytest.raises(launch.Refused, match="--chunked-prefill-size"):
+        launch.prove_image(
+            RECORD,
+            text.replace("--chunked-prefill-size 8192", "--chunked-prefill-size 4096"),
+            checker_flags(),
+        )
+
+
+def test_the_image_serving_name_is_a_short_name() -> None:
+    from common.results import NAME
+
+    assert NAME.fullmatch("image:v0.5.22-cu130")
+
+
+def test_the_image_dry_run_says_only_the_image_changed(capsys, monkeypatch) -> None:
+    if not compose_available():
+        pytest.skip("docker compose isn't installed")
+    import swap.runners
+
+    monkeypatch.setattr(swap.runners, "ticks_running", lambda: False)
+    code = launch.main(
+        ["--image", "v0.5.22-cu130", "--dry-run", "--infra-dir", str(INFRA), "--", "true"]
+    )
+    err = capsys.readouterr().err
+    assert code == 0, err
+    assert "differs from infra's record in its image only" in err
+    assert "TUNE_SERVING=image:v0.5.22-cu130" in err
+    assert "docker start qwen3.8-27b-sglang" in err
+
+
+def test_set_and_image_together_are_refused() -> None:
+    with pytest.raises(SystemExit):
+        launch.main(["--set", "schedule-policy=lpm", "--image", "v0.5.22-cu130", "--", "true"])

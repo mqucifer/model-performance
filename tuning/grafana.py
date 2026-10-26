@@ -33,6 +33,8 @@ SERIES = {
     "kv_use_max": (f"max(sglang_token_usage{JOB})", max),
     "spec_accept_mean": (f"max(sglang_spec_accept_length{JOB})", statistics.fmean),
     "gen_throughput_mean": (f"sum(sglang_gen_throughput{JOB})", statistics.fmean),
+    # The mamba states' share of their pool: the radix cache's mamba side.
+    "mamba_use_max": (f"max(sglang_mamba_usage{JOB})", max),
 }
 # Over the whole run, at its end: a quantile of the requests it made, or a count.
 QUANTILE = "histogram_quantile({q}, sum by (le) (increase({metric}_bucket{job}[{w}s])))"

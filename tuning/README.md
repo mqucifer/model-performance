@@ -8,7 +8,14 @@ than 4; the target is 6 to 8.
 uv run concurrent 4                                              # 4 sessions on today's 27B
 uv run tune --set mem-fraction-static=0.88 --dry-run -- uv run concurrent 6
 uv run tune --set mem-fraction-static=0.88 -- uv run concurrent 6   # restarts SGLang
+uv run tune --image v0.5.22-cu130 -- uv run concurrent 6             # a newer SGLang, same flags
 ```
+
+**`--image`** is the one other change `tune` makes: a candidate serving setup with every
+flag as infra's record has it and only the image changed. The image must be in
+`launch.IMAGES`, each pinned by its index digest and allowed by the Sponsor (v0.5.22:
+2026-10-26 on #7). The proof is the same, with `service.image` as the one difference
+allowed. The 27B always comes back on v0.5.20, its stopped container, with `docker start`.
 
 ## `tune`: one setting, then the recorded 27B again
 

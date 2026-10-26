@@ -142,6 +142,7 @@ SUITES: dict[str, set[str]] = {
         "running_max",  # sglang_num_running_reqs
         "cache_hit_mean",  # sglang_cache_hit_rate
         "kv_use_max",  # sglang_token_usage
+        "mamba_use_max",  # sglang_mamba_usage
         "spec_accept_mean",  # sglang_spec_accept_length
         "gen_throughput_mean",  # sglang_gen_throughput, tokens/s
         "grafana",  # whether the series were read and copied to the Mac
