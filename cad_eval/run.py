@@ -266,7 +266,7 @@ def evaluate(
             out / "events.jsonl",
             max_tokens=max_tokens,
             system=system_for(case.outputs()) if case else SYSTEM,
-            start=skills.start_line() if arm == "skill" else "",
+            start=skills.start_line(skills.for_arm(arm)) if arm else "",
             # A harder case is capped by its calls alone, never by time, so its result
             # doesn't depend on the Spark's load (the operator, 2026-10-25): under
             # load an hour of model time is a handful of calls.
