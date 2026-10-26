@@ -225,3 +225,16 @@ def test_harder_cases_run_alongside_a_tick_and_the_30_parts_wait(
     assert "each row records it" in capsys.readouterr().err
     assert cad.main(["spacer"]) == 2
     assert "refused: a crew tick is running" in capsys.readouterr().err
+
+
+def test_two_runs_of_a_case_in_the_same_second_get_their_own_records(tmp_path: Path) -> None:
+    from common.config import load  # noqa: PLC0415
+
+    settings = load(home=tmp_path)
+    first, a = cad.fresh_run(settings, "drawer-cabinet")
+    second, b = cad.fresh_run(settings, "drawer-cabinet")
+    assert a != b and a.is_dir() and b.is_dir()
+    assert second in (f"{first}-2", cad.records.run_id()) or second.startswith(first[:15])
+    from common.results import NAME  # noqa: PLC0415
+
+    assert NAME.fullmatch(second)

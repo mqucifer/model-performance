@@ -30,7 +30,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from cad_eval import lookup as lookup_module
-from cad_eval import measure
+from cad_eval import measure, skills
 
 RUN_TIMEOUT = 120
 MEASURE_TIMEOUT = 180
@@ -43,7 +43,7 @@ MEASURE_SOURCE = Path(measure.__file__).read_text(encoding="utf-8")
 LOOKUP_SOURCE = Path(lookup_module.__file__).read_text(encoding="utf-8")
 LOOKUP_TIMEOUT = 60
 # The arms (mqucifer/model-performance#21): what each adds to the session's tools.
-ARMS = ("skill",)
+ARMS = tuple(skills.ARMS)
 
 
 def _spec(name: str, description: str, **properties: str) -> dict[str, Any]:
@@ -140,8 +140,9 @@ def parse(raw: Any) -> Any:
         return raw
 
 
-def arm_specs() -> list[dict[str, Any]]:
-    """The skill arm's tools: crew's own `skill`, word for word, and `lookup`."""
+def arm_specs(arm: str) -> list[dict[str, Any]]:
+    """An arm's tools: crew's own `skill`, word for word, and `lookup` where the arm has
+    CadQuery's skill (`cad_eval/skills.py`, `ARMS`)."""
     from crew_org.session.tools import SKILL_SPEC  # noqa: PLC0415
 
     found = _spec(
@@ -151,7 +152,7 @@ def arm_specs() -> list[dict[str, Any]]:
         "module's classes.",
         query="A name or a fragment of one, such as `makeHelix` or `Workplane.sweep`.",
     )
-    return [SKILL_SPEC, found]
+    return [SKILL_SPEC, found] if skills.ARMS[arm][1] else [SKILL_SPEC]
 
 
 def well_formed(name: str, args: Any, accepted: dict[str, Any] = ACCEPTED) -> Judged | None:
@@ -203,7 +204,7 @@ class PartTools:
         self.workspace = workspace
         self.outputs = outputs or [OUTPUT]
         self.arm = arm
-        self.specs = specs_for(self.outputs) + (arm_specs() if arm == "skill" else [])
+        self.specs = specs_for(self.outputs) + (arm_specs(arm) if arm else [])
         self.accepted = {s["function"]["name"]: s["function"]["parameters"] for s in self.specs}
         # Whether a `run` has exited 0 with every output written: a first compiling part.
         self.compiled = False
@@ -273,11 +274,10 @@ class PartTools:
         return Judged("inspect", "ok", json.dumps(found))
 
     def _skill(self, args: dict[str, Any]) -> Judged:
-        from cad_eval import skills  # noqa: PLC0415
-
-        found = skills.registry().get(args["name"])
+        offered = skills.registry(skills.for_arm(self.arm))
+        found = offered.get(args["name"])
         if found is None:
-            named = ", ".join(f"`{n}`" for n in skills.registry())
+            named = ", ".join(f"`{n}`" for n in offered)
             return self._failed("skill", "unknown", f"No skill `{args['name']}`: {named}.", args)
         return Judged("skill", "ok", found.body())
 

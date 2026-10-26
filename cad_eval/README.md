@@ -235,6 +235,8 @@ so each says which lever helped.
 
     uv run cad-eval --hard --parallel 4                 # the baseline
     uv run cad-eval --hard --arm skill --parallel 4     # the CadQuery skill and lookup
+    uv run cad-eval --hard --arm refs --parallel 4      # the engineering references alone
+    uv run cad-eval --hard --arm skill-refs --parallel 4  # both
 
 **`skill`: the CadQuery skill and a signature lookup.**
 - **The skill** is in the crew's own shape (crew's `session/skills.py`, crew#839).
@@ -262,6 +264,26 @@ so each says which lever helped.
     CadQuery, with their signatures and docstrings' first paragraphs, at most 20.
   - `OCP.<module>` lists that module's classes.
   - Its calls are judged in the same categories as every other tool's.
+
+**`refs` and `skill-refs`: engineering references** (mqucifer/model-performance#22).
+- `skills/references/`: a `SKILL.md` index (which table answers which question) and
+  three tables, each a skill of its own, read with the same `skill` tool:
+  - `ref-fasteners`: ISO 273 clearance holes, ISO 262 pitches and tap drills, ISO
+    4032 hex nuts, and a wood screw's clearance (practice);
+  - `ref-fits`: the ISO 286 hole-basis fits and their deviations;
+  - `ref-fdm`: what a printed part needs to fit. That's clearances, holes printing
+    undersize, heat-set insert holes and minimum walls, all marked practice, not a
+    standard. Supports and orientation stay out: printability is a second pass.
+- They're values, not procedures: the skill arm's fit-checking advice cost calls.
+- Every row names its source, and the sources are listed at the foot of each file.
+- ISO standards are cited by number. Their text isn't reproduced: the values come
+  from free reproductions that were checked against each other, and where they
+  disagree both are given.
+- `test_references.py` fails a row without a source. It also checks that ISO 273's
+  M4 holes fall inside the cases' screw-hole checks, since both come from the
+  standard.
+- `refs` offers the references alone, with no CadQuery skill and no `lookup`.
+  `skill-refs` offers both sets and `lookup`. So each lever shows on its own.
 
 **Running cases at once (the Sponsor, 2026-10-25: these runs test correctness, not speed):**
 - `--parallel N` runs N cases at once: at most what the operator gives, and refused
