@@ -130,6 +130,11 @@ def batch_rows(batch: str, directory: Path = results.RESULTS) -> list[dict[str, 
 def summary(rows: list[dict[str, Any]], stories: int) -> dict[str, Any]:
     """The run's numbers, from its sessions' rows."""
     walls = [r["wall_s"] for r in rows if r.get("wall_s") is not None]
+    speeds = [
+        r["completion_tokens"] / r["model_s"]
+        for r in rows
+        if r.get("model_s") and r.get("completion_tokens")
+    ]
     first = rows[0] if rows else {}
     return {
         "crew_commit": first.get("crew_commit"),
@@ -139,6 +144,8 @@ def summary(rows: list[dict[str, Any]], stories: int) -> dict[str, Any]:
         "gate_green": sum(r.get("gate_green") is True for r in rows),
         "story_wall_s_mean": round(statistics.fmean(walls), 1) if walls else None,
         "story_wall_s_max": max(walls) if walls else None,
+        # Model seconds include prefill and queueing, so this is below decode_tps_p50.
+        "session_tps_mean": round(statistics.fmean(speeds), 1) if speeds else None,
         **{
             k: sum(r.get(k) or 0 for r in rows)
             for k in (

@@ -312,7 +312,8 @@ empty and runaway answers don't depend on load. Times do, so read them only besi
 
 ## `tuning.jsonl`: concurrent runs on the Spark
 
-One row per `concurrent` run (`tuning/README.md`, mqucifer/model-performance#7). Its
+One row per `concurrent` run (`tuning/README.md`, mqucifer/model-performance#7). It answers
+the charter's question 1: how much the Spark serves at once, and on which serving setup. Its
 sessions' own rows are in `benchmark.jsonl`, with this row's `run` as their `batch`.
 The shared fields are the sessions' summed (`calls`, `*_tokens`, `model_s`,
 `tick_calls`), except `wall_s`, which is the whole run's, and `other_calls`: the calls
@@ -326,6 +327,9 @@ counts its siblings too, so read the run's row for what else used the Spark.
 | `stories`, `done`, `gate_green` | sessions started, ended `done`, and passed first time: the gate green at `done` |
 | `story_wall_s_mean`, `story_wall_s_max` | wall-clock per story, over its sessions |
 | `ttft_p50_s`, `ttft_p95_s` | SGLang's time to first token over the run's requests |
+| `itl_p50_s`, `itl_p95_s`, `decode_tps_p50` | SGLang's time between output tokens per request, and one session's decode speed from it (1 / `itl_p50_s`). At about 20 tokens/s a 65k-token answer runs an hour, LiteLLM's timeout (#7, 2026-10-25) |
+| `session_tps_mean` | each session's completion tokens over its model seconds, averaged. Model seconds include prefill and queueing, so it's below `decode_tps_p50` |
+| `aborted` | requests SGLang aborted over the run, such as on a client's disconnect: the lost requests |
 | `queue_max`, `running_max` | the most requests waiting, and running, at once |
 | `cache_hit_mean`, `kv_use_max` | the radix cache's hit rate, and the most of the KV cache in use (0 to 1) |
 | `spec_accept_mean`, `gen_throughput_mean` | the draft's accepted tokens per step, and tokens generated per second |

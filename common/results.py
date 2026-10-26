@@ -133,6 +133,11 @@ SUITES: dict[str, set[str]] = {
         "story_wall_s_max",
         "ttft_p50_s",  # SGLang's time to first token over the run, from Grafana
         "ttft_p95_s",
+        "itl_p50_s",  # SGLang's time between output tokens, per request
+        "itl_p95_s",
+        "decode_tps_p50",  # 1 / itl_p50_s: one session's decode speed, tokens/s
+        "aborted",  # requests SGLang aborted over the run: lost requests
+        "session_tps_mean",  # each session's completion tokens over its model seconds, averaged
         "queue_max",  # sglang_num_queue_reqs
         "running_max",  # sglang_num_running_reqs
         "cache_hit_mean",  # sglang_cache_hit_rate

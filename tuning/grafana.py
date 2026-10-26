@@ -34,11 +34,25 @@ SERIES = {
     "spec_accept_mean": (f"max(sglang_spec_accept_length{JOB})", statistics.fmean),
     "gen_throughput_mean": (f"sum(sglang_gen_throughput{JOB})", statistics.fmean),
 }
-# Over the whole run, at its end: a quantile of the requests it made.
-TTFT = (
-    "histogram_quantile({q}, sum by (le)"
-    " (increase(sglang_time_to_first_token_seconds_bucket{job}[{w}s])))"
-)
+# Over the whole run, at its end: a quantile of the requests it made, or a count.
+QUANTILE = "histogram_quantile({q}, sum by (le) (increase({metric}_bucket{job}[{w}s])))"
+WHOLE_RUN = {
+    "ttft_p50_s": QUANTILE.replace("{q}", "0.5").replace(
+        "{metric}", "sglang_time_to_first_token_seconds"
+    ),
+    "ttft_p95_s": QUANTILE.replace("{q}", "0.95").replace(
+        "{metric}", "sglang_time_to_first_token_seconds"
+    ),
+    # Per request, between output tokens: 1 / itl_p50_s is one session's decode speed.
+    "itl_p50_s": QUANTILE.replace("{q}", "0.5").replace(
+        "{metric}", "sglang_inter_token_latency_seconds"
+    ),
+    "itl_p95_s": QUANTILE.replace("{q}", "0.95").replace(
+        "{metric}", "sglang_inter_token_latency_seconds"
+    ),
+    # Requests SGLang aborted, such as on a client's disconnect at LiteLLM's timeout.
+    "aborted": "sum(increase(sglang_num_aborted_requests_total{job}[{w}s]))",
+}
 
 
 def env_file() -> Path:
@@ -96,11 +110,13 @@ def read(
         samples = values(raw[name])
         numbers[name] = round(reduce(samples), 3) if samples else None
     seconds = max(int(end - start), STEP_S)
-    for name, q in (("ttft_p50_s", 0.5), ("ttft_p95_s", 0.95)):
-        query = TTFT.format(q=q, job=JOB, w=seconds)
+    for name, template in WHOLE_RUN.items():
+        query = template.replace("{job}", JOB).replace("{w}", str(seconds))
         raw[name] = {"query": query, **grafana.get("query", query=query, time=f"{end:.0f}")}
         samples = values(raw[name])
         numbers[name] = round(samples[0], 3) if samples else None
+    itl = numbers["itl_p50_s"]
+    numbers["decode_tps_p50"] = round(1 / itl, 1) if itl else None
     return numbers, raw
 
 
@@ -110,7 +126,7 @@ def copy(out: Path, start: float, end: float, grafana: Grafana | None = None) ->
     The raw answers go to `out/grafana.json`. A Grafana that can't be read leaves the
     numbers null and says why in `out/grafana-error.txt`, never in the row.
     """
-    nothing: dict[str, Any] = dict.fromkeys([*SERIES, "ttft_p50_s", "ttft_p95_s"])
+    nothing: dict[str, Any] = dict.fromkeys([*SERIES, *WHOLE_RUN, "decode_tps_p50"])
     own = grafana is None
     try:
         grafana = grafana or Grafana.from_env()

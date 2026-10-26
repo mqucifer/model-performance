@@ -72,6 +72,8 @@ class Fake:
             "wall_s": 600.0 if green else 900.0,
             "calls": 30,
             "prompt_tokens": 1000,
+            "completion_tokens": 6000,
+            "model_s": 300.0 if green else 600.0,
             "crew_commit": "abc",
             "model_alias": "crew-code-think",
             "concurrent_tick": False,
@@ -122,6 +124,7 @@ def test_a_run_leaves_one_row_of_its_sessions_and_the_spark(tmp_path: Path) -> N
     assert (row["stories"], row["done"], row["gate_green"]) == (6, 6, 5)
     assert row["story_wall_s_mean"] == 650.0
     assert row["story_wall_s_max"] == 900.0
+    assert row["session_tps_mean"] == 18.3  # five at 20 tokens/s, one at 10
     assert row["calls"] == 180
     assert row["running_max"] == 6.0
     assert row["other_calls"] is None

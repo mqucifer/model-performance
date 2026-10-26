@@ -47,7 +47,12 @@ class FakeGrafana:
                 "no", request=httpx.Request("GET", "http://g/"), response=httpx.Response(403)
             )
         if api == "query":
-            q = 9.5 if "0.95" in params["query"] else 1.25
+            if "aborted" in params["query"]:
+                return {"data": {"result": [{"value": [0, "1"]}]}}
+            if "inter_token" in params["query"]:
+                q = 0.2 if "0.95" in params["query"] else 0.05
+            else:
+                q = 9.5 if "0.95" in params["query"] else 1.25
             return {"data": {"result": [{"value": [0, str(q)]}]}}
         if "queue" in params["query"]:
             return series(0, 2, 1)
@@ -63,10 +68,15 @@ def test_the_runs_numbers_and_raw_series_are_kept(tmp_path: Path) -> None:
     assert numbers["cache_hit_mean"] == 0.75
     assert numbers["kv_use_max"] is None
     assert (numbers["ttft_p50_s"], numbers["ttft_p95_s"]) == (1.25, 9.5)
+    assert (numbers["itl_p50_s"], numbers["decode_tps_p50"], numbers["aborted"]) == (
+        0.05,
+        20.0,
+        1.0,
+    )
     assert numbers["grafana"] is True
     assert any("[600s]" in p["query"] for a, p in fake.asked if a == "query")
     kept = json.loads((tmp_path / "grafana.json").read_text())
-    assert set(kept["series"]) == {*grafana.SERIES, "ttft_p50_s", "ttft_p95_s"}
+    assert set(kept["series"]) == {*grafana.SERIES, *grafana.WHOLE_RUN}
 
 
 def test_grafana_that_cant_be_read_leaves_nulls_and_says_why_on_the_mac(tmp_path: Path) -> None:
