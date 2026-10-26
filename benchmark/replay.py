@@ -182,8 +182,7 @@ def replay(
     from crew_org.session import conversation  # noqa: PLC0415
 
     checkout_for = checkout_for or (lambda c, run: checkout(settings.work_dir, c, run))
-    run = records.run_id()
-    out = records.run_dir(settings, SUITE, c.name, run)
+    run, out = records.new_run(settings, SUITE, c.name)
     started_at = datetime.now(UTC)
     row: dict[str, Any] = {
         "case": c.name,

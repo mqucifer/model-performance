@@ -18,3 +18,17 @@ def run_dir(settings: Settings, suite: str, case: str, run: str) -> Path:
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     path.mkdir(mode=0o700)
     return path
+
+
+def new_run(settings: Settings, suite: str, case: str) -> tuple[str, Path]:
+    """A run id and its new records directory. Ids are to the second, so two runs of a
+    case that start in the same second, in two processes, would share one: the second
+    takes the next free suffix (`-2`, `-3`, ...), and nothing is ever written over."""
+    base = run_id()
+    for n in range(1, 100):
+        run = base if n == 1 else f"{base}-{n}"
+        try:
+            return run, run_dir(settings, suite, case, run)
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"no free run id for {suite}/{case} at {base}")
