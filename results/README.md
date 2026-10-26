@@ -336,6 +336,7 @@ empty and runaway answers don't depend on load. Times do, so read them only besi
 | | Baseline | Skill |
 |---|---|---|
 | Pass | 12 / 21 (tight 6, assembly 4, worded 2) | 10 / 21 (tight 4, assembly 3, worded 3) |
+| The harness's own faults (`tool`), not counted for or against | drawer-cabinet | drawer-cabinet |
 | Calls | 156 | 267 |
 | Reasoning tokens | 343,496 | 715,825 |
 | Median call to a first compiling part | 2 | 7 |
@@ -426,11 +427,17 @@ the case never reached `done`.
     calls spent checking, and the two caps, do.
 
 **The evaluation's own faults, found in these runs:**
-- **drawer-cabinet, skill arm:** it passes all 30 dimension and fit checks. Its mesh
-  isn't closed because of one non-manifold edge, where the spec's finger hole (Ø20 at
-  Z = 40) is tangent to the drawer's top at Z = 50. The model's cut follows the spec
-  exactly, so its row is re-marked `tool`. The fix is moving the hole down; it's
-  proposed, not made, so the arms stay comparable.
+- **drawer-cabinet, both runs:** the spec's finger hole (Ø20 at Z = 40) was tangent
+  to the drawer's top at Z = 50. Cut as the spec said, it leaves one non-manifold
+  edge, so the mesh isn't closed.
+  - In the skill arm, the drawer passed all 30 dimension and fit checks and failed
+    only on that mesh.
+  - In the baseline, it had the drawer right at its 2nd call (59,999 mm³) and spent
+    its other 18 chasing the open mesh, to the cap.
+  - Both rows are kept as they ran, re-marked `tool`.
+  - The spec now centres the hole at Z = 38, 2 mm below the top edge. Its reference
+    passes and its wrong one fails in the image. The case runs again, on the
+    baseline and the skill, when the Spark allows.
 - **bolt-nut, baseline:** its one call thought towards the 65,536-token limit, and
   the client's one-hour timeout ended it (`cad_eval/README.md`, "Runaways"). The row
   is re-marked as a runaway, the model's.
