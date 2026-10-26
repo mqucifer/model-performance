@@ -25,12 +25,20 @@ SKILLS = Path(__file__).parent / "skills"
 # `references/*.md`. `cadquery` is #21's; `references`, the engineering values, is
 # mqucifer/model-performance#22's.
 SETS = ("cadquery", "references")
-# What each arm offers: its sets, and whether it has `lookup` (CadQuery's names).
-ARMS: dict[str, tuple[tuple[str, ...], bool]] = {
-    "skill": (("cadquery",), True),
-    "refs": (("references",), False),
-    "skill-refs": (("cadquery", "references"), True),
+# What each arm offers: its sets, whether it has `lookup` (CadQuery's names), and its
+# other tools (`measure`, mqucifer/model-performance#28).
+ARMS: dict[str, tuple[tuple[str, ...], bool, tuple[str, ...]]] = {
+    "skill": (("cadquery",), True, ()),
+    "refs": (("references",), False, ()),
+    "skill-refs": (("cadquery", "references"), True, ()),
+    "refs-measure": (("references",), False, ("measure",)),
 }
+# What the start adds where an arm has `measure`: check the part against the values the
+# spec states, never the evaluation's own checks, which the model never sees.
+MEASURE_LINE = (
+    "Before `done`, measure what the spec states (each hole, gap, clearance and "
+    "position it names) on your part with `measure`, and compare."
+)
 
 
 def files(sets: tuple[str, ...] = ("cadquery",)) -> list[Path]:
@@ -63,6 +71,17 @@ def registry(sets: tuple[str, ...] = ("cadquery",)) -> dict[str, Any]:
 def for_arm(arm: str | None) -> tuple[str, ...]:
     """The skill sets an arm offers: none for the baseline."""
     return ARMS[arm][0] if arm else ()
+
+
+def start_for(arm: str | None) -> str:
+    """The start's added lines for an arm: its skills, and `measure`'s if it has it."""
+    if not arm:
+        return ""
+    sets, _, tools = ARMS[arm]
+    lines = [start_line(sets)] if sets else []
+    if "measure" in tools:
+        lines.append(MEASURE_LINE)
+    return "\n".join(lines)
 
 
 def start_line(sets: tuple[str, ...] = ("cadquery",)) -> str:

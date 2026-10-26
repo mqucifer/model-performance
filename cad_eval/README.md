@@ -381,3 +381,34 @@ screen, not a measurement.**
 - **A noisy case** gets two more runs only where they could change its verdict:
   - a cell at 2 of 3;
   - or a cell at 1 of 3, when every other cell fails or is at 1 of 3.
+
+## `refs-measure`: measuring the part before `done` (mqucifer/model-performance#28)
+
+`inspect` gives totals: the bounding box, the volume, a closed mesh. It can't measure a
+hole, so a Ø4.0 hole for a 4 mm screw passed unnoticed until the references gave the
+value. The `refs-measure` arm is the references arm, the best so far, with one more
+tool: `measure`.
+
+    uv run cad-eval --hard --arm refs-measure --parallel 2
+
+- **What it measures, run in the container on the model's own STEP file** (`measure.py`,
+  `gauge`):
+  - `hole x,y,z`: the hole nearest a point, its diameter and axis;
+  - `distance A B`: the closest distance between two faces, and the gap along their
+    normal for two parallel planes;
+  - `clearance FILE`: the overlap and gap to another of the model's own files;
+  - `position A`: where faces are.
+  
+  A face is a CadQuery selector (`>Z`, `%CYLINDER`, `>Z[1]`) or a point `x,y,z`, which
+  picks the face nearest it.
+- **The start adds one line:** before `done`, measure what the spec states, and compare.
+- **The guard against teaching to the test:** the tool measures the model's own part
+  against the values the spec states, and never sees the evaluation's checks.
+  - Its request carries only the file and the query: no probes, bounding box, volume,
+    mating part or interference limit of the case's.
+  - The model compares with what the spec says in words and numbers, as a designer
+    would with a drawing.
+  - A test holds the request to exactly those two fields.
+- **How its calls are judged:** like every tool's. A query it can't read, or a file
+  that isn't there, is `failed`. An answer of "no faces for that selector" is the tool
+  doing what it was asked.

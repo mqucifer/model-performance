@@ -277,6 +277,122 @@ def rays(shape, request: dict) -> list[bool]:  # noqa: ANN001
     return hits
 
 
+def _point(text: str) -> tuple[float, float, float] | None:
+    parts = text.split(",")
+    if len(parts) != 3:
+        return None
+    try:
+        return tuple(float(p) for p in parts)  # type: ignore[return-value]
+    except ValueError:
+        return None
+
+
+def _faces(shape, name: str) -> list:  # noqa: ANN001
+    """Faces named by a selector (`>Z`, `<X`, `%CYLINDER`) or the one nearest a point."""
+    import cadquery as cq  # noqa: PLC0415
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # noqa: PLC0415
+
+    point = _point(name)
+    if point is None:
+        return cq.Workplane().add(shape).faces(name).vals()
+    vertex = cq.Vertex.makeVertex(*point)
+    best, found = None, []
+    for face in shape.Faces():
+        d = BRepExtrema_DistShapeShape(face.wrapped, vertex.wrapped).Value()
+        if best is None or d < best - 1e-9:
+            best, found = d, [face]
+    return found
+
+
+def _describe(face) -> dict:  # noqa: ANN001
+    from OCP.BRepAdaptor import BRepAdaptor_Surface  # noqa: PLC0415
+    from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane  # noqa: PLC0415
+
+    box = face.BoundingBox()
+    out = {
+        "type": face.geomType(),
+        "centre": [round(v, 4) for v in face.Center().toTuple()],
+        "area": round(face.Area(), 3),
+        "bbox": [
+            [round(box.xmin, 4), round(box.xmax, 4)],
+            [round(box.ymin, 4), round(box.ymax, 4)],
+            [round(box.zmin, 4), round(box.zmax, 4)],
+        ],
+    }
+    surface = BRepAdaptor_Surface(face.wrapped)
+    if surface.GetType() == GeomAbs_Plane:
+        normal = face.normalAt(face.Center())
+        out["normal"] = [round(v, 4) for v in normal.toTuple()]
+    elif surface.GetType() == GeomAbs_Cylinder:
+        cylinder = surface.Cylinder()
+        axis = cylinder.Axis().Direction()
+        out["diameter"] = round(2 * cylinder.Radius(), 4)
+        out["axis"] = [round(axis.X(), 4), round(axis.Y(), 4), round(axis.Z(), 4)]
+    return out
+
+
+def gauge(shape, query: str) -> dict:  # noqa: ANN001
+    """The `measure` tool's answer, on the model's own part only: never the case's
+    checks (mqucifer/model-performance#28).
+
+    - `hole x,y,z`: the cylindrical hole face nearest the point: its diameter and axis;
+    - `distance A B`: the closest distance between faces A and B, and for two parallel
+      planes the gap along their normal;
+    - `clearance FILE`: the overlap's volume and the closest distance to another of
+      the model's own STEP files;
+    - `position A`: where faces A are: centre, area, box, normal or diameter.
+
+    A and B are a selector (`>Z`, `<X`, `|Z`, `%CYLINDER`, `>Z[1]`) or a point `x,y,z`
+    (the face nearest it).
+    """
+    import cadquery as cq  # noqa: PLC0415
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # noqa: PLC0415
+
+    words = query.split()
+    if not words:
+        return {"error": "query: name what to measure: hole, distance, clearance or position"}
+    what, args = words[0], words[1:]
+    try:
+        if what == "hole" and len(args) == 1 and _point(args[0]):
+            from OCP.TopAbs import TopAbs_REVERSED  # noqa: PLC0415
+
+            holes = [
+                f
+                for f in shape.Faces()
+                if f.geomType() == "CYLINDER" and f.wrapped.Orientation() == TopAbs_REVERSED
+            ]
+            near = _faces(cq.Compound.makeCompound(holes), args[0]) if holes else []
+            if not near:
+                return {"error": "no cylindrical face in the part"}
+            return {"hole": _describe(near[0])}
+        if what == "distance" and len(args) == 2:
+            a, b = _faces(shape, args[0]), _faces(shape, args[1])
+            if not a or not b:
+                return {"error": f"no faces for {args[0] if not a else args[1]}"}
+            ca, cb = cq.Compound.makeCompound(a), cq.Compound.makeCompound(b)
+            out: dict = {
+                "distance": round(BRepExtrema_DistShapeShape(ca.wrapped, cb.wrapped).Value(), 4)
+            }
+            if len(a) == 1 and len(b) == 1 and a[0].geomType() == "PLANE" == b[0].geomType():
+                na, nb = a[0].normalAt(a[0].Center()), b[0].normalAt(b[0].Center())
+                if abs(abs(na.dot(nb)) - 1) < 1e-6:
+                    out["gap_along_normal"] = round(abs((b[0].Center() - a[0].Center()).dot(na)), 4)
+            return out
+        if what == "clearance" and len(args) == 1:
+            other = Path(args[0])
+            if other.is_absolute() or ".." in other.parts or not other.is_file():
+                return {"error": f"query: no file {args[0]} in the part's directory"}
+            return {"clearance": gap(shape, solids_from_shells(load(other))[0])}
+        if what == "position" and len(args) == 1:
+            faces = _faces(shape, args[0])
+            if not faces:
+                return {"error": f"no faces for {args[0]}"}
+            return {"faces": [_describe(f) for f in faces[:8]], "count": len(faces)}
+    except Exception as exc:  # noqa: BLE001 - a bad selector is said, not raised
+        return {"error": f"{type(exc).__name__}: {exc}"[:300]}
+    return {"error": "query: one of `hole x,y,z`, `distance A B`, `clearance FILE` or `position A`"}
+
+
 def measure(request: dict) -> dict:
     out: dict = {"path": request["path"]}
     path = Path(request["path"])
@@ -307,6 +423,9 @@ def measure(request: dict) -> dict:
             out["cylinders"] = cylinders(shape)
         if request.get("section"):
             out["section"] = section(shape, request["section"])
+        if request.get("query"):
+            out = {"path": out["path"], **gauge(shape, request["query"])}
+            return out
         if request.get("rays"):
             out["rays"] = rays(shape, request["rays"])
         if request.get("print"):

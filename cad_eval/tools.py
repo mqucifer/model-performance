@@ -42,6 +42,8 @@ OUTPUT = "part.step"
 MEASURE_SOURCE = Path(measure.__file__).read_text(encoding="utf-8")
 LOOKUP_SOURCE = Path(lookup_module.__file__).read_text(encoding="utf-8")
 LOOKUP_TIMEOUT = 60
+# A measure that the tool itself failed: not the model's query, not its part.
+TOOL_FAILURES = ("the measure didn't finish", "it loads but can't be measured")
 # The arms (mqucifer/model-performance#21): what each adds to the session's tools.
 ARMS = tuple(skills.ARMS)
 
@@ -152,7 +154,18 @@ def arm_specs(arm: str) -> list[dict[str, Any]]:
         "module's classes.",
         query="A name or a fragment of one, such as `makeHelix` or `Workplane.sweep`.",
     )
-    return [SKILL_SPEC, found] if skills.ARMS[arm][1] else [SKILL_SPEC]
+    measure_spec = _spec(
+        "measure",
+        "Measure your part, in the container: `hole x,y,z` (the hole nearest a point: its "
+        "diameter and axis), `distance A B` (between two faces), `clearance FILE` (to "
+        "another of your STEP files: overlap and gap), or `position A` (where faces are). "
+        "A face is a selector such as `>Z`, `<X`, `%CYLINDER`, or a point `x,y,z`.",
+        path="The STEP file to measure, relative to the part's directory.",
+        query="What to measure, such as `hole 0,0,5` or `distance >Z <Z`.",
+    )
+    _, lookup, tools = skills.ARMS[arm]
+    found_specs = [SKILL_SPEC, found] if lookup else [SKILL_SPEC]
+    return found_specs + ([measure_spec] if "measure" in tools else [])
 
 
 def well_formed(name: str, args: Any, accepted: dict[str, Any] = ACCEPTED) -> Judged | None:
@@ -296,6 +309,26 @@ class PartTools:
         return self._failed(
             "lookup", "unfinished", f"The lookup didn't finish (exit {done.code}).", args
         )
+
+    def _measure(self, args: dict[str, Any]) -> Judged:
+        """The `measure` tool: the model's own file and query, and nothing of the case's.
+
+        The request carries only the path and the query: no probes, bounds, volumes or
+        mates, so the model checks its part against what the spec states, never against
+        the evaluation's checks (mqucifer/model-performance#28)."""
+        missing = self._existing("measure", args)
+        if missing is not None:
+            return missing
+        if len(args["query"]) > MAX_PATH or not args["query"].strip():
+            reply = "`query` is one line, such as `hole 0,0,5` or `distance >Z <Z`."
+            return self._failed("measure", "not_a_query", reply, args)
+        found = self.measure_request({"path": args["path"], "query": args["query"]})
+        error = str(found.get("error", ""))
+        if error.startswith("query:"):
+            return self._failed("measure", "not_a_query", error, args)
+        if error.startswith(TOOL_FAILURES):
+            return self._failed("measure", "unfinished", error, args)
+        return Judged("measure", "ok", json.dumps(found))
 
     def _ending(self, name: str, args: dict[str, Any]) -> Judged:
         if name == "done":
