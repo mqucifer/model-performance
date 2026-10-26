@@ -218,6 +218,7 @@ def evaluate(
     arm: str | None = None,
     concurrency: int = 1,
     sample: int | None = None,
+    serving: str | None = None,
 ) -> dict[str, Any]:
     """One part end to end: its row, written to the results once the run has ended."""
     started_at = datetime.now(UTC)
@@ -248,6 +249,9 @@ def evaluate(
         row.update(arm=arm, concurrency=concurrency, calls_to_first_compile=None)
         # Which of a `--repeat` run's samples this is (mqucifer/model-performance#27).
         row["sample"] = sample
+        # The Spark's serving engine and version, as the operator states it: nothing
+        # here may probe SGLang directly (null on rows from before 2026-10-26).
+        row["serving"] = serving
         row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
     kept: dict[str, Any] = {}
     send.ticking()
@@ -449,6 +453,10 @@ def main(argv: list[str] | None = None) -> int:
         "--arm", choices=ARMS, help="what the session is given besides the baseline's tools"
     )
     parser.add_argument(
+        "--serving",
+        help="the Spark's serving engine and version, as the operator gives it: sglang-0.5.22",
+    )
+    parser.add_argument(
         "--repeat",
         type=int,
         default=1,
@@ -564,6 +572,7 @@ def main(argv: list[str] | None = None) -> int:
                 arm=args.arm,
                 concurrency=args.parallel,
                 sample=sample,
+                serving=args.serving,
             )
         finally:
             with lock:

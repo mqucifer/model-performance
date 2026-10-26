@@ -143,6 +143,17 @@ def needed(rows: list[dict[str, Any]]) -> dict[tuple, int]:
     return {key: k for key, k in want.items() if k}
 
 
+# When production serving moved to SGLang v0.5.22 (the operator, 2026-10-26).
+V0522_AT = "2026-10-26T14:45"
+
+
+def served_on(row: dict[str, Any]) -> str:
+    """A run's serving version: its row's, or for a row from before the field, by its time."""
+    if row.get("serving"):
+        return str(row["serving"])
+    return "sglang-0.5.22" if str(row.get("at", "")) >= V0522_AT else "sglang-0.5.20"
+
+
 def checks_of(record: Path) -> list[dict[str, Any]] | None:
     """A run's checks: at `done` from `checks.json`, at the cap from its last files."""
     for name in ("checks.json", "capped_checks.json"):
@@ -157,6 +168,10 @@ def report(rows: list[dict[str, Any]], records: Path) -> str:
     found = cells(rows)
     lines = [
         "**n = 3 is a screen, not a measurement.** Each interval is 95% (Wilson).",
+        "",
+        "**Serving:** the Spark moved from SGLang v0.5.20 to v0.5.22 at 2026-10-26 "
+        "14:45Z. The arms' first runs were on v0.5.20 and the screen's on v0.5.22; each "
+        "cell below says how many of its runs were on each.",
         "",
         "| Case | Verdict | " + " | ".join(arm or "baseline" for arm in ARMS) + " |",
         "|---|---|" + "---|" * len(ARMS),
@@ -206,8 +221,10 @@ def report(rows: list[dict[str, Any]], records: Path) -> str:
                     rates[x["name"]] += bool(x["ok"])
             weakest = sorted(seen, key=lambda k: rates[k] / seen[k])[:4]
             rate = ", ".join(f"{k} {rates[k]}/{seen[k]}" for k in weakest if rates[k] < seen[k])
+            served = Counter(served_on(r) for r in c.runs)
             lines.append(
-                f"- **{arm or 'baseline'}**, {c.passes}/{c.n}: ended "
+                f"- **{arm or 'baseline'}**, {c.passes}/{c.n} "
+                f"({', '.join(f'{k} ×{v}' for k, v in sorted(served.items()))}): ended "
                 + ", ".join(f"{k} ×{v}" for k, v in ends.items())
                 + f"; first compile {first}"
                 + (f"; weakest checks {rate}" if rate else "")

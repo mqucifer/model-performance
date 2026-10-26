@@ -144,3 +144,18 @@ def test_repeat_runs_each_case_n_times_with_its_sample(
     assert len(evaluated) == 4
     with pytest.raises(SystemExit):
         cad.main(["spacer", "--repeat", "2"])
+
+
+def test_each_runs_serving_is_its_rows_or_its_time() -> None:
+    assert (
+        spread.served_on({"serving": "sglang-0.5.22", "at": "2026-10-25T20:00"}) == "sglang-0.5.22"
+    )
+    assert spread.served_on({"at": "2026-10-26T06:00:00+00:00"}) == "sglang-0.5.20"
+    assert spread.served_on({"at": "2026-10-26T15:30:00+00:00"}) == "sglang-0.5.22"
+
+
+def test_the_report_names_the_serving_versions(tmp_path: Path) -> None:
+    rows = [row("spur-gear", None, "budget", k) for k in range(3)]
+    rows.append({**row("spur-gear", "refs", None, 9), "serving": "sglang-0.5.22"})
+    text = spread.report(rows, tmp_path)
+    assert "v0.5.20 to v0.5.22" in text and "sglang-0.5.22 ×1" in text
