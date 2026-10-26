@@ -198,6 +198,20 @@ def own_calls(events: Path) -> set[str]:
     return ids
 
 
+def fresh_run(settings: Settings, name: str) -> tuple[str, Path]:
+    """A run id and its new records directory. Ids are to the second, so two runs of a
+    case that start in the same second (an arm and a rerun, each its own process) would
+    share one; the second takes the next free suffix, and nothing is written over."""
+    base = records.run_id()
+    for n in range(1, 100):
+        run = base if n == 1 else f"{base}-{n}"
+        try:
+            return run, records.run_dir(settings, SUITE, name, run)
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"no free run id for {name} at {base}")
+
+
 def evaluate(
     p: Part | Case,
     settings: Settings,
@@ -213,9 +227,8 @@ def evaluate(
     concurrency: int = 1,
 ) -> dict[str, Any]:
     """One part end to end: its row, written to the results once the run has ended."""
-    run = records.run_id()
     started_at = datetime.now(UTC)
-    out = records.run_dir(settings, SUITE, p.name, run)
+    run, out = fresh_run(settings, p.name)
     row: dict[str, Any] = {
         "case": p.name,
         "tier": p.tier,
