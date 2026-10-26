@@ -179,6 +179,137 @@ one crew's argument rule refuses, here over the evaluation's own tools.
 | `calls` | model calls. A part stops at its cap (40, or `--cap`; the first run's was 20) as `interrupted` with `call_cap` |
 | `calls_to_done` | the calls a part took to reach `done`, or null without one: what the next run's cap is set from |
 
+**The harder cases** (mqucifer/model-performance#16, `cad_eval/README.md`) are rows in
+this file too: `case` is the case, `tier` is 6 to 8, and `checks_*` count every
+member's checks. Five fields are theirs alone, absent from the 30 parts' rows:
+
+| Field | What it is |
+|---|---|
+| `kind` | `tight` (tier 6), `assembly` (7) or `worded` (8) |
+| `parts_total`, `parts_fit` | the case's members, each its own STEP file, and those that passed every check of their own, fits included (null without a `done`) |
+| `load_ok` | the simplified load check (a section's bending stress against PLA's strength over 4), or null for a case without one or without a `done`. It never means "strong enough" |
+| `fault` | whose the failure is: `model`, `tool`, `infra` or `budget`; null for a case that passed |
+
+**The harder cases' first run, 2026-10-25 16:45–17:47 UTC** (crew 099879f,
+`crew-code-think`, a 20-call cap per case, no concurrent tick), and the rerun of two
+of them, 17:48–18:26 UTC, after a fix to the case prompt:
+
+| Case | Kind | Ending | Fault | Checks | Parts fit | Calls | Tool reliability | Model s | Other calls |
+|---|---|---|---|---|---|---|---|---|---|
+| pin-clevis | assembly | done | | 44/44 | 3/3 | 5 | 0.857 | 355.7 | 5 |
+| shelf-bracket | worded | done | infra | 0/1 | 0/1 | 9 | 1.0 | 339.0 | 4 |
+| m8-bolt | tight | interrupted (cap) | budget | | | 20 | 1.0 | 1524.2 | 6 |
+| caster-wheel | assembly | done | | 72/72 | 5/5 | 12 | 0.95 | 571.5 | 3 |
+| pi5-nvme-case | worded | done | model | 30/34 | 0/2 | 5 | 0.833 | 839.9 | 1 |
+| shelf-bracket (rerun) | worded | done | model | 7/8 | 0/1 | 10 | 1.0 | 387.4 | 0 |
+| m8-bolt (rerun) | tight | interrupted (cap) | budget | | | 20 | 0.95 | 1851.5 | 0 |
+
+- **shelf-bracket's first row is the harness's fault, marked `infra`.** A one-part
+  case's prompt said "the file the spec names", and its spec names none. So it wrote
+  `bracket.step`, and the clean rerun found no `part.step`. The prompt now names
+  `part.step` (`session.system_for`).
+  - Its own `bracket.step`, checked in the image as a diagnostic (not a row), passes
+    7 of 8: everything but the screw holes.
+  - The rerun's `part.step` fails the same one check. Both times its holes are 4.0 mm
+    across for 4 mm screws, where ISO 273's clearance holes are 4.3 to 4.8 mm.
+- **m8-bolt didn't reach `done` in 20 calls, twice.** The thread is where it breaks.
+  - First run: it looked for `cq.makeHelix`, missed `cq.Wire.makeHelix`, and spent
+    the run building a B-spline helix through OCP.
+  - Rerun: it found `cq.Wire.makeHelix` and a valid helix, then spent the rest on the
+    sweep and OCP's names. One call named a tool that isn't here (`edit`), its one
+    malformed call.
+- **pi5-nvme-case is done, but doesn't fit its boards** (30 of 34 checks):
+  - its lid sits at Z = 3.9 to 5.9, through the Pi's parts (4.4 mm on its drawing)
+    and far below the USB and Ethernet sockets;
+  - its base's wall cuts into the NVMe Base Duo's published 87.6 mm length;
+  - it leaves no room for the flex cable.
+  
+  The port openings, the bosses, the vents and a separate lid pass.
+- **`other_calls`** for the first five are every call in LiteLLM's spend log that
+  overlapped the row's window (`at` + `wall_s`), less the row's own `calls`.
+  - Their events didn't keep the response id then. They do now, and a run counts its
+    own calls out by id, as `common/spend.py` does for the benchmark.
+  - The builders' key shows exactly the row's own calls in four windows, and one more
+    in pin-clevis's (m12-arms' last call).
+  - The others were `print-shop`'s: m13-print-settings' proof calls.
+- **Overhangs were added after this run,** so these rows don't have them. The passing
+  parts' files were measured afterwards, in the image: see the PR.
+
+**Where it breaks, from these seven runs:**
+- **Assemblies with a clear spec pass:** three parts and five, with every clearance in
+  range, in 5 and 12 calls.
+- **Where the model fails, the fault is the model's, not a tool's:**
+  - a CadQuery feature it doesn't know its way to (a swept thread);
+  - a dimension it isn't given and doesn't know (a screw's clearance hole);
+  - a design against real parts where it ignores the parts' published heights and
+    sizes it was given (the Pi case).
+- **No tool failed:** the one malformed call was a tool name from elsewhere, and the
+  measures all finished.
+
+This is evidence for M14's arms: a skill and a signature lookup for the first failure,
+engineering references for the second, the boards' models for the third
+(mqucifer/model-performance#21, #22, #23). It's five cases, not 21: the arms' baseline
+runs all 21.
+
+## `role_fit.jsonl`: which model fits each role
+
+One row per replayed call (`role_fit/`, mqucifer/model-performance#10). `case` is the
+call's `response_id` in production, and `run` ends with its seed. Each case is one
+first-try answer call from E1 (mqucifer/crew#583) on sprint-metrics, 2026-10-11 17:51 to
+2026-10-13 19:42 UTC, sent again as production sent it.
+
+**Compare `valid` with `prod_form_valid`, not `prod_valid`.** `prod_valid` is crew's own
+verdict, which also ran the step's rules on its answer model. `prod_form_valid` is
+production's answer scored as the replay's is. On the 26 cases the scorer agrees with
+crew's verdict on 24; the other two crew refused under its answer model's own rules
+(a list left empty, an implementation that edits nothing).
+
+**`dated` cases** asked for a form the pinned crew no longer asks for: E1's two-part
+answers (the Developer's), or a model whose schema has changed since. They're scored on
+the request's own form, and say what the model does with that prompt, not what today's
+crew would do.
+
+**The 27B baseline, round 1, 2026-10-25 18:42–21:14 UTC** (crew 099879f, each request's own
+alias, `crew-code-think` or `crew-analysis`, seed 1, one call per case, no concurrent tick).
+From 19:25 UTC m14-hard-eval's CAD baseline shared the Spark, 4 sessions to this one (the
+Sponsor's rule for quality runs): 17 of the 26 rows have `other_calls` above 0. Validity,
+empty and runaway answers don't depend on load. Times do, so read them only beside
+`other_calls`.
+
+| Bucket | Cases | Valid | Production's answer, same scorer | Crew's verdict | Empty, runaway, cut | Median s (production) | Median thinking tokens (production) |
+|---|---|---|---|---|---|---|---|
+| dev-first | 6 | 4 | 5 | 3 | 0 | 352 (540) | 4,824 (12,918) |
+| dev-repair | 4 | 4 | 2 | 2 | 0 | 350 (316) | 6,330 (5,416) |
+| qa-verdict | 5 | 5 | 5 | 5 | 0 | 230 (151) | 2,798 (2,541) |
+| criteria | 3 | 3 | 3 | 3 | 0 | 570 (226) | 11,429 (7,428) |
+| split | 3 | 3 | 3 | 3 | 0 | 723 (408) | 11,428 (10,742) |
+| settle | 3 | 3 | 2 | 2 | 0 | 144 (118) | 3,049 (3,582) |
+| architect | 2 | 2 | 2 | 2 | 0 | 409 (285) | 6,195 (4,541) |
+| **execution** | 18 | 16 | 15 | 13 | 0 | 326 (302) | |
+| **judgement** | 8 | 8 | 7 | 7 | 0 | 409 (285) | |
+
+- **The two invalid answers are both the Developer's two-part form** (`block_names`): the
+  fields name their blocks as `@@b1` or `@@b1@@`, not `b1`. Production's answer to one of
+  them (e14cc9f1) made the same kind of mistake, and crew refused it.
+- **No empty, runaway or cut answer in 26.** Production had one empty answer among these
+  cases (f761a097); its replay answered, in its form.
+- **Thinking varies call to call more than the averages show:** the same criteria check
+  (7a627c0d) thought 12,807 tokens against production's 2,942. One round says little per
+  case, which is why model-fit-29 asks for three.
+- **Times:** the 9 rows with no other call on the proxy (the Developer's, before the CAD
+  run, and one settle) took a median 306 s against production's 499 s for the same
+  requests. Production ran beside the crew's own ticks, so neither side was idle.
+
+| Field | What it is |
+|---|---|
+| `bucket`, `group` | the kind of call (`dev-first`, `dev-repair`, `qa-verdict`, `criteria`, `split`, `settle`, `architect`) and its role group, `execution` or `judgement` |
+| `ending` | `done`, or `refused` (`no_request`: not extracted), `interrupted` (`call_failed`, `call_cap`), `crashed` |
+| `form` | `json_schema`, `two_part` or `free` |
+| `valid`, `why` | the answer in its form, and why not in a word: `empty`, `runaway`, `length`, `not_json`, `schema`, `model`, `blocks`, `block_names`, `cut_at_quote` |
+| `empty`, `runaway`, `cut` | no answer; run on as whitespace and cut off, as crew's call layer does; stopped at its token limit |
+| `thinking_chars`, `hedges_per_10k` | the thinking's length, and its hedges per 10k characters (model-fit-29's list) |
+| `prod_*` | the same request in production, from crew's events and LiteLLM's log |
+
 ## `tuning.jsonl`: concurrent runs on the Spark
 
 One row per `concurrent` run (`tuning/README.md`, mqucifer/model-performance#7). Its
