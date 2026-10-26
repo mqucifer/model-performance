@@ -34,3 +34,39 @@ What moved and what didn't: the experiment's `session.py`, `start.py`, `tools.py
 and `container.py` aren't copied, because crew has since taken them in as
 `crew_org.session` and `crew_org.tools.container`. Using those means the harness
 needs none of crew's private names.
+
+## Inputs: captured once, never fetched (mqucifer/model-performance#32)
+
+crew's package retention prunes old delivery-history releases (ADR 0021 in
+mqucifer/crew). crew-presentation-124's archive went from its release on 2026-10-26.
+So a case never fetches a release, or anything else, at run time.
+
+**What's captured:** every case's fetched inputs, once, by sha256, in the records
+directory on the Mac, which the nightly backup archives. They're kept as
+`records/inputs/blobs/<sha256>`, with `manifest.json` naming each case's inputs and
+where each came from.
+- The crew-presentation cases fetch a delivery-history archive at their pinned tag,
+  and the design-system stylesheet at `v0.1.0`.
+- The sprint-metrics cases fetch nothing but PyPI packages. Every case installs
+  those under its lockfile's hashes, and PyPI doesn't prune, so they aren't captured.
+
+**crew-presentation-124's archive, recovered:** `delivery-history-2026-10-16-2` was
+copied from crew's own build output (its main checkout's gitignored
+`var/packages/`). Two pieces of evidence say it's what the case saw:
+- that directory holds exactly what crew published: its 10-17 and 10-25 archives
+  match their release assets' sha256;
+- its 32 files are identical to the extracted copy in crew's clone of
+  crew-presentation, the one card 124's delivery ran against.
+
+**At run time** (`inputs.py`):
+- **The replay verifies** each of the case's inputs against its hash. A missing or
+  changed one refuses the case as `input_missing`, saying which and why: never a
+  fetch, never a stand-in.
+- **It writes them into the worktree's `.package/`,** as the repository's setup would.
+- **The record's `setup:` runs the benchmark's script,** `.benchmark/setup.py`, which
+  installs the locked dependencies through the repository's own
+  `_sync_dependencies()` and downloads nothing. Only that line of the authored record
+  changes, and only for a case with inputs. Both `.package/` and `.benchmark/` are
+  kept out of the worktree's git.
+- **Each row records** the manifest's sha256 and each input's, so a result is tied to
+  exactly what it ran on.
