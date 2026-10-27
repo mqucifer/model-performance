@@ -97,6 +97,8 @@ SUITES: dict[str, set[str]] = {
         "runaways",
         "runaway_reasoning_tokens",
         "runaway_content_tokens",
+        "sample",  # which of a `--repeat` run's samples, 1 to N, or null for a single run
+        "serving",  # the Spark's serving engine and version, as given: sglang-0.5.22
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed

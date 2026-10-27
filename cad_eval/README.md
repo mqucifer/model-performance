@@ -346,3 +346,38 @@ runaways weren't: they finished, with tool calls, inside the hour.
   limit.
 - Both came straight after reading the skill, and both are longer than anything in
   the 748 calls before.
+
+## The spread of repeated runs (mqucifer/model-performance#27)
+
+One run per case can't tell a gap from noise where runs vary most. So the four gear
+and thread cases (spur-gear, m8-bolt, gear-pair, bolt-nut) run several times in each
+of the four arms: the baseline, `skill`, `refs` and `skill-refs`.
+
+    uv run cad-eval spur-gear m8-bolt --repeat 2 --arm refs --parallel 4 --cap 20
+    uv run python -m cad_eval.spread --measure-capped   # then the report
+
+- **Samples:** `--repeat N` runs each named case N times. Each run is its own row and
+  records, and the row's `sample` says which.
+- **The report:** `spread.py` builds it from the rows. For each case in each arm (a
+  cell):
+  - its passes out of n, with a 95% Wilson interval;
+  - each check's pass rate;
+  - where each run ended, and its first failing check;
+  - the call of its first compiling part.
+- **The runs still needed:** the report lists them for each cell.
+- **What counts as a sample:** a harness or infrastructure fault (`tool`, `infra`)
+  isn't one.
+- **A capped run doesn't finish in 20 calls**, which isn't "can't".
+  `--measure-capped` measures its last files in the container, offline, so its
+  checks show where it had got to.
+
+**The rule, set before the runs** (the operator, 2026-10-26). Sampling is staged to
+save the Spark: three runs per cell first, counting runs already made. **n = 3 is a
+screen, not a measurement.**
+- **A cell** fails at 0 of 3 (or at most 1 of 5) and passes at 3 of 3 (or at least
+  4 of 5). Otherwise it's open.
+- **A case** is a **gap** if every arm's cell fails: a candidate for training or a
+  tool. It's **closed** if any arm's cell passes. Anything else is **noise**.
+- **A noisy case** gets two more runs only where they could change its verdict:
+  - a cell at 2 of 3;
+  - or a cell at 1 of 3, when every other cell fails or is at 1 of 3.

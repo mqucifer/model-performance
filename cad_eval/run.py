@@ -199,17 +199,9 @@ def own_calls(events: Path) -> set[str]:
 
 
 def fresh_run(settings: Settings, name: str) -> tuple[str, Path]:
-    """A run id and its new records directory. Ids are to the second, so two runs of a
-    case that start in the same second (an arm and a rerun, each its own process) would
-    share one; the second takes the next free suffix, and nothing is written over."""
-    base = records.run_id()
-    for n in range(1, 100):
-        run = base if n == 1 else f"{base}-{n}"
-        try:
-            return run, records.run_dir(settings, SUITE, name, run)
-        except FileExistsError:
-            continue
-    raise FileExistsError(f"no free run id for {name} at {base}")
+    """A run id and its new records directory: the shared `records.new_run`, which gives
+    two runs of a case that start in the same second each their own suffixed id."""
+    return records.new_run(settings, SUITE, name)
 
 
 def evaluate(
@@ -225,6 +217,8 @@ def evaluate(
     read_spend: Callable[[str], str] | None = None,
     arm: str | None = None,
     concurrency: int = 1,
+    sample: int | None = None,
+    serving: str | None = None,
 ) -> dict[str, Any]:
     """One part end to end: its row, written to the results once the run has ended."""
     started_at = datetime.now(UTC)
@@ -253,6 +247,11 @@ def evaluate(
         row.update(overhang_mm2=None, bridges=None, longest_bridge_mm=None)
         # The arm (null for the baseline), the cases run at once, and the first compile.
         row.update(arm=arm, concurrency=concurrency, calls_to_first_compile=None)
+        # Which of a `--repeat` run's samples this is (mqucifer/model-performance#27).
+        row["sample"] = sample
+        # The Spark's serving engine and version, as the operator states it: nothing
+        # here may probe SGLang directly (null on rows from before 2026-10-26).
+        row["serving"] = serving
         row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
     kept: dict[str, Any] = {}
     send.ticking()
@@ -454,6 +453,16 @@ def main(argv: list[str] | None = None) -> int:
         "--arm", choices=ARMS, help="what the session is given besides the baseline's tools"
     )
     parser.add_argument(
+        "--serving",
+        help="the Spark's serving engine and version, as the operator gives it: sglang-0.5.22",
+    )
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help="samples of each harder case, each its own run and row (`sample`)",
+    )
+    parser.add_argument(
         "--parallel",
         type=int,
         default=1,
@@ -481,7 +490,10 @@ def main(argv: list[str] | None = None) -> int:
         chosen = [lookup(n) for n in names]
     except UnknownPart as exc:
         parser.error(str(exc.args[0]))
-    total = args.total if args.total is not None else args.cap * len(chosen)
+    if args.repeat < 1 or (args.repeat > 1 and not all(isinstance(p, Case) for p in chosen)):
+        parser.error("--repeat is a whole number of samples of the harder cases")
+    runs = [(p, k + 1 if args.repeat > 1 else None) for p in chosen for k in range(args.repeat)]
+    total = args.total if args.total is not None else args.cap * len(runs)
     if args.parallel > 1 and not all(isinstance(p, Case) for p in chosen):
         parser.error("--parallel runs the harder cases only: the 30 parts' runs stay one at a time")
 
@@ -537,7 +549,7 @@ def main(argv: list[str] | None = None) -> int:
     budget = {"reserved": 0, "failed": 0}
     lock = threading.Lock()
 
-    def one(p: Part | Case) -> None:
+    def one(p: Part | Case, sample: int | None) -> None:
         with lock:
             if stop.exists():
                 print(f"{p.name}: not started, {stop} says stop", flush=True)
@@ -559,6 +571,8 @@ def main(argv: list[str] | None = None) -> int:
                 max_tokens=max_tokens,
                 arm=args.arm,
                 concurrency=args.parallel,
+                sample=sample,
+                serving=args.serving,
             )
         finally:
             with lock:
@@ -570,7 +584,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # The crew's sandbox keeps its uv cache under the current directory: the work's.
     with contextlib.chdir(settings.work_dir), ThreadPoolExecutor(args.parallel) as pool:
-        for done in [pool.submit(one, p) for p in chosen]:
+        for done in [pool.submit(one, p, sample) for p, sample in runs]:
             done.result()
     failed = budget["failed"]
     return 1 if failed else 0
