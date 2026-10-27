@@ -62,11 +62,14 @@ def serving_from(text: str) -> dict[str, str | None]:
     digest = re.search(r"pinned by digest (sha256:\S+?),", text)
     model = re.search(r"the model, (\S+)", text)
     port = re.search(r"\bapi: (\d+)", text)
+    reached = re.search(r"^reached_by: (\w+)", text, re.M)
     return {
         "serving_image": image.group(1) if image else None,
         "serving_digest": digest.group(1) if digest else None,
         "serving_model": model.group(1) if model else None,
         "serving_port": port.group(1) if port else None,
+        # The name of the address SGLang is reached by, never the address itself.
+        "serving_reached_by": reached.group(1) if reached else None,
     }
 
 
@@ -113,10 +116,42 @@ def serving(alias: str = "crew-code-think", fetch: Any = gh) -> dict[str, Any]:
     }
 
 
-def mismatch(headers: dict[str, str], alias: str, record: dict[str, Any]) -> list[str]:
+# What a call's comparison can find: a difference from infra's record, or nothing to
+# compare with, which is never a match (the final review of #41).
+MISMATCHES = ("model_group", "api_port", "api_host")
+UNVERIFIED = ("unverified", "no_model_group", "no_api_base", "no_record_port", "no_record_host")
+HOSTS_ENV = Path.home() / ".config" / "infra" / "hosts.env"
+
+
+def reached_host(record: dict[str, Any], env: Path = HOSTS_ENV) -> str | None:
+    """The host SGLang is reached at, by the variable infra's record names
+    (`reached_by: SPARK_ADDR`), from the environment or infra's local hosts file. Kept in
+    memory only: no row or record holds an address."""
+    import os  # noqa: PLC0415
+
+    name = record.get("serving_reached_by")
+    if not name:
+        return None
+    if os.environ.get(name):
+        return os.environ[name]
+    try:
+        for line in env.read_text(encoding="utf-8").splitlines():
+            key, _, value = line.partition("=")
+            if key.strip() == name and value.strip():
+                return value.strip().strip('"').strip("'")
+    except OSError:
+        return None
+    return None
+
+
+def mismatch(
+    headers: dict[str, str], alias: str, record: dict[str, Any], host: str | None = None
+) -> list[str]:
     """How a call's serving, as LiteLLM's headers say it, differs from infra's record:
-    the model group isn't the alias asked for, or the api base isn't on the port infra
-    records for SGLang. With neither header, `unverified`, never a match.
+    the model group isn't the alias asked for, or the api base isn't at the host and
+    port infra records for SGLang (`MISMATCHES`). What can't be compared is said, never
+    taken for a match (`UNVERIFIED`): no headers, only one of the two, or no port or
+    host on record (a failed fetch, or a record that doesn't say).
 
     LiteLLM's deployment id is a hash of its parameters, not compared (the operator:
     fragile, version-coupled). A model swapped under the same served name wouldn't show
@@ -129,11 +164,23 @@ def mismatch(headers: dict[str, str], alias: str, record: dict[str, Any]) -> lis
     if not group and not base:
         return ["unverified"]
     found = []
-    if group and group != alias:
+    if not group:
+        found.append("no_model_group")
+    elif group != alias:
         found.append("model_group")
+    if not base:
+        found.append("no_api_base")
+        return found
+    parsed = urlparse(base)
     port = record.get("serving_port")
-    if base and port and urlparse(base).port != int(port):
-        found.append("api_base")
+    if not port:
+        found.append("no_record_port")
+    elif parsed.port != int(port):
+        found.append("api_port")
+    if not host:
+        found.append("no_record_host")
+    elif (parsed.hostname or "").lower() != host.lower():
+        found.append("api_host")
     return found
 
 

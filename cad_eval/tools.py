@@ -26,8 +26,11 @@ from __future__ import annotations
 
 import ast
 import difflib
+import errno
 import json
+import os
 import re
+import stat
 import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -429,17 +432,138 @@ def inside(directory: Path, path: str) -> Path | None:
     be in the directory.
     """
     pure = PurePosixPath(path)
-    if not path or pure.is_absolute() or ".." in pure.parts or pure.parts[0] == ".crew-home":
+    # `.` has no parts (the final review of #41: an IndexError ended the run), and a
+    # case-insensitive file system takes `.CREW-HOME` for `.crew-home`.
+    if not path or not pure.parts or pure.is_absolute() or ".." in pure.parts:
+        return None
+    if pure.parts[0].lower() == ".crew-home":
         return None
     step = directory
-    for part in pure.parts:
-        step = step / part
-        if step.is_symlink():
-            return None
     target = directory / pure
-    if not target.resolve().is_relative_to(directory.resolve()):
+    try:
+        for part in pure.parts:
+            step = step / part
+            if step.is_symlink():
+                return None
+        if not target.resolve().is_relative_to(directory.resolve()):
+            return None
+    except OSError:
+        # A folder taken away mid-check, by a process racing it: refused, not a crash.
         return None
     return target
+
+
+class Outside(OSError):
+    """A path that went through a link, or to what isn't a regular file, when opened."""
+
+
+def open_inside(directory: Path, path: str, flags: int, make_dirs: bool = False) -> int:
+    """A file descriptor for `path`, opened one component at a time from the part's
+    directory, never following a link (`O_NOFOLLOW` on each, from its parent's fd).
+
+    `inside()` checks the name, but a process left by a `run` can swap a file for a link
+    between that check and the use (the final review of #41: `read` leaked a host file,
+    and `write` overwrote one). Opened this way, what's read or written is what was
+    opened, and a link anywhere is `Outside`. Not blocking, so a FIFO can't hang the
+    harness, and only a regular file is taken.
+    """
+    parts = PurePosixPath(path).parts
+    folder = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in parts[:-1]:
+            try:
+                nested = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=folder)
+            except FileNotFoundError:
+                if not make_dirs:
+                    raise
+                os.mkdir(part, 0o755, dir_fd=folder)
+                nested = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=folder)
+            except OSError as exc:
+                if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+                    raise Outside(f"{part} is a link or isn't a folder") from exc
+                raise
+            os.close(folder)
+            folder = nested
+        try:
+            found = os.open(parts[-1], flags | os.O_NOFOLLOW | os.O_NONBLOCK, 0o644, dir_fd=folder)
+        except OSError as exc:
+            if exc.errno == errno.ELOOP:
+                raise Outside(f"{parts[-1]} is a link") from exc
+            raise
+        if not stat.S_ISREG(os.fstat(found).st_mode):
+            os.close(found)
+            raise Outside(f"{parts[-1]} isn't a regular file")
+        return found
+    finally:
+        os.close(folder)
+
+
+def read_inside(directory: Path, path: str) -> str:
+    with os.fdopen(open_inside(directory, path, os.O_RDONLY), encoding="utf-8") as fh:
+        return fh.read()
+
+
+def write_inside(directory: Path, path: str, text: str) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    with os.fdopen(
+        open_inside(directory, path, flags, make_dirs=True), "w", encoding="utf-8"
+    ) as fh:
+        fh.write(text)
+
+
+# Run in the container after every `run`: every process killed, until none is left, but
+# PID 1 (docker-init), the container's own `sleep` (PID 1's oldest child, started before
+# any run; a daemon left by one is PID 1's child too, but later, and may take any name),
+# and this one and its ancestors. So nothing a run started acts between tool calls (the
+# final review of #41: a daemon raced `read`).
+REAP_SOURCE = """
+import os, signal
+
+
+def stat(pid):
+    with open(f"/proc/{pid}/stat") as fh:
+        return fh.read().rsplit(")", 1)[1].split()
+
+
+me = os.getpid()
+keep = {1, me}
+children = []
+for name in os.listdir("/proc"):
+    if name.isdigit():
+        try:
+            fields = stat(name)
+        except OSError:
+            continue
+        if fields[1] == "1":
+            children.append((int(fields[19]), int(name)))
+if children:
+    keep.add(min(children)[1])
+pid = me
+while pid > 1:
+    pid = int(stat(pid)[1])
+    keep.add(pid)
+killed = set()
+for _ in range(20):
+    left = []
+    for name in os.listdir("/proc"):
+        if name.isdigit() and int(name) not in keep:
+            try:
+                zombie = stat(name)[0] == "Z"
+            except OSError:
+                continue
+            if not zombie:
+                left.append(int(name))
+    if not left:
+        break
+    for pid in left:
+        try:
+            os.kill(pid, signal.SIGKILL)
+            killed.add(pid)
+        except OSError:
+            pass
+print("CAD_EVAL_REAPED", len(killed), len(left))
+"""
+REAP_TIMEOUT = 30
 
 
 class PartTools:
@@ -471,6 +595,8 @@ class PartTools:
         # Whether a `run` has exited 0 with every output written: a first compiling part.
         self.compiled = False
         self.runs: list[dict[str, Any]] = []
+        # The processes a run left, killed after it: one count per reap.
+        self.reaped: list[int] = []
         # The tools' own failures, by kind, that weren't the model's: a measure that
         # didn't finish. `run.py` reads them to say whose a failure is.
         self.troubles: dict[str, int] = {}
@@ -612,8 +738,10 @@ class PartTools:
         if wrong is not None:
             return wrong
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(args["content"], encoding="utf-8")
+            write_inside(self.directory, args["path"], args["content"])
+        except Outside:
+            reply = "Write only inside the part's directory, and never through a link."
+            return self._failed("write", "outside", reply, args)
         except OSError as exc:
             return self._failed("write", "not_written", f"It couldn't be written: {exc}", args)
         said = f"Wrote {args['path']} ({len(args['content'])} characters)."
@@ -647,7 +775,10 @@ class PartTools:
         if missing is not None:
             return missing
         try:
-            text = (self.directory / args["path"]).read_text(encoding="utf-8")
+            text = read_inside(self.directory, args["path"])
+        except Outside:
+            reply = "Only files inside the part's directory, and never through a link."
+            return self._failed("read", "outside", reply, args)
         except (OSError, UnicodeDecodeError):
             return self._failed("read", "not_text", f"`{args['path']}` isn't a text file.", args)
         lines = text.splitlines()
@@ -673,7 +804,13 @@ class PartTools:
         script, wrong = self._run_after("edit", args)
         if wrong is not None:
             return wrong
-        text = target.read_text(encoding="utf-8")
+        try:
+            text = read_inside(self.directory, args["path"])
+        except Outside:
+            reply = "Only files inside the part's directory, and never through a link."
+            return self._failed("edit", "outside", reply, args)
+        except (OSError, UnicodeDecodeError):
+            return self._failed("edit", "not_text", f"`{args['path']}` isn't a text file.", args)
         old, new = _trim(args["old"]), _trim(args["new"])
         refused = _refusal(args["path"], text, old, new)
         if refused is not None:
@@ -698,7 +835,13 @@ class PartTools:
                 return self._failed("edit", "edit.parse_guard", reply, args)
             if error is not None:
                 broken = f" It doesn't parse: {error[0]} on line {error[1]}."
-        target.write_text(after, encoding="utf-8")
+        try:
+            write_inside(self.directory, args["path"], after)
+        except Outside:
+            reply = "Only files inside the part's directory, and never through a link."
+            return self._failed("edit", "outside", reply, args)
+        except OSError as exc:
+            return self._failed("edit", "not_written", f"It couldn't be written: {exc}", args)
         said = f"Replaced lines in `{args['path']}`.{broken}\nIt now reads:\n"
         return self._then_run("edit", said + changed_lines(text, after), script)
 
@@ -722,14 +865,32 @@ class PartTools:
         if missing is not None:
             return missing
         done = self.execute(["python", args["path"]], RUN_TIMEOUT)
-        self.runs.append({"path": args["path"], "code": done.code, "seconds": done.seconds})
+        left = self.reap()
+        self.runs.append(
+            {"path": args["path"], "code": done.code, "seconds": done.seconds, "reaped": left}
+        )
         if done.code == 0 and all((self.directory / o).is_file() for o in self.outputs):
             self.compiled = True
         reply = f"exit {done.code} after {done.seconds}s\n{done.output[-TAIL:]}"
         if done.code != 0 and self.arm == BASE:
             hinted = self.hint(done.output)
             reply += f"\n\n{hinted}" if hinted else ""
-        return Judged("run", "ok", reply)
+        return Judged("run", "ok", reply, detail={"reaped": left})
+
+    def reap(self) -> int:
+        """Every process a run left in the container, killed; how many. A reap that can't
+        say is a trouble of the tools', never the model's."""
+        done = self.execute(["python", "-I", "-"], REAP_TIMEOUT, stdin=REAP_SOURCE)
+        for line in reversed(done.output.splitlines()):
+            if line.startswith("CAD_EVAL_REAPED "):
+                killed, still = (int(n) for n in line.split()[1:3])
+                if still:
+                    self.troubles["reap_unfinished"] = self.troubles.get("reap_unfinished", 0) + 1
+                self.reaped.append(killed)
+                return killed
+        self.troubles["reap_unfinished"] = self.troubles.get("reap_unfinished", 0) + 1
+        self.reaped.append(-1)
+        return -1
 
     def hint(self, output: str) -> str:
         """For a run's last AttributeError, where the name is (`hint.py`), or nothing."""
@@ -863,6 +1024,8 @@ class PartTools:
         output = self.directory / OUTPUT
         output.unlink(missing_ok=True)
         ran = self.execute(["python", script], RUN_TIMEOUT)
+        # Nothing the script left may change its files before they're measured.
+        self.reap()
         result: dict[str, Any] = {"script": script, "code": ran.code, "tail": ran.output[-TAIL:]}
         if ran.code != 0 or not output.is_file():
             result["measured"] = {"path": OUTPUT, "error": f"no {OUTPUT} after exit {ran.code}"}
@@ -876,6 +1039,7 @@ class PartTools:
         for name in self.outputs:
             (self.directory / name).unlink(missing_ok=True)
         ran = self.execute(["python", script], RUN_TIMEOUT)
+        self.reap()
         result: dict[str, Any] = {"script": script, "code": ran.code, "tail": ran.output[-TAIL:]}
         measured: dict[str, Any] = {}
         for name, request in requests.items():

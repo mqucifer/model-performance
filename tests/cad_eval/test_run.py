@@ -83,6 +83,8 @@ class Run:
         kw.setdefault("read_spend", lambda _sql: "")
         # infra's record of production's serving, as a test reads it: never infra's repo.
         kw.setdefault("serving_record", lambda: {"serving_image": "lmsysorg/sglang:test"})
+        # Never the Mac's own hosts file in a test.
+        kw.setdefault("reached_host", lambda record: "a")
         return cad.evaluate(
             PARTS[name],
             self.settings,

@@ -51,6 +51,10 @@ class FakeWorkspace:
         self.stopped = True
 
     def exec(self, command: list[str], timeout: int = 0, stdin: str | None = None) -> Ran:
+        if stdin and "CAD_EVAL_REAPED" in stdin:
+            # The reap after each run, counted apart from the commands it follows.
+            self.reaps = getattr(self, "reaps", 0) + 1
+            return Ran("reap", 0, f"CAD_EVAL_REAPED {getattr(self, 'left', 0)} 0")
         self.commands.append(command)
         self.timeouts = [*getattr(self, "timeouts", []), timeout]
         if command[:3] == ["python", "-I", "-c"] and "CAD_EVAL_VERSIONS" in command[3]:

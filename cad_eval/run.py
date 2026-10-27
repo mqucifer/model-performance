@@ -253,6 +253,7 @@ def evaluate(
     concurrency: int = 1,
     sample: int | None = None,
     serving_record: Callable[[], dict[str, Any]] = identity.serving,
+    reached_host: Callable[[dict[str, Any]], str | None] = identity.reached_host,
     batch_serving: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One part end to end: its row, written to the results once the run has ended.
@@ -289,6 +290,7 @@ def evaluate(
         "served_changed": None,
         "served_mismatch": None,
         "served_unverified": None,
+        "reaped": None,
         "ending": None,
         "stop": None,
         "compiles": None,
@@ -351,6 +353,7 @@ def evaluate(
         )
         session.keep_reasoning = arm == "base"
         session.serving_record = serving_start
+        session.serving_host = reached_host(serving_start)
         ending = session.run()
         row["ending"], row["stop"] = ending.how, ending.stop or None
         row["calls_to_done"] = session.calls if ending.how == "done" else None
@@ -405,8 +408,10 @@ def evaluate(
         row["served_models"] = len(served)
         row["served_changed"] = len(served) > 1
         found = session.mismatches if session else []
-        row["served_mismatch"] = any(m and m != ["unverified"] for m in found)
-        row["served_unverified"] = any(m == ["unverified"] for m in found)
+        row["served_mismatch"] = any(set(m) & set(identity.MISMATCHES) for m in found)
+        row["served_unverified"] = any(set(m) & set(identity.UNVERIFIED) for m in found)
+        # Every process the runs left, killed after each (the final review of #41).
+        row["reaped"] = sum(max(0, n) for n in tools.reaped) if tools is not None else None
         serving_end = serving_record()
         kept["serving_end"] = serving_end
         row["serving_record_changed"] = identity.changed(serving_start, serving_end)

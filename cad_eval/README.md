@@ -937,3 +937,31 @@ also in its case's `limits` in `audit.json`.
 **The measure request goes on stdin**, as a call after `measure.py`'s source, never as
 an argument. Linux takes one argument of at most 128 KiB, and gear-pair's request is
 about 107 KiB. A test sends 200 KB in the image.
+
+**The escape's race, closed both ways** (the final review of #41). A process left by a
+`run` could swap a file for a link between `inside()`'s check and the use: `read`
+leaked a host file, and `write` overwrote one.
+- **Every host-side open walks the path** one component at a time from the part
+  directory's fd, with `O_NOFOLLOW` on each (`tools.open_inside`). It reads and writes
+  through that fd, takes only a regular file, and doesn't block, so a FIFO can't hang
+  it. A link anywhere is refused as `outside`.
+- **After every `run`,** including the one after a `write` or `edit`, and after `done`'s
+  clean re-run, every process left in the container is killed (`tools.REAP_SOURCE`).
+  Only PID 1, the container's own `sleep` (PID 1's oldest child) and the reaper's own
+  ancestors are kept. Each run's count is in its event (`reaped`), and the row's
+  `reaped` is the total.
+- **Tested** with a thread swapping a file, and a folder, for links during 3000 reads
+  and writes, and with the check raced for certain. In the image, a `setsid` daemon
+  flipping `a.py` is killed after its run.
+- **A path of `.`** is refused, where it crashed the run, and `.CREW-HOME` is refused
+  as `.crew-home`.
+
+**What can't be compared is never a match.** A call reads `served_unverified` if:
+- its headers are missing, or only one of the two came;
+- infra's record gave no port, as when the fetch failed;
+- there's no host to compare with.
+
+The api base's host is now compared too. The expected host is the address of the
+variable infra's record names (`reached_by: SPARK_ADDR`), read from the environment or
+`~/.config/infra/hosts.env`. It's kept in memory only: rows hold the variable's name,
+never the address.

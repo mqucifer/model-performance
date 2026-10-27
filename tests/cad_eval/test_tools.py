@@ -63,7 +63,7 @@ def test_a_script_that_raises_is_still_a_run_that_did_what_it_asked(tools: PartT
     judged = tools.call("run", '{"path": "a.py"}')
     assert judged.outcome == "ok"
     assert judged.reply.startswith("exit 1")
-    assert tools.runs == [{"path": "a.py", "code": 1, "seconds": 0.1}]
+    assert tools.runs == [{"path": "a.py", "code": 1, "seconds": 0.1, "reaped": 0}]
 
 
 def test_arguments_may_come_as_an_object(tools: PartTools) -> None:

@@ -134,6 +134,7 @@ def test_the_serving_record_is_read_from_infras_inventory() -> None:
         "serving_digest": "sha256:e3a4f060...eae4a1ae",
         "serving_model": "RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead",
         "serving_port": None,
+        "serving_reached_by": None,
     }
     # A record that doesn't say is none, never a guess.
     assert identity.serving_from("name: sglang\n") == {
@@ -141,6 +142,7 @@ def test_the_serving_record_is_read_from_infras_inventory() -> None:
         "serving_digest": None,
         "serving_model": None,
         "serving_port": None,
+        "serving_reached_by": None,
     }
 
 
@@ -256,23 +258,68 @@ def test_a_failed_call_keeps_its_http_status(tmp_path: Path) -> None:
 
 def test_each_calls_serving_is_compared_with_infras_record() -> None:
     """What's readable in LiteLLM's headers, against infra's record (the second review
-    of #41): the model group is the alias asked for, and the api base reaches SGLang on
-    the port infra records. A call without the headers is unverified, not a match."""
+    of #41): the model group is the alias asked for, and the api base reaches SGLang at
+    the host and port infra records. What can't be compared is never a match (the final
+    review: a failed fetch, one header alone, read as verified)."""
     record = {"serving_port": "8888"}
     good = {
         "x-litellm-model-group": "crew-code-think",
         "x-litellm-model-api-base": "http://a:8888/v1",
     }
-    assert identity.mismatch(good, "crew-code-think", record) == []
+    alias = "crew-code-think"
+    assert identity.mismatch(good, alias, record, "a") == []
+    assert identity.mismatch(good, alias, record, "A") == []
     wrong_group = {**good, "x-litellm-model-group": "crew-candidate"}
-    assert identity.mismatch(wrong_group, "crew-code-think", record) == ["model_group"]
+    assert identity.mismatch(wrong_group, alias, record, "a") == ["model_group"]
     wrong_port = {**good, "x-litellm-model-api-base": "http://a:9999/v1"}
-    assert identity.mismatch(wrong_port, "crew-code-think", record) == ["api_base"]
-    assert identity.mismatch({}, "crew-code-think", record) == ["unverified"]
+    assert identity.mismatch(wrong_port, alias, record, "a") == ["api_port"]
+    wrong_host = {**good, "x-litellm-model-api-base": "http://b:8888/v1"}
+    assert identity.mismatch(wrong_host, alias, record, "a") == ["api_host"]
+    assert identity.mismatch({}, alias, record, "a") == ["unverified"]
+    # One header alone, and a record with no port or host, say they can't compare.
+    only_group = {"x-litellm-model-group": alias}
+    assert identity.mismatch(only_group, alias, record, "a") == ["no_api_base"]
+    only_base = {"x-litellm-model-api-base": "http://a:8888/v1"}
+    assert identity.mismatch(only_base, alias, record, "a") == ["no_model_group"]
+    assert identity.mismatch(good, alias, {}, "a") == ["no_record_port"]
+    assert identity.mismatch(good, alias, record, None) == ["no_record_host"]
+    for found in (["no_api_base"], ["no_record_port"], ["no_record_host"], ["unverified"]):
+        assert set(found) <= set(identity.UNVERIFIED) and not set(found) & set(identity.MISMATCHES)
     assert (
         identity.serving_from(SGLANG + "ports:\n  api: 8888, on every interface\n")["serving_port"]
         == "8888"
     )
+
+
+def test_the_host_is_read_by_the_name_infra_records_never_kept(tmp_path: Path) -> None:
+    hosts = tmp_path / "hosts.env"
+    hosts.write_text("SPARK_ADDR=a.example\n")
+    assert identity.serving_from("reached_by: SPARK_ADDR   # note\n")["serving_reached_by"] == (
+        "SPARK_ADDR"
+    )
+    record = {"serving_reached_by": "SPARK_ADDR"}
+    assert identity.reached_host(record, hosts) == "a.example"
+    assert identity.reached_host({}, hosts) is None
+    assert identity.reached_host(record, tmp_path / "none.env") is None
+
+
+def test_a_failed_fetch_reads_unverified_on_the_row(tmp_path: Path) -> None:
+    replies = [
+        {
+            **a,
+            "served": {
+                "x-litellm-model-id": "d",
+                "x-litellm-model-group": "crew-code-think",
+                "x-litellm-model-api-base": "http://a:8888/v1",
+            },
+        }
+        for a in GOOD
+    ]
+    r = Run(tmp_path, replies, measured=measured("spacer"))
+    row = r.go(
+        serving_record=lambda: identity.serving(fetch=lambda path: (_ for _ in ()).throw(OSError()))
+    )
+    assert row["served_unverified"] is True and row["served_mismatch"] is False
 
 
 def test_the_row_flags_a_served_mismatch(tmp_path: Path) -> None:

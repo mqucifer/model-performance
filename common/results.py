@@ -116,10 +116,12 @@ SUITES: dict[str, set[str]] = {
         "serving_route",  # the model LiteLLM's config sends the alias to, as SGLang serves it
         "serving_route_matches",  # whether that names the container infra records
         "serving_port",  # the port infra records SGLang's api on
+        "serving_reached_by",  # the name of the address it's reached by, never the address
         # Any call whose headers differ from infra's record (model group, api base's port),
         # and any call whose headers said nothing to compare.
         "served_mismatch",
         "served_unverified",
+        "reaped",  # processes a run left in its container, killed after it
         # LiteLLM's deployment id for each call (`x-litellm-model-id`), not the alias.
         # The model each call's response named: the first, how many, and whether it changed.
         "served_model",
