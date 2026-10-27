@@ -100,12 +100,12 @@
      "±0.05 mm on the web's thickness; ±0.1 mm on everything else",
      "The web runs from X = -2 to 2, from Z = 0 to 0.4"
     ],
-    "says": "The web's top at 0.4 - 0.05 = 0.35 at least: material at Z = 0.34, 0.01 inside the tolerance's edge.",
+    "says": "The web's top at 0.4 - 0.05 = 0.35 at least: material at Z = 0.35, on the band's edge (#40 V2: it sat 0.01 past it, at 0.34, so ±0.06).",
     "values": [
      0.4,
      0.05
     ],
-    "held_to": 0.06
+    "held_to": 0.05
    },
    "part/in.web_edge": {
     "class": "stated",
@@ -113,10 +113,11 @@
      "joins the flaps across that gap, along their whole 20 mm width",
      "The web runs from X = -2 to 2, from Z = 0 to 0.4"
     ],
-    "says": "The web runs the flaps' whole 20 mm width: material at Y = 9.9, in the web's height.",
+    "says": "The web runs the flaps' whole 20 mm width: material at Y = 9.9 in the web's height, its +Y end within 0.1 of the flaps' 10 (bbox.y.max holds the other side).",
     "values": [
      20
-    ]
+    ],
+    "held_to": 0.1
    },
    "part/in.flap_-x": {
     "class": "frame",
@@ -139,14 +140,14 @@
      "±0.05 mm on the web's thickness; ±0.1 mm on everything else",
      "each 30 mm along X, 20 mm along Y and 3 mm thick, with a 4 mm gap between them along X"
     ],
-    "says": "The -X flap reaches X = -2 within 0.1: material at -2.11.",
+    "says": "The -X flap reaches X = -2 within 0.1: material at -2.1, on the band's edge (#40 V2: -2.11, so ±0.11).",
     "values": [
      2,
      30,
      4,
      0.1
     ],
-    "held_to": 0.11
+    "held_to": 0.1
    },
    "part/in.flap_edge_+x": {
     "class": "frame",
@@ -155,14 +156,14 @@
      "±0.05 mm on the web's thickness; ±0.1 mm on everything else",
      "each 30 mm along X, 20 mm along Y and 3 mm thick, with a 4 mm gap between them along X"
     ],
-    "says": "The +X flap reaches X = 2 within 0.1: material at 2.11.",
+    "says": "The +X flap reaches X = 2 within 0.1: material at 2.1 (#40 V2: 2.11).",
     "values": [
      2,
      30,
      4,
      0.1
     ],
-    "held_to": 0.11
+    "held_to": 0.1
    },
    "part/out.web_at_most": {
     "class": "stated",
@@ -171,12 +172,12 @@
      "±0.05 mm on the web's thickness; ±0.1 mm on everything else",
      "The web runs from X = -2 to 2, from Z = 0 to 0.4"
     ],
-    "says": "The web's top at 0.45 at most: no material at Z = 0.46.",
+    "says": "The web's top at 0.45 at most: no material at Z = 0.45, on the band's edge (#40 V2: 0.46, so ±0.06).",
     "values": [
      0.4,
      0.05
     ],
-    "held_to": 0.06
+    "held_to": 0.05
    },
    "part/out.gap": {
     "class": "stated",
@@ -193,14 +194,14 @@
      "±0.05 mm on the web's thickness; ±0.1 mm on everything else",
      "each 30 mm along X, 20 mm along Y and 3 mm thick, with a 4 mm gap between them along X"
     ],
-    "says": "The gap's -X side is no further in than -2 + 0.1: nothing at -1.89.",
+    "says": "The gap's -X side is no further in than -2 + 0.1: nothing at -1.9 (#40 V2: -1.89).",
     "values": [
      2,
      30,
      4,
      0.1
     ],
-    "held_to": 0.11
+    "held_to": 0.1
    },
    "part/out.gap_edge_+x": {
     "class": "frame",
@@ -209,14 +210,14 @@
      "±0.05 mm on the web's thickness; ±0.1 mm on everything else",
      "each 30 mm along X, 20 mm along Y and 3 mm thick, with a 4 mm gap between them along X"
     ],
-    "says": "The gap's +X side: nothing at 1.89.",
+    "says": "The gap's +X side: nothing at 1.9 (#40 V2: 1.89).",
     "values": [
      2,
      30,
      4,
      0.1
     ],
-    "held_to": 0.11
+    "held_to": 0.1
    },
    "part/size.x": {
     "class": "stated",
@@ -247,6 +248,86 @@
     "values": [
      3
     ]
+   },
+   "part/in.web_edge_-y": {
+    "class": "stated",
+    "quotes": [
+     "joins the flaps across that gap, along their whole 20 mm width",
+     "The web runs from X = -2 to 2, from Z = 0 to 0.4"
+    ],
+    "says": "The web's -Y end, as in.web_edge's +Y: material at Y = -9.9 in the web's height (#40 V2: only +Y was probed, so a web from Y = -5 to 10 passed).",
+    "values": [
+     20
+    ],
+    "held_to": 0.1
+   },
+   "part/section.web_thickness": {
+    "class": "stated",
+    "quotes": [
+     "It is 0.4 mm thick, flush with the flaps' bottom faces",
+     "±0.05 mm on the web's thickness; ±0.1 mm on everything else",
+     "The web runs from X = -2 to 2, from Z = 0 to 0.4"
+    ],
+    "says": "The web's own thickness: the plane X = 0 cuts the web alone (the flaps start at ±2), and its extent along Z there is 0.4 ± 0.05. With its top held at 0.35 to 0.45 (in.web_at_least, out.web_at_most) it puts the web's bottom at Z = -0.1 to 0.1, flush with the flaps' at 0 within the ±0.1 (#40 V2: the bottom had no check, so a web from Z = 0.19 to 0.45 passed). The reference reads 0.4.",
+    "values": [
+     0.4,
+     0.05,
+     0
+    ]
+   },
+   "part/section.web_width": {
+    "class": "stated",
+    "quotes": [
+     "joins the flaps across that gap, along their whole 20 mm width",
+     "±0.05 mm on the web's thickness; ±0.1 mm on everything else"
+    ],
+    "says": "The web's width along Y, off the plane X = 0, which cuts the web alone: the flaps' whole 20 mm, ±0.1. The reference reads 20.0.",
+    "values": [
+     20,
+     0.1
+    ]
+   },
+   "part/share.flap_-x": {
+    "class": "stated",
+    "quotes": [
+     "each 30 mm along X, 20 mm along Y and 3 mm thick, with a 4 mm gap between them along X",
+     "±0.05 mm on the web's thickness; ±0.1 mm on everything else",
+     "flat on Z = 0, centred on the origin: the flaps from X = -32 to -2 and from X = 2 to 32, Y from -10 to 10, Z from 0 to 3"
+    ],
+    "says": "The -X flap's 30 mm, ±0.1, as a size (#40 V2: only its ends' places, so ±0.2). Points 0.01 apart over 0.4 mm about each end (the line from X = -32.195 to -31.805 and from -2.195 to -1.805, at Y = 0, Z = 1.5, above the web), half of them in the material at the stated size: each 0.01 longer or shorter is one point of 80 more or less, so 0.1 is a share of 0.125 and the window 0.375 to 0.625 holds the size itself to ±0.1, whichever way its ends move. The reference reads 0.5.",
+    "values": [
+     30,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/share.flap_+x": {
+    "class": "stated",
+    "quotes": [
+     "each 30 mm along X, 20 mm along Y and 3 mm thick, with a 4 mm gap between them along X",
+     "±0.05 mm on the web's thickness; ±0.1 mm on everything else",
+     "flat on Z = 0, centred on the origin: the flaps from X = -32 to -2 and from X = 2 to 32, Y from -10 to 10, Z from 0 to 3"
+    ],
+    "says": "The +X flap's 30 mm, ±0.1, as a size. Points 0.01 apart over 0.4 mm about each end (the line from X = 1.805 to 2.195 and from 31.805 to 32.195, at Y = 0, Z = 1.5, above the web), half of them in the material at the stated size: each 0.01 longer or shorter is one point of 80 more or less, so 0.1 is a share of 0.125 and the window 0.375 to 0.625 holds the size itself to ±0.1, whichever way its ends move. The reference reads 0.5.",
+    "values": [
+     30,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/share.gap": {
+    "class": "stated",
+    "quotes": [
+     "each 30 mm along X, 20 mm along Y and 3 mm thick, with a 4 mm gap between them along X",
+     "±0.05 mm on the web's thickness; ±0.1 mm on everything else",
+     "flat on Z = 0, centred on the origin: the flaps from X = -32 to -2 and from X = 2 to 32, Y from -10 to 10, Z from 0 to 3"
+    ],
+    "says": "The 4 mm gap between the flaps, ±0.1, as a size (#40 V2: only its sides' places). Its points are in the material outside the gap, so a wider gap reads less. Points 0.01 apart over 0.4 mm about each end (the line from X = -2.195 to -1.805 and from 1.805 to 2.195, at Y = 0, Z = 1.5, above the web), half of them in the material at the stated size: each 0.01 longer or shorter is one point of 80 more or less, so 0.1 is a share of 0.125 and the window 0.375 to 0.625 holds the size itself to ±0.1, whichever way its ends move. The reference reads 0.5.",
+    "values": [
+     4,
+     0.1
+    ],
+    "held_to": 0.1
    }
   },
   "stated": [
@@ -254,7 +335,10 @@
     "at": "each 30 mm along x",
     "value": 30,
     "for": {
-     "each flap's 30 mm along X": "unchecked: only its two ends' places are held, X = ±32 by bbox.x.min/max (±0.1) and X = ±2 by in.flap_edge_±x and out.gap_edge_±x (±0.11), so the 30 itself to about ±0.21"
+     "each flap's 30 mm along X": [
+      "part/share.flap_-x",
+      "part/share.flap_+x"
+     ]
     }
    },
    {
@@ -279,28 +363,38 @@
     "at": "with a 4 mm gap",
     "value": 4,
     "for": {
-     "the 4 mm gap between the flaps": "unchecked: only each side's place, X = ±2, is held, to ±0.11 by in.flap_edge_±x and out.gap_edge_±x, so the 4 mm to about ±0.22; out.gap holds that it's open"
+     "the 4 mm gap between the flaps": [
+      "part/share.gap"
+     ]
     }
    },
    {
     "at": "along their whole 20 mm width",
     "value": 20,
     "for": {
-     "the web along the flaps' whole 20 mm": "unchecked: in.web_edge holds only that it reaches Y = 9.9 on +Y; its -Y end isn't probed, so a web from Y = -5 to 10 passes"
+     "the web along the flaps' whole 20 mm": [
+      "part/section.web_width",
+      "part/in.web_edge",
+      "part/in.web_edge_-y"
+     ]
     }
    },
    {
     "at": "it is 0.4 mm thick",
     "value": 0.4,
     "for": {
-     "the web's 0.4 mm thickness": "unchecked: only its top is held, Z = 0.34 to 0.46 at the origin (in.web_at_least, out.web_at_most); the web's bottom isn't probed anywhere: in.web_at_least and out.web_at_most hold only its top, and bbox.z.min is the flaps' bottom, so a web from Z = 0.19 to 0.45 (0.26 thick, not flush) passes"
+     "the web's 0.4 mm thickness": [
+      "part/section.web_thickness"
+     ]
     }
    },
    {
     "at": "±0.05 mm on the web's thickness",
     "value": 0.05,
     "for": {
-     "the web's thickness": "unchecked: held from above only, to ±0.06, at the origin, by in.web_at_least (material at Z = 0.34) and out.web_at_most (none at 0.46); the web's bottom isn't probed anywhere: in.web_at_least and out.web_at_most hold only its top, and bbox.z.min is the flaps' bottom, so a web from Z = 0.19 to 0.45 (0.26 thick, not flush) passes"
+     "the web's thickness": [
+      "part/section.web_thickness"
+     ]
     }
    },
    {
@@ -318,8 +412,20 @@
       "part/bbox.z.max",
       "part/size.z"
      ],
-     "the flaps' inner ends, X = ±2, and the gap between them": "unchecked: held to ±0.11 only, by in.flap_edge_±x (material at ±2.11) and out.gap_edge_±x (none at ±1.89)",
-     "the web's 20 mm width": "unchecked: only its +Y end is probed (in.web_edge, Y = 9.9)"
+     "the flaps' inner ends, X = ±2, the gap between them and each flap's 30 mm": [
+      "part/in.flap_edge_-x",
+      "part/in.flap_edge_+x",
+      "part/out.gap_edge_-x",
+      "part/out.gap_edge_+x",
+      "part/share.gap",
+      "part/share.flap_-x",
+      "part/share.flap_+x"
+     ],
+     "the web's 20 mm width": [
+      "part/section.web_width",
+      "part/in.web_edge",
+      "part/in.web_edge_-y"
+     ]
     }
    },
    {
@@ -409,21 +515,24 @@
     "at": "x = -2 to 2, from",
     "value": 2,
     "for": {
-     "the web's -X end": "unchecked: the web's ends are where the flaps' inner faces are; part/solids holds that it joins them, and nothing more is needed of them"
+     "the web's -X end": "unchecked: the web's ends are where the flaps' inner faces are (held by in.flap_edge_±x, out.gap_edge_±x and share.gap); part/solids holds that it joins them, and nothing more is needed of them"
     }
    },
    {
     "at": "-2 to 2, from",
     "value": 2,
     "for": {
-     "the web's +X end": "unchecked: the web's ends are where the flaps' inner faces are; part/solids holds that it joins them, and nothing more is needed of them"
+     "the web's +X end": "unchecked: the web's ends are where the flaps' inner faces are (held by in.flap_edge_±x, out.gap_edge_±x and share.gap); part/solids holds that it joins them, and nothing more is needed of them"
     }
    },
    {
     "at": "from z = 0 to 0.4",
     "value": 0,
     "for": {
-     "the web's bottom, flush with the flaps'": "unchecked: the web's bottom isn't probed anywhere: in.web_at_least and out.web_at_most hold only its top, and bbox.z.min is the flaps' bottom, so a web from Z = 0.19 to 0.45 (0.26 thick, not flush) passes"
+     "the web's bottom, flush with the flaps'": [
+      "part/section.web_thickness",
+      "part/bbox.z.min"
+     ]
     }
    },
    {
@@ -559,11 +668,11 @@
      "a 0.5 mm by 45° chamfer at each end, so it starts straight",
      "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
     ],
-    "says": "Material just inside the bottom chamfer's face at h = 0.1. At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. The probes sit 0.07 past those edges, so they hold c to 0.33 to 0.67 (±0.17), not ±0.1, and the 45° only as the two heights' common offset. Now 0.02 past the band (#40, the review's fix): it holds 0.5 ± 0.1.",
+    "says": "At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. Each probe is on that band's edge (#40 V2: 0.02 past it, so ±0.12), so it holds c to ±0.1 (and the pin's radius's ±0.01). Material at r = 2.05, h = 0.1, inside the bottom chamfer's face.",
     "values": [
      0.5
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "part/out.chamfer_bottom_low_out": {
     "class": "derived",
@@ -571,11 +680,11 @@
      "a 0.5 mm by 45° chamfer at each end, so it starts straight",
      "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
     ],
-    "says": "Nothing just outside the bottom chamfer's face at h = 0.1. At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. The probes sit 0.07 past those edges, so they hold c to 0.33 to 0.67 (±0.17), not ±0.1, and the 45° only as the two heights' common offset. Now 0.02 past the band (#40, the review's fix): it holds 0.5 ± 0.1.",
+    "says": "At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. Each probe is on that band's edge (#40 V2: 0.02 past it, so ±0.12), so it holds c to ±0.1 (and the pin's radius's ±0.01). Nothing at r = 2.25, h = 0.1, outside the bottom chamfer's face.",
     "values": [
      0.5
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "part/in.chamfer_bottom_high": {
     "class": "derived",
@@ -583,11 +692,11 @@
      "a 0.5 mm by 45° chamfer at each end, so it starts straight",
      "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
     ],
-    "says": "Material just inside the bottom chamfer's face at h = 0.3. At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. The probes sit 0.07 past those edges, so they hold c to 0.33 to 0.67 (±0.17), not ±0.1, and the 45° only as the two heights' common offset. Now 0.02 past the band (#40, the review's fix): it holds 0.5 ± 0.1.",
+    "says": "At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. Each probe is on that band's edge (#40 V2: 0.02 past it, so ±0.12), so it holds c to ±0.1 (and the pin's radius's ±0.01). Material at r = 2.25, h = 0.3, inside the bottom chamfer's face.",
     "values": [
      0.5
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "part/out.chamfer_bottom_high_out": {
     "class": "derived",
@@ -595,11 +704,11 @@
      "a 0.5 mm by 45° chamfer at each end, so it starts straight",
      "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
     ],
-    "says": "Nothing just outside the bottom chamfer's face at h = 0.3. At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. The probes sit 0.07 past those edges, so they hold c to 0.33 to 0.67 (±0.17), not ±0.1, and the 45° only as the two heights' common offset. Now 0.02 past the band (#40, the review's fix): it holds 0.5 ± 0.1.",
+    "says": "At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. Each probe is on that band's edge (#40 V2: 0.02 past it, so ±0.12), so it holds c to ±0.1 (and the pin's radius's ±0.01). Nothing at r = 2.45, h = 0.3, outside the bottom chamfer's face.",
     "values": [
      0.5
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "part/in.chamfer_top_low": {
     "class": "derived",
@@ -607,11 +716,11 @@
      "a 0.5 mm by 45° chamfer at each end, so it starts straight",
      "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
     ],
-    "says": "Material just inside the top chamfer's face at h = 0.1. At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. The probes sit 0.07 past those edges, so they hold c to 0.33 to 0.67 (±0.17), not ±0.1, and the 45° only as the two heights' common offset. Now 0.02 past the band (#40, the review's fix): it holds 0.5 ± 0.1.",
+    "says": "At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. Each probe is on that band's edge (#40 V2: 0.02 past it, so ±0.12), so it holds c to ±0.1 (and the pin's radius's ±0.01). Material at r = 2.05, h = 0.1, inside the top chamfer's face.",
     "values": [
      0.5
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "part/out.chamfer_top_low_out": {
     "class": "derived",
@@ -619,11 +728,11 @@
      "a 0.5 mm by 45° chamfer at each end, so it starts straight",
      "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
     ],
-    "says": "Nothing just outside the top chamfer's face at h = 0.1. At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. The probes sit 0.07 past those edges, so they hold c to 0.33 to 0.67 (±0.17), not ±0.1, and the 45° only as the two heights' common offset. Now 0.02 past the band (#40, the review's fix): it holds 0.5 ± 0.1.",
+    "says": "At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. Each probe is on that band's edge (#40 V2: 0.02 past it, so ±0.12), so it holds c to ±0.1 (and the pin's radius's ±0.01). Nothing at r = 2.25, h = 0.1, outside the top chamfer's face.",
     "values": [
      0.5
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "part/in.chamfer_top_high": {
     "class": "derived",
@@ -631,11 +740,11 @@
      "a 0.5 mm by 45° chamfer at each end, so it starts straight",
      "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
     ],
-    "says": "Material just inside the top chamfer's face at h = 0.3. At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. The probes sit 0.07 past those edges, so they hold c to 0.33 to 0.67 (±0.17), not ±0.1, and the 45° only as the two heights' common offset. Now 0.02 past the band (#40, the review's fix): it holds 0.5 ± 0.1.",
+    "says": "At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. Each probe is on that band's edge (#40 V2: 0.02 past it, so ±0.12), so it holds c to ±0.1 (and the pin's radius's ±0.01). Material at r = 2.25, h = 0.3, inside the top chamfer's face.",
     "values": [
      0.5
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "part/out.chamfer_top_high_out": {
     "class": "derived",
@@ -643,11 +752,11 @@
      "a 0.5 mm by 45° chamfer at each end, so it starts straight",
      "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
     ],
-    "says": "Nothing just outside the top chamfer's face at h = 0.3. At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. The probes sit 0.07 past those edges, so they hold c to 0.33 to 0.67 (±0.17), not ±0.1, and the 45° only as the two heights' common offset. Now 0.02 past the band (#40, the review's fix): it holds 0.5 ± 0.1.",
+    "says": "At a height h over an end the chamfer's face is at r = 2.55 - c + h: for c = 0.5 ± 0.1, between 2.05 and 2.25 at h = 0.1, and 2.25 and 2.45 at h = 0.3. Each probe is on that band's edge (#40 V2: 0.02 past it, so ±0.12), so it holds c to ±0.1 (and the pin's radius's ±0.01). Nothing at r = 2.45, h = 0.3, outside the top chamfer's face.",
     "values": [
      0.5
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "part/size.x": {
     "class": "stated",
@@ -702,6 +811,118 @@
      "as pressed in: on the Z axis, its bottom flush with the block's bottom"
     ],
     "says": "Its axis within 0.1 of the Z axis, the hole's: the text gives its place no tolerance of its own, and 0.1 is the length's; a pin off the axis by more fails the interference too."
+   },
+   "part/in.chamfer_bottom_radial": {
+    "class": "derived",
+    "quotes": [
+     "a 0.5 mm by 45° chamfer at each end, so it starts straight",
+     "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
+    ],
+    "says": "Each leg of the chamfer on its own, so the 45° is held as tightly as the legs' ±0.1 allow, 34° to 56° (#40 V2: the two heights 0.2 apart held it only to about 31° to 54°, and a 0.5 round passed them). The radial leg b, 0.01 over the end, where the face is at r = 2.55 - b + 0.01·b/a: material at 1.96 for b up to 0.6, none at 2.16 for b from 0.4. The axial leg a, at r = 2.52, where the face is at h = a·(1 - 0.03/b): material at h = 0.57 for a up to 0.6, none at 0.37 for a from 0.4. Off 45° the 0.01 and 0.03 terms move each by up to 0.02, and the pin's radius by 0.01. Here the bottom chamfer's radial leg at most 0.6: material at r = 1.96, h = 0.01.",
+    "values": [
+     0.5,
+     45,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.chamfer_bottom_radial_out": {
+    "class": "derived",
+    "quotes": [
+     "a 0.5 mm by 45° chamfer at each end, so it starts straight",
+     "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
+    ],
+    "says": "Each leg of the chamfer on its own, so the 45° is held as tightly as the legs' ±0.1 allow, 34° to 56° (#40 V2: the two heights 0.2 apart held it only to about 31° to 54°, and a 0.5 round passed them). The radial leg b, 0.01 over the end, where the face is at r = 2.55 - b + 0.01·b/a: material at 1.96 for b up to 0.6, none at 2.16 for b from 0.4. The axial leg a, at r = 2.52, where the face is at h = a·(1 - 0.03/b): material at h = 0.57 for a up to 0.6, none at 0.37 for a from 0.4. Off 45° the 0.01 and 0.03 terms move each by up to 0.02, and the pin's radius by 0.01. Here the bottom chamfer's radial leg at least 0.4: nothing at r = 2.16, h = 0.01.",
+    "values": [
+     0.5,
+     45,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.chamfer_bottom_axial": {
+    "class": "derived",
+    "quotes": [
+     "a 0.5 mm by 45° chamfer at each end, so it starts straight",
+     "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
+    ],
+    "says": "Each leg of the chamfer on its own, so the 45° is held as tightly as the legs' ±0.1 allow, 34° to 56° (#40 V2: the two heights 0.2 apart held it only to about 31° to 54°, and a 0.5 round passed them). The radial leg b, 0.01 over the end, where the face is at r = 2.55 - b + 0.01·b/a: material at 1.96 for b up to 0.6, none at 2.16 for b from 0.4. The axial leg a, at r = 2.52, where the face is at h = a·(1 - 0.03/b): material at h = 0.57 for a up to 0.6, none at 0.37 for a from 0.4. Off 45° the 0.01 and 0.03 terms move each by up to 0.02, and the pin's radius by 0.01. Here the bottom chamfer's axial leg at most 0.6: material at r = 2.52, h = 0.57.",
+    "values": [
+     0.5,
+     45,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.chamfer_bottom_axial_out": {
+    "class": "derived",
+    "quotes": [
+     "a 0.5 mm by 45° chamfer at each end, so it starts straight",
+     "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
+    ],
+    "says": "Each leg of the chamfer on its own, so the 45° is held as tightly as the legs' ±0.1 allow, 34° to 56° (#40 V2: the two heights 0.2 apart held it only to about 31° to 54°, and a 0.5 round passed them). The radial leg b, 0.01 over the end, where the face is at r = 2.55 - b + 0.01·b/a: material at 1.96 for b up to 0.6, none at 2.16 for b from 0.4. The axial leg a, at r = 2.52, where the face is at h = a·(1 - 0.03/b): material at h = 0.57 for a up to 0.6, none at 0.37 for a from 0.4. Off 45° the 0.01 and 0.03 terms move each by up to 0.02, and the pin's radius by 0.01. Here the bottom chamfer's axial leg at least 0.4: nothing at r = 2.52, h = 0.37.",
+    "values": [
+     0.5,
+     45,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.chamfer_top_radial": {
+    "class": "derived",
+    "quotes": [
+     "a 0.5 mm by 45° chamfer at each end, so it starts straight",
+     "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
+    ],
+    "says": "Each leg of the chamfer on its own, so the 45° is held as tightly as the legs' ±0.1 allow, 34° to 56° (#40 V2: the two heights 0.2 apart held it only to about 31° to 54°, and a 0.5 round passed them). The radial leg b, 0.01 over the end, where the face is at r = 2.55 - b + 0.01·b/a: material at 1.96 for b up to 0.6, none at 2.16 for b from 0.4. The axial leg a, at r = 2.52, where the face is at h = a·(1 - 0.03/b): material at h = 0.57 for a up to 0.6, none at 0.37 for a from 0.4. Off 45° the 0.01 and 0.03 terms move each by up to 0.02, and the pin's radius by 0.01. Here the top chamfer's radial leg at most 0.6: material at r = 1.96, h = 0.01.",
+    "values": [
+     0.5,
+     45,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.chamfer_top_radial_out": {
+    "class": "derived",
+    "quotes": [
+     "a 0.5 mm by 45° chamfer at each end, so it starts straight",
+     "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
+    ],
+    "says": "Each leg of the chamfer on its own, so the 45° is held as tightly as the legs' ±0.1 allow, 34° to 56° (#40 V2: the two heights 0.2 apart held it only to about 31° to 54°, and a 0.5 round passed them). The radial leg b, 0.01 over the end, where the face is at r = 2.55 - b + 0.01·b/a: material at 1.96 for b up to 0.6, none at 2.16 for b from 0.4. The axial leg a, at r = 2.52, where the face is at h = a·(1 - 0.03/b): material at h = 0.57 for a up to 0.6, none at 0.37 for a from 0.4. Off 45° the 0.01 and 0.03 terms move each by up to 0.02, and the pin's radius by 0.01. Here the top chamfer's radial leg at least 0.4: nothing at r = 2.16, h = 0.01.",
+    "values": [
+     0.5,
+     45,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.chamfer_top_axial": {
+    "class": "derived",
+    "quotes": [
+     "a 0.5 mm by 45° chamfer at each end, so it starts straight",
+     "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
+    ],
+    "says": "Each leg of the chamfer on its own, so the 45° is held as tightly as the legs' ±0.1 allow, 34° to 56° (#40 V2: the two heights 0.2 apart held it only to about 31° to 54°, and a 0.5 round passed them). The radial leg b, 0.01 over the end, where the face is at r = 2.55 - b + 0.01·b/a: material at 1.96 for b up to 0.6, none at 2.16 for b from 0.4. The axial leg a, at r = 2.52, where the face is at h = a·(1 - 0.03/b): material at h = 0.57 for a up to 0.6, none at 0.37 for a from 0.4. Off 45° the 0.01 and 0.03 terms move each by up to 0.02, and the pin's radius by 0.01. Here the top chamfer's axial leg at most 0.6: material at r = 2.52, h = 0.57.",
+    "values": [
+     0.5,
+     45,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.chamfer_top_axial_out": {
+    "class": "derived",
+    "quotes": [
+     "a 0.5 mm by 45° chamfer at each end, so it starts straight",
+     "±0.02 mm on the pin's diameter, so the interference stays between 0.08 and 0.12 mm; ±0.1 mm on its length and chamfers"
+    ],
+    "says": "Each leg of the chamfer on its own, so the 45° is held as tightly as the legs' ±0.1 allow, 34° to 56° (#40 V2: the two heights 0.2 apart held it only to about 31° to 54°, and a 0.5 round passed them). The radial leg b, 0.01 over the end, where the face is at r = 2.55 - b + 0.01·b/a: material at 1.96 for b up to 0.6, none at 2.16 for b from 0.4. The axial leg a, at r = 2.52, where the face is at h = a·(1 - 0.03/b): material at h = 0.57 for a up to 0.6, none at 0.37 for a from 0.4. Off 45° the 0.01 and 0.03 terms move each by up to 0.02, and the pin's radius by 0.01. Here the top chamfer's axial leg at least 0.4: nothing at r = 2.52, h = 0.37.",
+    "values": [
+     0.5,
+     45,
+     0.1
+    ],
+    "held_to": 0.1
    }
   },
   "stated": [
@@ -783,14 +1004,22 @@
     "value": 0.5,
     "for": {
      "each chamfer's 0.5 mm": [
-      "part/in.chamfer_bottom_low",
+      "part/in.chamfer_bottom_axial",
       "part/in.chamfer_bottom_high",
-      "part/in.chamfer_top_low",
+      "part/in.chamfer_bottom_low",
+      "part/in.chamfer_bottom_radial",
+      "part/in.chamfer_top_axial",
       "part/in.chamfer_top_high",
-      "part/out.chamfer_bottom_low_out",
+      "part/in.chamfer_top_low",
+      "part/in.chamfer_top_radial",
+      "part/out.chamfer_bottom_axial_out",
       "part/out.chamfer_bottom_high_out",
+      "part/out.chamfer_bottom_low_out",
+      "part/out.chamfer_bottom_radial_out",
+      "part/out.chamfer_top_axial_out",
+      "part/out.chamfer_top_high_out",
       "part/out.chamfer_top_low_out",
-      "part/out.chamfer_top_high_out"
+      "part/out.chamfer_top_radial_out"
      ]
     }
    },
@@ -798,7 +1027,16 @@
     "at": "by 45° chamfer",
     "value": 45,
     "for": {
-     "the chamfers' 45°": "unchecked: held loosely only: for a 0.5 chamfer the in and out probes at h = 0.1 and 0.3 hold the face's slope to about 31° to 54°"
+     "the chamfers' 45°, as the legs' ±0.1 allow (34° to 56°)": [
+      "part/in.chamfer_bottom_axial",
+      "part/in.chamfer_bottom_radial",
+      "part/in.chamfer_top_axial",
+      "part/in.chamfer_top_radial",
+      "part/out.chamfer_bottom_axial_out",
+      "part/out.chamfer_bottom_radial_out",
+      "part/out.chamfer_top_axial_out",
+      "part/out.chamfer_top_radial_out"
+     ]
     }
    },
    {
@@ -837,7 +1075,24 @@
       "part/bbox.z.max",
       "part/size.z"
      ],
-     "chamfers": "unchecked: held to ±0.12 only, by the eight chamfer probes: at h = 0.1 and 0.3 they sit 0.02 past the band c = 0.5 ± 0.1 puts the face in, so c is held to 0.38 to 0.62 (and a further ±0.01 with the pin's radius)"
+     "chamfers": [
+      "part/in.chamfer_bottom_axial",
+      "part/in.chamfer_bottom_high",
+      "part/in.chamfer_bottom_low",
+      "part/in.chamfer_bottom_radial",
+      "part/in.chamfer_top_axial",
+      "part/in.chamfer_top_high",
+      "part/in.chamfer_top_low",
+      "part/in.chamfer_top_radial",
+      "part/out.chamfer_bottom_axial_out",
+      "part/out.chamfer_bottom_high_out",
+      "part/out.chamfer_bottom_low_out",
+      "part/out.chamfer_bottom_radial_out",
+      "part/out.chamfer_top_axial_out",
+      "part/out.chamfer_top_high_out",
+      "part/out.chamfer_top_low_out",
+      "part/out.chamfer_top_radial_out"
+     ]
     }
    },
    {
@@ -1000,29 +1255,17 @@
     ],
     "held_to": 0.05
    },
-   "part/in.hook_tip": {
-    "class": "derived",
-    "quotes": [
-     "sticking out 1.0 mm in +X. Its underside is flat (the catch) at 3 mm below the beam's top, and it ramps back to the beam's face at the beam's top: a right triangle in the XZ section, extruded across the beam's width",
-     "The hook's catch is at Z = 17, 0.1 mm above the ledge",
-     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else"
-    ],
-    "says": "Arithmetic: just above the catch (Z = 17.05) the ramp is at 5 + 1.0·(20 - 17.05)/3 = 5.98, so material at 5.9: the hook overhangs about 1 mm. Moved to (5.93, 0, 17.01), just over the catch where the ramp hasn't turned in (#40, the review's fix): an overhang under 0.93 fails.",
-    "values": [
-     17,
-     3,
-     1.0,
-     0.1
-    ],
-    "held_to": 0.07
-   },
    "part/in.ramp": {
     "class": "derived",
     "quotes": [
-     "sticking out 1.0 mm in +X. Its underside is flat (the catch) at 3 mm below the beam's top, and it ramps back to the beam's face at the beam's top: a right triangle in the XZ section, extruded across the beam's width"
+     "sticking out 1.0 mm in +X. Its underside is flat (the catch) at 3 mm below the beam's top, and it ramps back to the beam's face at the beam's top: a right triangle in the XZ section, extruded across the beam's width",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else"
     ],
-    "says": "At Z = 19 the ramp is at 5 + 1/3 = 5.33: material at 5.3.",
-    "held_to": 0.17
+    "says": "At Z = 19 the ramp is at 5 + 1/3 = 5.333: material at 5.234, 0.1 inside it (#40 V2: 5.3, 0.03 inside, which failed a ramp within its ±0.1).",
+    "held_to": 0.1,
+    "values": [
+     0.1
+    ]
    },
    "part/out.beam_at_most_-x": {
     "class": "stated",
@@ -1086,10 +1329,14 @@
    "part/out.past_ramp": {
     "class": "derived",
     "quotes": [
-     "sticking out 1.0 mm in +X. Its underside is flat (the catch) at 3 mm below the beam's top, and it ramps back to the beam's face at the beam's top: a right triangle in the XZ section, extruded across the beam's width"
+     "sticking out 1.0 mm in +X. Its underside is flat (the catch) at 3 mm below the beam's top, and it ramps back to the beam's face at the beam's top: a right triangle in the XZ section, extruded across the beam's width",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else"
     ],
-    "says": "A ramp, not a block: at Z = 19 nothing at 5.5 (the ramp is at 5.33).",
-    "held_to": 0.17
+    "says": "A ramp, not a block: at Z = 19 nothing at 5.433, 0.1 past the ramp's 5.333 (#40 V2: 5.5, so +0.17).",
+    "held_to": 0.1,
+    "values": [
+     0.1
+    ]
    },
    "part/out.beside_beam": {
     "class": "stated",
@@ -1151,6 +1398,167 @@
      0,
      20
     ]
+   },
+   "part/in.base_end": {
+    "class": "frame",
+    "quotes": [
+     "as latched: the base centred on the Z axis from Z = 0 to 4, so it runs from X = -5 to 5, and the beam from X = 3.4 to 5, from Z = 4 to 20",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else"
+    ],
+    "says": "The base's +X end at X = 5, ±0.1, at the base's own height: material at 4.9 (#40 V2: only the beam's face over it was probed, at Z = 10).",
+    "values": [
+     5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.past_base_end": {
+    "class": "frame",
+    "quotes": [
+     "as latched: the base centred on the Z axis from Z = 0 to 4, so it runs from X = -5 to 5, and the beam from X = 3.4 to 5, from Z = 4 to 20",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else"
+    ],
+    "says": "Nothing at X = 5.1, Z = 2: the base's +X end no further than 5 + 0.1.",
+    "values": [
+     5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/section.beam_thickness": {
+    "class": "stated",
+    "quotes": [
+     "stands on the base's top, at its +X edge: 1.6 mm thick along X, the base's full 8 mm wide, and 16 mm tall above the base",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else"
+    ],
+    "says": "The beam's own thickness, 1.6 ± 0.05: the plane Z = 10 cuts the beam alone (the base is below 4, the hook above 17), and its extent along X there is the thickness (#40 V2: each face was held to ±0.05, so the 1.6 to ±0.1). The reference reads 1.6.",
+    "values": [
+     1.6,
+     0.05
+    ]
+   },
+   "part/section.beam_width": {
+    "class": "stated",
+    "quotes": [
+     "stands on the base's top, at its +X edge: 1.6 mm thick along X, the base's full 8 mm wide, and 16 mm tall above the base",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else"
+    ],
+    "says": "The beam's 8 mm width along Y, ±0.1, off the plane Z = 10, which cuts it alone (#40 V2: size.y is the base's, so a narrower beam passed). The reference reads 8.0.",
+    "values": [
+     8,
+     0.1
+    ]
+   },
+   "part/share.base_length": {
+    "class": "stated",
+    "quotes": [
+     "10 mm along X, 8 mm along Y, 4 mm tall",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else",
+     "as latched: the base centred on the Z axis from Z = 0 to 4, so it runs from X = -5 to 5, and the beam from X = 3.4 to 5, from Z = 4 to 20"
+    ],
+    "says": "The base's 10 mm along X, ±0.1, as a size, at Z = 2: points 0.01 apart over 0.4 mm about each end (X = -5.195 to -4.805 and 4.805 to 5.195), half in the material at 10 mm; 0.1 longer or shorter is 10 of 80 points, so 0.375 to 0.625 holds it to ±0.1. The reference reads 0.5.",
+    "values": [
+     10,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/share.base_height": {
+    "class": "stated",
+    "quotes": [
+     "10 mm along X, 8 mm along Y, 4 mm tall",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else",
+     "as latched: the base centred on the Z axis from Z = 0 to 4, so it runs from X = -5 to 5, and the beam from X = 3.4 to 5, from Z = 4 to 20"
+    ],
+    "says": "The base's 4 mm height, ±0.1, as a size, at its middle (X = 0, beside the beam): points 0.01 apart over 0.4 mm about its bottom and top, half in the material at 4 mm; 0.1 is 10 of 80 points (#40 V2: the base's top had no check). The reference reads 0.5.",
+    "values": [
+     4,
+     0.1,
+     0
+    ],
+    "held_to": 0.1
+   },
+   "part/share.base_top": {
+    "class": "frame",
+    "quotes": [
+     "as latched: the base centred on the Z axis from Z = 0 to 4, so it runs from X = -5 to 5, and the beam from X = 3.4 to 5, from Z = 4 to 20",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else"
+    ],
+    "says": "The base's top, Z = 4, ±0.1, at X = -2.5, beside the beam: the beam's foot. Points 0.01 apart over 0.4 mm about the face (Z = 3.805 to 4.195), half in the material at its nominal place: 0.1 is 10 of 40 points, a share of 0.25. The reference reads 0.5.",
+    "values": [
+     4,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/share.beam_top": {
+    "class": "frame",
+    "quotes": [
+     "as latched: the base centred on the Z axis from Z = 0 to 4, so it runs from X = -5 to 5, and the beam from X = 3.4 to 5, from Z = 4 to 20",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else"
+    ],
+    "says": "The beam's top, Z = 20, ±0.1, at its middle (X = 4.2). Points 0.01 apart over 0.4 mm about the face (Z = 19.805 to 20.195), half in the material at its nominal place: 0.1 is 10 of 40 points, a share of 0.25. The reference reads 0.5.",
+    "values": [
+     20,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/share.beam_face": {
+    "class": "frame",
+    "quotes": [
+     "as latched: the base centred on the Z axis from Z = 0 to 4, so it runs from X = -5 to 5, and the beam from X = 3.4 to 5, from Z = 4 to 20",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else"
+    ],
+    "says": "The beam's face, X = 5, ±0.05, at Z = 10: points 0.01 apart over 0.4 mm about it (X = 4.805 to 5.195), half in at 5; 0.05 is 5 of 40, so 0.375 to 0.625. The low end of slope.overhang. The reference reads 0.5.",
+    "values": [
+     5,
+     0.05
+    ],
+    "held_to": 0.05
+   },
+   "part/slope.beam_height": {
+    "class": "stated",
+    "quotes": [
+     "stands on the base's top, at its +X edge: 1.6 mm thick along X, the base's full 8 mm wide, and 16 mm tall above the base",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else",
+     "as latched: the base centred on the Z axis from Z = 0 to 4, so it runs from X = -5 to 5, and the beam from X = 3.4 to 5, from Z = 4 to 20"
+    ],
+    "says": "The beam's 16 mm above the base, ±0.1, as a size: share.beam_top less share.base_top, each (face - nominal + 0.2)/0.4, so their difference is (height - 16)/0.4, and ±0.1 is ±0.25 (#40 V2: its top by bbox.z.max and its foot by nothing). The reference reads 0.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/section.overhang": {
+    "class": "stated",
+    "quotes": [
+     "sticking out 1.0 mm in +X. Its underside is flat (the catch) at 3 mm below the beam's top, and it ramps back to the beam's face at the beam's top: a right triangle in the XZ section, extruded across the beam's width",
+     "±0.05 mm on the beam's thickness and the hook's overhang; ±0.1 mm on everything else",
+     "The hook's catch is at Z = 17, 0.1 mm above the ledge"
+    ],
+    "values": [
+     1.0,
+     0.05,
+     17
+    ],
+    "says": "The section at Y = 0 clipped to Z 16.9–17.2 (every catch the ledge's gap allows, 16.95 to 17.05) runs from the beam's back to the hook's tip; less the beam's thickness section, the overhang, 1.0 ± 0.05, wherever the catch sits (round 2: a probe at one height failed a correct catch at 17.02, or passed a short overhang, as the ramp turns in)."
+   },
+   "part/in.catch_at_most": {
+    "class": "stated",
+    "quotes": [
+     "at 3 mm below the beam's top",
+     "z = 17,",
+     "0.1 mm above the ledge"
+    ],
+    "values": [
+     3,
+     17,
+     0.1
+    ],
+    "held_to": 0.05,
+    "says": "Material at (5.5, 0, 17.05), under the hook's tip: the catch at most 17.05, its gap to the ledge at 16.9 at most 0.15. With out.under_catch at 16.95, the catch is held to 16.95–17.05."
    }
   },
   "stated": [
@@ -1214,7 +1622,9 @@
     "at": "base: 10 mm along x",
     "value": 10,
     "for": {
-     "the base's 10 mm along X": "unchecked: only its -X end is held (bbox.x.min, X = -5 ±0.1); its +X end, X = 5 under the beam, isn't probed at the base's height"
+     "the base's 10 mm along X": [
+      "part/share.base_length"
+     ]
     }
    },
    {
@@ -1230,7 +1640,9 @@
     "at": "4 mm tall",
     "value": 4,
     "for": {
-     "the base's 4 mm height": "unchecked: the base's top, Z = 4, isn't probed: bbox.z.min holds its bottom, and out.beside_beam only that nothing is at Z = 10"
+     "the base's 4 mm height": [
+      "part/share.base_height"
+     ]
     }
    },
    {
@@ -1249,14 +1661,18 @@
     "at": "full 8 mm wide",
     "value": 8,
     "for": {
-     "the beam's 8 mm width": "unchecked: size.y is the base's, so a narrower beam passes; every probe is at Y = 0"
+     "the beam's 8 mm width": [
+      "part/section.beam_width"
+     ]
     }
    },
    {
     "at": "16 mm tall above the base",
     "value": 16,
     "for": {
-     "the beam's 16 mm above the base": "unchecked: only its top is held, Z = 20 by bbox.z.max (±0.1); its foot, the base's top at Z = 4, isn't probed"
+     "the beam's 16 mm above the base": [
+      "part/slope.beam_height"
+     ]
     }
    },
    {
@@ -1264,9 +1680,9 @@
     "value": 1.0,
     "for": {
      "the hook's overhang": [
-      "part/in.hook_tip",
       "part/out.past_tip",
-      "part/bbox.x.max"
+      "part/bbox.x.max",
+      "part/section.overhang"
      ]
     }
    },
@@ -1275,8 +1691,8 @@
     "value": 3,
     "for": {
      "the catch's height under the beam's top": [
-      "part/in.hook_tip",
-      "part/out.under_catch"
+      "part/out.under_catch",
+      "part/in.catch_at_most"
      ]
     }
    },
@@ -1284,8 +1700,12 @@
     "at": "±0.05 mm on the beam's thickness",
     "value": 0.05,
     "for": {
-     "the beam's thickness": "unchecked: held to ±0.1 only: in.beam_at_least_±x and out.beam_at_most_±x hold each face to ±0.05 at Z = 10, so the 1.6 between them to ±0.1",
-     "the hook's overhang": "unchecked: held to -0.07/+0.10 only, from the nominal face at X = 5: in.hook_tip (material at X = 5.93, Z = 17.01: at least 0.933) and out.past_tip (none at 6.06, Z = 17.1: under 1.097); bbox.x.max holds the tip to ±0.1"
+     "the beam's thickness": [
+      "part/section.beam_thickness"
+     ],
+     "the hook's overhang": [
+      "part/section.overhang"
+     ]
     }
    },
    {
@@ -1306,11 +1726,23 @@
       "part/out.beam_at_most_-x",
       "part/in.beam_at_least_+x",
       "part/out.beam_at_most_+x",
-      "part/in.hook_tip",
-      "part/out.under_catch"
+      "part/out.under_catch",
+      "part/section.overhang"
      ],
-     "the base's +X end and top, the beam's foot and its 8 mm width": "unchecked: not probed (the base's +X end at X = 5 and top at Z = 4; the beam's width)",
-     "the ramp": "unchecked: held to -0.03/+0.17 only, at Z = 19, by in.ramp (X = 5.3) and out.past_ramp (X = 5.5) about the ramp's 5.33"
+     "the base's +X end and top, its 10 mm and 4 mm, the beam's foot, its 16 mm and 8 mm width": [
+      "part/in.base_end",
+      "part/out.past_base_end",
+      "part/share.base_length",
+      "part/share.base_height",
+      "part/share.base_top",
+      "part/share.beam_top",
+      "part/slope.beam_height",
+      "part/section.beam_width"
+     ],
+     "the ramp": [
+      "part/in.ramp",
+      "part/out.past_ramp"
+     ]
     }
    },
    {
@@ -1353,7 +1785,9 @@
     "at": "0 to 4, so",
     "value": 4,
     "for": {
-     "the base's top": "unchecked: the base's top, Z = 4, isn't probed: bbox.z.min holds its bottom, and out.beside_beam only that nothing is at Z = 10"
+     "the base's top": [
+      "part/share.base_top"
+     ]
     }
    },
    {
@@ -1369,7 +1803,10 @@
     "at": "-5 to 5, and",
     "value": 5,
     "for": {
-     "the base's +X end": "unchecked: not probed at the base's height (the beam's face over it is, at Z = 10)"
+     "the base's +X end": [
+      "part/in.base_end",
+      "part/out.past_base_end"
+     ]
     }
    },
    {
@@ -1396,7 +1833,9 @@
     "at": "from z = 4 to",
     "value": 4,
     "for": {
-     "the beam's foot": "unchecked: the base's top, Z = 4, isn't probed: bbox.z.min holds its bottom, and out.beside_beam only that nothing is at Z = 10"
+     "the beam's foot": [
+      "part/share.base_top"
+     ]
     }
    },
    {
@@ -1413,8 +1852,8 @@
     "value": 17,
     "for": {
      "the catch's height": [
-      "part/in.hook_tip",
-      "part/out.under_catch"
+      "part/out.under_catch",
+      "part/in.catch_at_most"
      ]
     }
    },
@@ -1423,9 +1862,9 @@
     "value": 0.1,
     "for": {
      "the catch's gap over the ledge": [
-      "part/in.hook_tip",
       "part/out.under_catch",
-      "part/gap.panel.distance"
+      "part/gap.panel.distance",
+      "part/in.catch_at_most"
      ]
     }
    }
@@ -1536,7 +1975,7 @@
      "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
      "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
     ],
-    "says": "Arithmetic: the flank's slope is 2 in 5 (atan 0.4 = 21.8°), so 0.2 mm square to it is 0.2/cos 21.8° = 0.215 across; at Z = 7.7 the tongue is at 5 + 2.7·0.4 = 6.08, the groove's flank at 6.295, and 0.15 to 0.25 square is 6.242 to 6.349 across. Material at 6.355: the clearance at most 0.25.",
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 7.7 the tongue is at 5 + 2.7·0.4 = 6.08, and 0.15 to 0.25 square is 6.242 to 6.349 across (the reference's groove: 6.295). Material at Y = 6.349: the clearance at most 0.25, on the band's edge (#40 V2: 6.355, 0.255). On each flank at three heights, so its lean is held (#40 V2: one height).",
     "values": [
      0.2,
      0.15,
@@ -1550,7 +1989,7 @@
      "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
      "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
     ],
-    "says": "The -Y flank, as +Y.",
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 7.7 the tongue is at 5 + 2.7·0.4 = 6.08, and 0.15 to 0.25 square is 6.242 to 6.349 across (the reference's groove: 6.295). Material at Y = -6.349: the clearance at most 0.25, on the band's edge (#40 V2: 6.355, 0.255). On each flank at three heights, so its lean is held (#40 V2: one height).",
     "values": [
      0.2,
      0.15,
@@ -1564,7 +2003,7 @@
      "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
      "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
     ],
-    "says": "The groove's top 0.2 above the tongue's 10, at most 0.25: material at 10.26.",
+    "says": "The groove's top 0.2 above the tongue's 10, at most 0.25: material at 10.25 at X = 0, on the band's edge (#40 V2: 10.26, only at X = 0).",
     "values": [
      0.2,
      0.15,
@@ -1578,7 +2017,7 @@
      "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
      "along X, from X = -30 to 30. Its base is 20 mm wide (Y = -10 to 10) from Z = 0 to 5"
     ],
-    "says": "The block's bottom 0.2 above the rail's base (Z = 5), at most 0.25: material at 5.26.",
+    "says": "The block's bottom 0.2 above the rail's base (Z = 5), at most 0.25: material at 5.25, on the band's edge (#40 V2: 5.26).",
     "values": [
      0.2,
      0.15,
@@ -1599,7 +2038,7 @@
      "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
      "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
     ],
-    "says": "Arithmetic: the flank's slope is 2 in 5 (atan 0.4 = 21.8°), so 0.2 mm square to it is 0.2/cos 21.8° = 0.215 across; at Z = 7.7 the tongue is at 5 + 2.7·0.4 = 6.08, the groove's flank at 6.295, and 0.15 to 0.25 square is 6.242 to 6.349 across. Nothing at 6.24: the clearance at least 0.15.",
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 7.7 the tongue is at 5 + 2.7·0.4 = 6.08, and 0.15 to 0.25 square is 6.242 to 6.349 across (the reference's groove: 6.295). Nothing at Y = 6.242: the clearance at least 0.15. On each flank at three heights, so its lean is held (#40 V2: one height).",
     "values": [
      0.2,
      0.15,
@@ -1613,7 +2052,7 @@
      "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
      "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
     ],
-    "says": "The -Y flank, as +Y.",
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 7.7 the tongue is at 5 + 2.7·0.4 = 6.08, and 0.15 to 0.25 square is 6.242 to 6.349 across (the reference's groove: 6.295). Nothing at Y = -6.242: the clearance at least 0.15. On each flank at three heights, so its lean is held (#40 V2: one height).",
     "values": [
      0.2,
      0.15,
@@ -1626,7 +2065,7 @@
      "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
      "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block"
     ],
-    "says": "At least 0.15 over the tongue's top: nothing at 10.14.",
+    "says": "At least 0.15 over the tongue's top: nothing at 10.15 at X = 0 (#40 V2: 10.14).",
     "values": [
      0.2,
      0.15,
@@ -1639,7 +2078,7 @@
      "30 mm along X, 24 mm wide along Y; it sits 0.2 mm above the rail's base and is 15 mm tall at the top, Z = 15",
      "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block"
     ],
-    "says": "At least 0.15 over the rail's base: nothing at 5.14.",
+    "says": "At least 0.15 over the rail's base: nothing at 5.15 (#40 V2: 5.14).",
     "values": [
      0.2,
      0.15,
@@ -1693,6 +2132,242 @@
     "values": [
      5.2,
      15
+    ]
+   },
+   "part/in.flank_low_+y": {
+    "class": "derived",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 5.6 the tongue is at 5 + 0.6·0.4 = 5.24, and 0.15 to 0.25 square is 5.402 to 5.509 across (the reference's groove: 5.455). Material at Y = 5.509: the clearance at most 0.25, on the band's edge (#40 V2: 6.355, 0.255). On each flank at three heights, so its lean is held (#40 V2: one height).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/out.flank_low_clear_+y": {
+    "class": "derived",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 5.6 the tongue is at 5 + 0.6·0.4 = 5.24, and 0.15 to 0.25 square is 5.402 to 5.509 across (the reference's groove: 5.455). Nothing at Y = 5.402: the clearance at least 0.15. On each flank at three heights, so its lean is held (#40 V2: one height).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/in.flank_low_-y": {
+    "class": "derived",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 5.6 the tongue is at 5 + 0.6·0.4 = 5.24, and 0.15 to 0.25 square is 5.402 to 5.509 across (the reference's groove: 5.455). Material at Y = -5.509: the clearance at most 0.25, on the band's edge (#40 V2: 6.355, 0.255). On each flank at three heights, so its lean is held (#40 V2: one height).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/out.flank_low_clear_-y": {
+    "class": "derived",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 5.6 the tongue is at 5 + 0.6·0.4 = 5.24, and 0.15 to 0.25 square is 5.402 to 5.509 across (the reference's groove: 5.455). Nothing at Y = -5.402: the clearance at least 0.15. On each flank at three heights, so its lean is held (#40 V2: one height).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/in.flank_high_+y": {
+    "class": "derived",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 9.8 the tongue is at 5 + 4.8·0.4 = 6.92, and 0.15 to 0.25 square is 7.082 to 7.189 across (the reference's groove: 7.135). Material at Y = 7.189: the clearance at most 0.25, on the band's edge (#40 V2: 6.355, 0.255). On each flank at three heights, so its lean is held (#40 V2: one height).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/out.flank_high_clear_+y": {
+    "class": "derived",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 9.8 the tongue is at 5 + 4.8·0.4 = 6.92, and 0.15 to 0.25 square is 7.082 to 7.189 across (the reference's groove: 7.135). Nothing at Y = 7.082: the clearance at least 0.15. On each flank at three heights, so its lean is held (#40 V2: one height).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/in.flank_high_-y": {
+    "class": "derived",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 9.8 the tongue is at 5 + 4.8·0.4 = 6.92, and 0.15 to 0.25 square is 7.082 to 7.189 across (the reference's groove: 7.135). Material at Y = -7.189: the clearance at most 0.25, on the band's edge (#40 V2: 6.355, 0.255). On each flank at three heights, so its lean is held (#40 V2: one height).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/out.flank_high_clear_-y": {
+    "class": "derived",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "Arithmetic: the flank's slope is 2 in 5, so a clearance d square to it is d·1.077 across; at Z = 9.8 the tongue is at 5 + 4.8·0.4 = 6.92, and 0.15 to 0.25 square is 7.082 to 7.189 across (the reference's groove: 7.135). Nothing at Y = -7.082: the clearance at least 0.15. On each flank at three heights, so its lean is held (#40 V2: one height).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/in.over_groove_-x": {
+    "class": "stated",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "The groove's top 0.2 above the tongue's 10, at most 0.25: material at 10.25 at X = -14, on the band's edge (#40 V2: 10.26, only at X = 0).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/out.groove_top_clear_-x": {
+    "class": "stated",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block"
+    ],
+    "says": "At least 0.15 over the tongue's top: nothing at 10.15 at X = -14 (#40 V2: 10.14).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/in.over_groove_+x": {
+    "class": "stated",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "The groove's top 0.2 above the tongue's 10, at most 0.25: material at 10.25 at X = 14, on the band's edge (#40 V2: 10.26, only at X = 0).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/out.groove_top_clear_+x": {
+    "class": "stated",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block"
+    ],
+    "says": "At least 0.15 over the tongue's top: nothing at 10.15 at X = 14 (#40 V2: 10.14).",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/region.flank_+y": {
+    "class": "derived",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "The +Y flank's own clearance, 0.15 to 0.25 square to it: the closest distance from the slider's material in the box Y = 5.5 to 7.5, Z = 5.6 to 9.6 to the rail's in it. The box holds the flank pair alone: the rail's base (Z = 5) and the tongue's top (Z = 10) are outside it, as are the groove's top (10.2) and the block's bottom (5.2). Each box runs the block's whole length, X = -15 to 15, so the face's clearance is held at its closest along all of it; with the probes at three places a face can't lean or bow out of the band without failing one or the other. The reference reads 0.2.",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/region.flank_-y": {
+    "class": "derived",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "The -Y flank's, as the +Y's: the box Y = -7.5 to -5.5, Z = 5.6 to 9.6. Each box runs the block's whole length, X = -15 to 15, so the face's clearance is held at its closest along all of it; with the probes at three places a face can't lean or bow out of the band without failing one or the other. The reference reads 0.2.",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/region.top": {
+    "class": "stated",
+    "quotes": [
+     "the tongue's shape with 0.2 mm of clearance on every face: 0.2 mm off each slanted flank (measured square to it) and 0.2 mm above the tongue's top",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "10 mm wide at Z = 5 (Y = -5 to 5), widening to 14 mm at its top, Z = 10 (Y = -7 to 7)"
+    ],
+    "says": "The clearance over the tongue's top, 0.15 to 0.25: the box Y = -6.5 to 6.5, Z = 9 to 11, inside the tongue's corners (Y = ±7), where the groove's flanks (at |Y| > 6.8 there) are outside it. Each box runs the block's whole length, X = -15 to 15, so the face's clearance is held at its closest along all of it; with the probes at three places a face can't lean or bow out of the band without failing one or the other. The reference reads 0.2.",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/region.base_+y": {
+    "class": "stated",
+    "quotes": [
+     "30 mm along X, 24 mm wide along Y; it sits 0.2 mm above the rail's base and is 15 mm tall at the top, Z = 15",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "along X, from X = -30 to 30. Its base is 20 mm wide (Y = -10 to 10) from Z = 0 to 5"
+    ],
+    "says": "The block's bottom over the rail's base, +Y side, 0.15 to 0.25: the box Y = 7.5 to 10.5, Z = 4 to 6.5, outside the tongue (|Y| <= 7). Each box runs the block's whole length, X = -15 to 15, so the face's clearance is held at its closest along all of it; with the probes at three places a face can't lean or bow out of the band without failing one or the other. The reference reads 0.2.",
+    "values": [
+     0.2,
+     0.15,
+     0.25
+    ]
+   },
+   "part/region.base_-y": {
+    "class": "stated",
+    "quotes": [
+     "30 mm along X, 24 mm wide along Y; it sits 0.2 mm above the rail's base and is 15 mm tall at the top, Z = 15",
+     "the clearance must stay between 0.15 and 0.25 mm on every face, and the slider must never overlap the rail; ±0.1 mm on the block",
+     "along X, from X = -30 to 30. Its base is 20 mm wide (Y = -10 to 10) from Z = 0 to 5"
+    ],
+    "says": "The -Y side's, as +Y's: the box Y = -10.5 to -7.5, Z = 4 to 6.5. Each box runs the block's whole length, X = -15 to 15, so the face's clearance is held at its closest along all of it; with the probes at three places a face can't lean or bow out of the band without failing one or the other. The reference reads 0.2.",
+    "values": [
+     0.2,
+     0.15,
+     0.25
     ]
    }
   },
@@ -1827,7 +2502,9 @@
      "the block's bottom over the rail's base": [
       "part/bbox.z.min",
       "part/in.bottom",
-      "part/out.bottom_clear"
+      "part/out.bottom_clear",
+      "part/region.base_+y",
+      "part/region.base_-y"
      ]
     }
    },
@@ -1855,11 +2532,26 @@
     "for": {
      "the groove's clearance on every face of the tongue": [
       "part/in.flank_+y",
-      "part/out.flank_clear_+y",
       "part/in.flank_-y",
+      "part/in.flank_high_+y",
+      "part/in.flank_high_-y",
+      "part/in.flank_low_+y",
+      "part/in.flank_low_-y",
+      "part/out.flank_clear_+y",
       "part/out.flank_clear_-y",
+      "part/out.flank_high_clear_+y",
+      "part/out.flank_high_clear_-y",
+      "part/out.flank_low_clear_+y",
+      "part/out.flank_low_clear_-y",
       "part/in.over_groove",
-      "part/out.groove_top_clear"
+      "part/in.over_groove_+x",
+      "part/in.over_groove_-x",
+      "part/out.groove_top_clear",
+      "part/out.groove_top_clear_+x",
+      "part/out.groove_top_clear_-x",
+      "part/region.flank_+y",
+      "part/region.flank_-y",
+      "part/region.top"
      ]
     }
    },
@@ -1869,9 +2561,19 @@
     "for": {
      "the clearance square to each flank": [
       "part/in.flank_+y",
-      "part/out.flank_clear_+y",
       "part/in.flank_-y",
-      "part/out.flank_clear_-y"
+      "part/in.flank_high_+y",
+      "part/in.flank_high_-y",
+      "part/in.flank_low_+y",
+      "part/in.flank_low_-y",
+      "part/out.flank_clear_+y",
+      "part/out.flank_clear_-y",
+      "part/out.flank_high_clear_+y",
+      "part/out.flank_high_clear_-y",
+      "part/out.flank_low_clear_+y",
+      "part/out.flank_low_clear_-y",
+      "part/region.flank_+y",
+      "part/region.flank_-y"
      ]
     }
    },
@@ -1881,7 +2583,12 @@
     "for": {
      "the clearance over the tongue's top": [
       "part/in.over_groove",
-      "part/out.groove_top_clear"
+      "part/in.over_groove_+x",
+      "part/in.over_groove_-x",
+      "part/out.groove_top_clear",
+      "part/out.groove_top_clear_+x",
+      "part/out.groove_top_clear_-x",
+      "part/region.top"
      ]
     }
    },
@@ -1890,7 +2597,12 @@
     "value": 0.15,
     "for": {
      "the clearance's least, on every face": [
-      "part/gap.rail.distance"
+      "part/gap.rail.distance",
+      "part/region.flank_+y",
+      "part/region.flank_-y",
+      "part/region.top",
+      "part/region.base_+y",
+      "part/region.base_-y"
      ]
     }
    },
@@ -1901,7 +2613,25 @@
      "the clearance's most, at the closest face": [
       "part/gap.rail.distance"
      ],
-     "the clearance's most on every other face": "unchecked: held to 0.255 square to each flank at Z = 7.7 (in.flank_±y), 0.26 over the tongue's top (in.over_groove) and 0.26 over the rail's base (in.bottom), each at one point; gap.rail.distance holds only the closest face"
+     "the clearance's most on every other face, where probed: each flank at Z = 5.6, 7.7 and 9.8, the top at X = -14, 0 and 14, the base at one point": [
+      "part/in.bottom",
+      "part/in.flank_+y",
+      "part/in.flank_-y",
+      "part/in.flank_high_+y",
+      "part/in.flank_high_-y",
+      "part/in.flank_low_+y",
+      "part/in.flank_low_-y",
+      "part/in.over_groove",
+      "part/in.over_groove_+x",
+      "part/in.over_groove_-x"
+     ],
+     "the clearance's most on each face, along its whole length: each flank, the top and the base on either side": [
+      "part/region.flank_+y",
+      "part/region.flank_-y",
+      "part/region.top",
+      "part/region.base_+y",
+      "part/region.base_-y"
+     ]
     }
    },
    {
@@ -2070,9 +2800,15 @@
    "part/in.pin_end": {
     "class": "stated",
     "quotes": [
-     "A pin of 3 mm diameter runs along the axis from Y = -15 to 15, joined to both knuckles"
+     "A pin of 3 mm diameter runs along the axis from Y = -15 to 15, joined to both knuckles",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
     ],
-    "says": "The pin runs to Y = -15: material at -14.9 on the axis."
+    "says": "The pin runs to Y = -15: material on the axis at -14.9 (with in.pin_end_+y and the box's Y, its ends at ±0.1). Knuckle A's end is solid there with the pin joined to it, so a pin and a knuckle reaching -15 are one material; a hollow knuckle with a short pin fails.",
+    "values": [
+     15,
+     0.1
+    ],
+    "held_to": 0.1
    },
    "part/in.knuckle_b": {
     "class": "stated",
@@ -2080,11 +2816,12 @@
      "Its one knuckle is round the axis from Y = -4.85 to 4.85: 6 mm outside, with a 3.6 mm bore for the pin. It is joined to its plate by a bridge from X = 2 to 3.3 over the knuckle's length",
      "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
     ],
-    "says": "Knuckle B reaches Y = 4.85: material at 4.79 in its wall.",
+    "says": "Knuckle B reaches Y = 4.85: material at 4.79 in its wall (0.06 short of it: tighter than the ±0.1, kept from #40 V2). held_to: 0.1, the side it holds. At 0.1 inside its face, the stated ±0.1 (round 2: it sat 0.06 inside, failing a valid end).",
     "values": [
      4.85,
      0.1
-    ]
+    ],
+    "held_to": 0.1
    },
    "part/in.knuckle_a": {
     "class": "stated",
@@ -2092,31 +2829,38 @@
      "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length",
      "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
     ],
-    "says": "Knuckle A starts at Y = 5.15: material at 5.21 in its wall.",
+    "says": "Knuckle A starts at Y = 5.15: material at 5.21 in its wall (0.06 past it: tighter than the ±0.1, kept from #40 V2). held_to: 0.1, the side it holds. At 0.1 inside its face, the stated ±0.1 (round 2: it sat 0.06 inside, failing a valid end).",
     "values": [
      5.15,
      0.1
-    ]
+    ],
+    "held_to": 0.1
    },
    "part/in.plate_b": {
     "class": "stated",
     "quotes": [
-     "a plate 3 mm thick from X = 3.3 to 25, Y = -15 to 15"
+     "a plate 3 mm thick from X = 3.3 to 25, Y = -15 to 15",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
     ],
-    "says": "Plate B starts at X = 3.3: material at 3.36.",
+    "says": "Plate B starts at X = 3.3: material at 3.36. At 0.1 inside its face, the stated ±0.1 (round 2: it sat 0.06 inside, failing a valid end).",
     "values": [
-     3.3
-    ]
+     3.3,
+     0.1
+    ],
+    "held_to": 0.1
    },
    "part/in.plate_a": {
     "class": "stated",
     "quotes": [
-     "a plate 3 mm thick from X = -25 to -3.3, Y = -15 to 15"
+     "a plate 3 mm thick from X = -25 to -3.3, Y = -15 to 15",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
     ],
-    "says": "Plate A ends at X = -3.3: material at -3.36.",
+    "says": "Plate A ends at X = -3.3: material at -3.36. At 0.1 inside its face, the stated ±0.1 (round 2: it sat 0.06 inside, failing a valid end).",
     "values": [
-     3.3
-    ]
+     3.3,
+     0.1
+    ],
+    "held_to": 0.1
    },
    "part/out.knuckle_ends": {
     "class": "stated",
@@ -2258,6 +3002,426 @@
     "values": [
      0.1
     ]
+   },
+   "part/in.plate_top_+x": {
+    "class": "stated",
+    "quotes": [
+     "the plates centred on Z = 0, from Z = -1.5 to 1.5, the knuckles from Z = -3 to 3",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Plate B's top, Z = 1.5, at ±0.1: material at 1.4, at X = 15, Y = 10.",
+    "values": [
+     0,
+     1.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.plate_bottom_+x": {
+    "class": "stated",
+    "quotes": [
+     "the plates centred on Z = 0, from Z = -1.5 to 1.5, the knuckles from Z = -3 to 3",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Plate B's underside, Z = -1.5, at ±0.1: material at -1.4.",
+    "values": [
+     0,
+     1.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.over_plate_+x": {
+    "class": "stated",
+    "quotes": [
+     "the plates centred on Z = 0, from Z = -1.5 to 1.5, the knuckles from Z = -3 to 3",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing over plate B at Z = 1.6.",
+    "values": [
+     0,
+     1.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.under_plate_+x": {
+    "class": "stated",
+    "quotes": [
+     "the plates centred on Z = 0, from Z = -1.5 to 1.5, the knuckles from Z = -3 to 3",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing under plate B at Z = -1.6.",
+    "values": [
+     0,
+     1.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.plate_-y_+x": {
+    "class": "stated",
+    "quotes": [
+     "a plate 3 mm thick from X = 3.3 to 25, Y = -15 to 15",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Plate B's own Y = -15 edge at ±0.1: material at -14.9, at X = 15 (the box's Y holds whichever part reaches furthest).",
+    "values": [
+     15,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.plate_+y_+x": {
+    "class": "stated",
+    "quotes": [
+     "a plate 3 mm thick from X = 3.3 to 25, Y = -15 to 15",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Plate B's own Y = 15 edge at ±0.1: material at 14.9, at X = 15 (the box's Y holds whichever part reaches furthest).",
+    "values": [
+     15,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.plate_top_-x": {
+    "class": "stated",
+    "quotes": [
+     "the plates centred on Z = 0, from Z = -1.5 to 1.5, the knuckles from Z = -3 to 3",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Plate A's top, Z = 1.5, at ±0.1: material at 1.4, at X = -15, Y = 10.",
+    "values": [
+     0,
+     1.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.plate_bottom_-x": {
+    "class": "stated",
+    "quotes": [
+     "the plates centred on Z = 0, from Z = -1.5 to 1.5, the knuckles from Z = -3 to 3",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Plate A's underside, Z = -1.5, at ±0.1: material at -1.4.",
+    "values": [
+     0,
+     1.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.over_plate_-x": {
+    "class": "stated",
+    "quotes": [
+     "the plates centred on Z = 0, from Z = -1.5 to 1.5, the knuckles from Z = -3 to 3",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing over plate A at Z = 1.6.",
+    "values": [
+     0,
+     1.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.under_plate_-x": {
+    "class": "stated",
+    "quotes": [
+     "the plates centred on Z = 0, from Z = -1.5 to 1.5, the knuckles from Z = -3 to 3",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing under plate A at Z = -1.6.",
+    "values": [
+     0,
+     1.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.plate_-y_-x": {
+    "class": "stated",
+    "quotes": [
+     "a plate 3 mm thick from X = -25 to -3.3, Y = -15 to 15",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Plate A's own Y = -15 edge at ±0.1: material at -14.9, at X = -15 (the box's Y holds whichever part reaches furthest).",
+    "values": [
+     15,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.plate_+y_-x": {
+    "class": "stated",
+    "quotes": [
+     "a plate 3 mm thick from X = -25 to -3.3, Y = -15 to 15",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Plate A's own Y = 15 edge at ±0.1: material at 14.9, at X = -15 (the box's Y holds whichever part reaches furthest).",
+    "values": [
+     15,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.pin_end_+y": {
+    "class": "stated",
+    "quotes": [
+     "A pin of 3 mm diameter runs along the axis from Y = -15 to 15, joined to both knuckles",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "The pin runs to Y = 15: material on the axis at 14.9 (with in.pin_end at -14.9 and the box's Y, its ends at ±0.1).",
+    "values": [
+     15,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.knuckle_a_end_-y": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Knuckle A's outer end, Y = -15, at ±0.1: material in its wall (r = 2.5, Z = 2.5) at -14.9.",
+    "values": [
+     15,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.knuckle_a_end_+y": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Knuckle A's outer end, Y = 15, at ±0.1: material in its wall (r = 2.5, Z = 2.5) at 14.9.",
+    "values": [
+     15,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.knuckle_b_-y": {
+    "class": "stated",
+    "quotes": [
+     "Its one knuckle is round the axis from Y = -4.85 to 4.85: 6 mm outside, with a 3.6 mm bore for the pin. It is joined to its plate by a bridge from X = 2 to 3.3 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Knuckle B's -Y end, Y = -4.85, at ±0.1: material at -4.75 in its wall.",
+    "values": [
+     4.85,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.knuckle_a_-y": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Knuckle A's -Y knuckle's inner end, Y = -5.15, at ±0.1: material at -5.25 in its wall.",
+    "values": [
+     5.15,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.past_knuckle_b": {
+    "class": "stated",
+    "quotes": [
+     "Its one knuckle is round the axis from Y = -4.85 to 4.85: 6 mm outside, with a 3.6 mm bore for the pin. It is joined to its plate by a bridge from X = 2 to 3.3 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 past knuckle B's +Y end (4.85), at 4.95.",
+    "values": [
+     4.85,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.past_knuckle_b_-y": {
+    "class": "stated",
+    "quotes": [
+     "Its one knuckle is round the axis from Y = -4.85 to 4.85: 6 mm outside, with a 3.6 mm bore for the pin. It is joined to its plate by a bridge from X = 2 to 3.3 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 past knuckle B's -Y end (-4.85), at -4.95.",
+    "values": [
+     4.85,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.short_of_knuckle_a": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 short of knuckle A's +Y knuckle's inner end (5.15), at 5.05.",
+    "values": [
+     5.15,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.short_of_knuckle_a_-y": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 short of knuckle A's -Y knuckle's inner end (-5.15), at -5.05.",
+    "values": [
+     5.15,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.short_of_plate_b": {
+    "class": "stated",
+    "quotes": [
+     "a plate 3 mm thick from X = 3.3 to 25, Y = -15 to 15",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 short of plate B's inner edge (X = 3.3), at 3.2, Y = 10: in the gap to knuckle A.",
+    "values": [
+     3.3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/out.short_of_plate_a": {
+    "class": "stated",
+    "quotes": [
+     "a plate 3 mm thick from X = -25 to -3.3, Y = -15 to 15",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 short of plate A's inner edge (X = -3.3), at -3.2, Y = 0: in the gap to knuckle B.",
+    "values": [
+     3.3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.knuckle_a_-y_round": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Knuckle A's -Y, round to r = 2.9 at Y = -10, its top: its 6 mm at -0.1 from this one probe, and close enough to r = 3 that cylinder.knuckles holds its face to ±0.05.",
+    "values": [
+     6,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.knuckle_b_round": {
+    "class": "stated",
+    "quotes": [
+     "Its one knuckle is round the axis from Y = -4.85 to 4.85: 6 mm outside, with a 3.6 mm bore for the pin. It is joined to its plate by a bridge from X = 2 to 3.3 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Knuckle B's, round to r = 2.9 at Y = 0, its top: its 6 mm at -0.1 from this one probe, and close enough to r = 3 that cylinder.knuckles holds its face to ±0.05.",
+    "values": [
+     6,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/in.knuckle_a_+y_round": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Knuckle A's +Y, round to r = 2.9 at Y = 10, its top: its 6 mm at -0.1 from this one probe, and close enough to r = 3 that cylinder.knuckles holds its face to ±0.05.",
+    "values": [
+     6,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/share.bridge_a_-y": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length"
+    ],
+    "says": "The bridge A's, under its -Y knuckle, over the knuckle's length: a line along Y at X = -3.15, Z = 0, from -14.9 to -5.3, in the 0.3 between the knuckle (r = 3) and its plate, all in the material.",
+    "values": []
+   },
+   "part/share.bridge_a_+y": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length"
+    ],
+    "says": "The bridge A's, under its +Y knuckle, over the knuckle's length: a line along Y at X = -3.15, Z = 0, from 5.3 to 14.9, in the 0.3 between the knuckle (r = 3) and its plate, all in the material.",
+    "values": []
+   },
+   "part/share.bridge_b": {
+    "class": "stated",
+    "quotes": [
+     "Its one knuckle is round the axis from Y = -4.85 to 4.85: 6 mm outside, with a 3.6 mm bore for the pin. It is joined to its plate by a bridge from X = 2 to 3.3 over the knuckle's length"
+    ],
+    "says": "The bridge B's, over the knuckle's length: a line along Y at X = 3.15, Z = 0, from -4.7 to 4.7, in the 0.3 between the knuckle (r = 3) and its plate, all in the material.",
+    "values": []
+   },
+   "part/section.plate_a": {
+    "class": "stated",
+    "quotes": [
+     "a plate 3 mm thick from X = -25 to -3.3, Y = -15 to 15",
+     "the plates centred on Z = 0, from Z = -1.5 to 1.5, the knuckles from Z = -3 to 3",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Plate A's own 3 mm at ±0.1: the section at X = -15, plate A only, 2.9 to 3.1 across Z.",
+    "values": [
+     3,
+     0.1
+    ]
+   },
+   "part/section.plate_b": {
+    "class": "stated",
+    "quotes": [
+     "a plate 3 mm thick from X = 3.3 to 25, Y = -15 to 15",
+     "the plates centred on Z = 0, from Z = -1.5 to 1.5, the knuckles from Z = -3 to 3",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Plate B's own 3 mm at ±0.1: the section at X = 15, plate B only, 2.9 to 3.1 across Z.",
+    "values": [
+     3,
+     0.1
+    ]
+   },
+   "part/cylinder.knuckles.radius": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length",
+     "Its one knuckle is round the axis from Y = -4.85 to 4.85: 6 mm outside, with a 3.6 mm bore for the pin. It is joined to its plate by a bridge from X = 2 to 3.3 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "Every knuckle's 6 mm outside at ±0.1: radius 2.95 to 3.05. `checks.cylinder` holds every outer face along Y within 0.25 of r = 3 (both A's and B's; the pin's r = 1.5 is not one), the worst reported; the round probes at r = 2.9 keep each knuckle in that band.",
+    "values": [
+     6,
+     0.1
+    ]
+   },
+   "part/cylinder.knuckles.position": {
+    "class": "stated",
+    "quotes": [
+     "Its two knuckles are tubes of 6 mm outside diameter round the axis, from Y = -15 to -5.15 and from Y = 5.15 to 15, each joined to the plate by a bridge from X = -3.3 to -2 over the knuckle's length",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "The knuckles round the axis, Y through the origin, within 0.1.",
+    "values": [
+     0.1
+    ]
    }
   },
   "stated": [
@@ -2265,7 +3429,9 @@
     "at": "a plate 3 mm thick from x = -25",
     "value": 3,
     "for": {
-     "leaf A's plate thickness": "unchecked: the plate probes (in.plate_a, in.plate_b) sit on Z = 0 and the box's Z is the knuckles': its thickness is held only by the volume (±6.5%)"
+     "leaf A's plate thickness": [
+      "part/section.plate_a"
+     ]
     }
    },
    {
@@ -2282,7 +3448,8 @@
     "value": 3.3,
     "for": {
      "leaf A's plate inner edge": [
-      "part/in.plate_a"
+      "part/in.plate_a",
+      "part/out.short_of_plate_a"
      ]
     }
    },
@@ -2291,7 +3458,8 @@
     "value": 15,
     "for": {
      "the plates' -Y edge": [
-      "part/bbox.y.min"
+      "part/bbox.y.min",
+      "part/in.plate_-y_-x"
      ]
     }
    },
@@ -2300,7 +3468,8 @@
     "value": 15,
     "for": {
      "the plates' +Y edge": [
-      "part/bbox.y.max"
+      "part/bbox.y.max",
+      "part/in.plate_+y_-x"
      ]
     }
    },
@@ -2308,21 +3477,31 @@
     "at": "tubes of 6 mm outside diameter",
     "value": 6,
     "for": {
-     "knuckle A's outside diameter": "unchecked: bbox.z and size.z hold only the tallest knuckle's 6 to ±0.1, not this leaf's on their own: a knuckle 0.4 thinner passes beside a full one (in.knuckle_* sit at r = 2.5)"
+     "knuckle A's outside diameter": [
+      "part/cylinder.knuckles.radius",
+      "part/in.knuckle_a_-y_round",
+      "part/in.knuckle_a_+y_round"
+     ]
     }
    },
    {
     "at": "from y = -15 to -5.15",
     "value": 15,
     "for": {
-     "knuckle A's -Y outer end": "unchecked: the plates and the pin reach Y = -15 too: bbox.y.min holds them, not the knuckle's end"
+     "knuckle A's -Y outer end": [
+      "part/bbox.y.min",
+      "part/in.knuckle_a_end_-y"
+     ]
     }
    },
    {
     "at": "-15 to -5.15",
     "value": 5.15,
     "for": {
-     "knuckle A's -Y inner end": "unchecked: not probed: only the +Y knuckle's end is (in.knuckle_a at 5.21); here only the clearance's least, 0.25, bounds it from knuckle B"
+     "knuckle A's -Y inner end": [
+      "part/in.knuckle_a_-y",
+      "part/out.short_of_knuckle_a_-y"
+     ]
     }
    },
    {
@@ -2330,7 +3509,8 @@
     "value": 5.15,
     "for": {
      "knuckle A's +Y inner end": [
-      "part/in.knuckle_a"
+      "part/in.knuckle_a",
+      "part/out.short_of_knuckle_a"
      ]
     }
    },
@@ -2338,21 +3518,24 @@
     "at": "5.15 to 15, each",
     "value": 15,
     "for": {
-     "knuckle A's +Y outer end": "unchecked: the plates reach Y = 15 too: bbox.y.max holds them, not the knuckle's end"
+     "knuckle A's +Y outer end": [
+      "part/bbox.y.max",
+      "part/in.knuckle_a_end_+y"
+     ]
     }
    },
    {
     "at": "bridge from x = -3.3",
     "value": 3.3,
     "for": {
-     "leaf A's bridge, at the plate": "unchecked: the bridges aren't probed: two solids holds only that each joins its knuckle to its plate"
+     "leaf A's bridge, at the plate": "unchecked: no face to hold: the bridge's outer end is plate A's inner edge, where they join, one solid (the edge is held: in.plate_a, out.short_of_plate_a); share.bridge_a_±y holds the bridge there over the knuckle's length"
     }
    },
    {
     "at": "-3.3 to -2 over",
     "value": 2,
     "for": {
-     "leaf A's bridge, at the knuckle": "unchecked: the bridges aren't probed: two solids holds only that each joins its knuckle to its plate"
+     "leaf A's bridge, at the knuckle": "unchecked: no face to hold: its inner end is inside knuckle A, which reaches X = -2.6 at the plate's Z = ±1.5, one solid; share.bridge_a_±y holds the bridge there over the knuckle's length"
     }
    },
    {
@@ -2368,21 +3551,29 @@
     "at": "axis from y = -15",
     "value": 15,
     "for": {
-     "the pin's -Y end": "unchecked: in.pin_end finds material on the axis at Y = -14.9, but knuckle A's end is solid there with the pin joined to it: no pin end is there to hold apart"
+     "the pin's -Y end": [
+      "part/bbox.y.min",
+      "part/in.pin_end"
+     ]
     }
    },
    {
     "at": "axis from y = -15 to 15",
     "value": 15,
     "for": {
-     "the pin's +Y end": "unchecked: not probed, and as at -Y, inside knuckle A's solid end"
+     "the pin's +Y end": [
+      "part/bbox.y.max",
+      "part/in.pin_end_+y"
+     ]
     }
    },
    {
     "at": "a plate 3 mm thick from x = 3.3",
     "value": 3,
     "for": {
-     "leaf B's plate thickness": "unchecked: the plate probes (in.plate_a, in.plate_b) sit on Z = 0 and the box's Z is the knuckles': its thickness is held only by the volume (±6.5%)"
+     "leaf B's plate thickness": [
+      "part/section.plate_b"
+     ]
     }
    },
    {
@@ -2390,7 +3581,8 @@
     "value": 3.3,
     "for": {
      "leaf B's plate inner edge": [
-      "part/in.plate_b"
+      "part/in.plate_b",
+      "part/out.short_of_plate_b"
      ]
     }
    },
@@ -2408,7 +3600,8 @@
     "value": 15,
     "for": {
      "the plates' -Y edge": [
-      "part/bbox.y.min"
+      "part/bbox.y.min",
+      "part/in.plate_-y_+x"
      ]
     }
    },
@@ -2417,7 +3610,8 @@
     "value": 15,
     "for": {
      "the plates' +Y edge": [
-      "part/bbox.y.max"
+      "part/bbox.y.max",
+      "part/in.plate_+y_+x"
      ]
     }
    },
@@ -2425,7 +3619,10 @@
     "at": "from y = -4.85",
     "value": 4.85,
     "for": {
-     "knuckle B's -Y end": "unchecked: not probed: only the +Y end is (in.knuckle_b at 4.79); here only the clearance's least, 0.25, bounds it from knuckle A"
+     "knuckle B's -Y end": [
+      "part/in.knuckle_b_-y",
+      "part/out.past_knuckle_b_-y"
+     ]
     }
    },
    {
@@ -2433,7 +3630,8 @@
     "value": 4.85,
     "for": {
      "knuckle B's +Y end": [
-      "part/in.knuckle_b"
+      "part/in.knuckle_b",
+      "part/out.past_knuckle_b"
      ]
     }
    },
@@ -2441,7 +3639,10 @@
     "at": "6 mm outside, with",
     "value": 6,
     "for": {
-     "knuckle B's outside diameter": "unchecked: bbox.z and size.z hold only the tallest knuckle's 6 to ±0.1, not this leaf's on their own: a knuckle 0.4 thinner passes beside a full one (in.knuckle_* sit at r = 2.5)"
+     "knuckle B's outside diameter": [
+      "part/cylinder.knuckles.radius",
+      "part/in.knuckle_b_round"
+     ]
     }
    },
    {
@@ -2457,14 +3658,14 @@
     "at": "bridge from x = 2",
     "value": 2,
     "for": {
-     "leaf B's bridge, at the knuckle": "unchecked: the bridges aren't probed: two solids holds only that each joins its knuckle to its plate"
+     "leaf B's bridge, at the knuckle": "unchecked: no face to hold: its inner end is inside knuckle B, which reaches X = 2.6 at the plate's Z = ±1.5, one solid; share.bridge_b holds the bridge there over the knuckle's length"
     }
    },
    {
     "at": "2 to 3.3 over",
     "value": 3.3,
     "for": {
-     "leaf B's bridge, at the plate": "unchecked: the bridges aren't probed: two solids holds only that each joins its knuckle to its plate"
+     "leaf B's bridge, at the plate": "unchecked: no face to hold: the bridge's outer end is plate B's inner edge, where they join, one solid (the edge is held: in.plate_b, out.short_of_plate_b); share.bridge_b holds the bridge there over the knuckle's length"
     }
    },
    {
@@ -2492,7 +3693,7 @@
     "at": "0.25 and 0.35 mm",
     "value": 0.35,
     "for": {
-     "the clearance's greatest, everywhere": "unchecked: own.distance holds only the closest distance to 0.35: any other gap wider passes. The knuckles' +Y gap is held to 0.42 at most by in.knuckle_a and in.knuckle_b; the -Y gap and the knuckle-to-plate gaps have no upper bound of their own"
+     "the clearance's greatest, everywhere": "unchecked: needs a gap within a region (the closest distance between the member's own solids, measured only within a stated box: one round the pin, one at each knuckle-end pair, one at each knuckle-to-plate gap): own.distance holds only the closest to 0.35. The faces either side are each held now: the +Y knuckle-end gap to 0.42 at most (in.knuckle_a, in.knuckle_b at 0.06), the -Y one to 0.5 (in at 0.1), the knuckle-to-plate gaps to 0.41 (the plates' edges at 3.36, the knuckles' r at 2.95 or more), the pin's to 0.4 (radii at ±0.025)"
     }
    },
    {
@@ -2522,7 +3723,42 @@
       "part/bbox.z.max",
       "part/size.z",
       "part/cylinder.pin.position",
-      "part/cylinder.bore.position"
+      "part/cylinder.bore.position",
+      "part/in.plate_top_+x",
+      "part/in.plate_bottom_+x",
+      "part/out.over_plate_+x",
+      "part/out.under_plate_+x",
+      "part/in.plate_-y_+x",
+      "part/in.plate_+y_+x",
+      "part/in.plate_top_-x",
+      "part/in.plate_bottom_-x",
+      "part/out.over_plate_-x",
+      "part/out.under_plate_-x",
+      "part/in.plate_-y_-x",
+      "part/in.plate_+y_-x",
+      "part/in.pin_end_+y",
+      "part/in.knuckle_a_end_-y",
+      "part/in.knuckle_a_end_+y",
+      "part/in.knuckle_b_-y",
+      "part/in.knuckle_a_-y",
+      "part/out.past_knuckle_b",
+      "part/out.past_knuckle_b_-y",
+      "part/out.short_of_knuckle_a",
+      "part/out.short_of_knuckle_a_-y",
+      "part/out.short_of_plate_b",
+      "part/out.short_of_plate_a",
+      "part/in.knuckle_a_-y_round",
+      "part/in.knuckle_b_round",
+      "part/in.knuckle_a_+y_round",
+      "part/section.plate_a",
+      "part/section.plate_b",
+      "part/cylinder.knuckles.radius",
+      "part/cylinder.knuckles.position",
+      "part/in.pin_end",
+      "part/in.plate_a",
+      "part/in.plate_b",
+      "part/in.knuckle_b",
+      "part/in.knuckle_a"
      ]
     }
    },
@@ -2530,21 +3766,40 @@
     "at": "centred on z = 0",
     "value": 0,
     "for": {
-     "the plates' centre": "unchecked: the plate probes sit on Z = 0, and the box's Z is the knuckles': a plate off centre passes while it covers Z = 0"
+     "the plates' centre": [
+      "part/in.plate_top_+x",
+      "part/in.plate_top_-x",
+      "part/out.over_plate_+x",
+      "part/out.over_plate_-x",
+      "part/in.plate_bottom_+x",
+      "part/in.plate_bottom_-x",
+      "part/out.under_plate_+x",
+      "part/out.under_plate_-x"
+     ]
     }
    },
    {
     "at": "z = -1.5",
     "value": 1.5,
     "for": {
-     "the plates' underside": "unchecked: the plate probes (in.plate_a, in.plate_b) sit on Z = 0 and the box's Z is the knuckles': its thickness is held only by the volume (±6.5%)"
+     "the plates' underside": [
+      "part/in.plate_bottom_+x",
+      "part/in.plate_bottom_-x",
+      "part/out.under_plate_+x",
+      "part/out.under_plate_-x"
+     ]
     }
    },
    {
     "at": "-1.5 to 1.5",
     "value": 1.5,
     "for": {
-     "the plates' top": "unchecked: the plate probes (in.plate_a, in.plate_b) sit on Z = 0 and the box's Z is the knuckles': its thickness is held only by the volume (±6.5%)"
+     "the plates' top": [
+      "part/in.plate_top_+x",
+      "part/in.plate_top_-x",
+      "part/out.over_plate_+x",
+      "part/out.over_plate_-x"
+     ]
     }
    },
    {
@@ -2731,8 +3986,11 @@
     "quotes": [
      "20, module 1.5, a 20° pressure angle, the standard full-depth profile: the pitch circle is 30 mm across, the tips 33 mm (an addendum of one module), the roots 26.25 mm (a dedendum of 1.25 modules)"
     ],
-    "says": "Roots 26.25 across (r = 13.125): solid all round at r = 13. It bounds the roots only from below: a shallower root passes.",
-    "values": []
+    "says": "Roots 26.25 across (r = 13.125): solid all round at r = 13.025, the roots at most 0.1 deeper (#40 V2: at r = 13, 0.125). The text gives the roots no tolerance; the tips' ±0.1 is taken for them, which ISO 53's rack, generated, meets exactly.",
+    "values": [
+     26.25,
+     1.25
+    ]
    },
    "part/share.past_tips": {
     "class": "stated",
@@ -2856,6 +4114,18 @@
     "values": [
      0.1
     ]
+   },
+   "part/changes.root_at_most": {
+    "class": "stated",
+    "quotes": [
+     "20, module 1.5, a 20° pressure angle, the standard full-depth profile: the pitch circle is 30 mm across, the tips 33 mm (an addendum of one module), the roots 26.25 mm (a dedendum of 1.25 modules)"
+    ],
+    "says": "Roots 26.25 across (r = 13.125), at most 0.1 shallower: each of the 20 gaps reaches below r = 13.225, so the ring there changes in and out 40 times (#40 V2: the roots were held from below only, and a shallower root passed up to near r = 14.2). A root fillet narrows each gap there but leaves it; the reference's radial flanks below the base circle read 40. 499 points, about ten a gap.",
+    "values": [
+     26.25,
+     1.25,
+     20
+    ]
    }
   },
   "stated": [
@@ -2927,14 +4197,20 @@
     "at": "the roots 26.25 mm",
     "value": 26.25,
     "for": {
-     "the roots' diameter": "unchecked: held from below only, at 26.0 across (share.root: solid at r = 13); a shallower root passes those checks up to near the involute_base ring (r = 14.2), bounded only by the volume's ±4%"
+     "the roots' diameter (±0.1, the tips')": [
+      "part/share.root",
+      "part/changes.root_at_most"
+     ]
     }
    },
    {
     "at": "dedendum of 1.25",
     "value": 1.25,
     "for": {
-     "the dedendum": "unchecked: held from below only, at 26.0 across (share.root: solid at r = 13); a shallower root passes those checks up to near the involute_base ring (r = 14.2), bounded only by the volume's ±4%"
+     "the dedendum (±0.1)": [
+      "part/share.root",
+      "part/changes.root_at_most"
+     ]
     }
    },
    {
@@ -3312,6 +4588,59 @@
      8
     ],
     "says": "Some material along r = 3.895 (the reference: 0.22): the crests at least 7.79 across, for 7.8."
+   },
+   "part/section.head": {
+    "class": "stated",
+    "quotes": [
+     "a hexagon 13 mm across the flats, 5.3 mm tall",
+     "±0.1 mm on the head and the length",
+     "the head from Z = -5.3 to 0, with two of its flats parallel to the XZ plane (so it's 13 mm across along Y), and the shank from Z = 0 to 20"
+    ],
+    "says": "The head's 5.3 mm, ±0.1, as a size: the plane X = 5 cuts the head alone (the crests are at r = 4, the corners at 7.5), and its extent along Z there is the head's height (#40 V2: its top, Z = 0, had no check). No probe points: the thread's measure is near its time. The reference reads 5.3.",
+    "values": [
+     5.3,
+     0.1
+    ]
+   },
+   "part/share.head_top": {
+    "class": "frame",
+    "quotes": [
+     "the head from Z = -5.3 to 0, with two of its flats parallel to the XZ plane (so it's 13 mm across along Y), and the shank from Z = 0 to 20",
+     "±0.1 mm on the head and the length"
+    ],
+    "says": "The head's top, Z = 0, where the shank starts, ±0.1, at Y = 6, past the crests: 24 points 0.01 apart from Z = -0.115 to 0.115, 12 in the material at 0; 0.1 is 10 of them, so 0.083 to 0.917. The reference reads 0.5.",
+    "values": [
+     0,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/share.shank_end": {
+    "class": "frame",
+    "quotes": [
+     "the head from Z = -5.3 to 0, with two of its flats parallel to the XZ plane (so it's 13 mm across along Y), and the shank from Z = 0 to 20",
+     "±0.1 mm on the head and the length"
+    ],
+    "says": "The shank's end, Z = 20, ±0.1, on the axis: 24 points 0.01 apart about it, 12 in at the nominal; 0.083 to 0.917, as share.head_top. The high end of slope.shank_length. The reference reads 0.5.",
+    "values": [
+     20,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "part/slope.shank_length": {
+    "class": "stated",
+    "quotes": [
+     "20 mm long, threaded along its whole length",
+     "±0.1 mm on the head and the length",
+     "the head from Z = -5.3 to 0, with two of its flats parallel to the XZ plane (so it's 13 mm across along Y), and the shank from Z = 0 to 20"
+    ],
+    "says": "The shank's 20 mm, ±0.1, as a size: share.shank_end less share.head_top is (length - 20)/0.24, so ±0.1 is ±0.417, 10 of 24 points (#40 V2: its end by bbox.z.max, its start by nothing). The reference reads 0.",
+    "values": [
+     20,
+     0.1
+    ],
+    "held_to": 0.1
    }
   },
   "stated": [
@@ -3351,14 +4680,18 @@
     "at": "5.3 mm tall",
     "value": 5.3,
     "for": {
-     "the head's 5.3 mm height": "unchecked: its bottom is held at Z = -5.3 ±0.1 (bbox.z.min); its top at Z = 0 by nothing"
+     "the head's 5.3 mm height": [
+      "part/section.head"
+     ]
     }
    },
    {
     "at": "shank: 20 mm long",
     "value": 20,
     "for": {
-     "the shank's 20 mm length": "unchecked: its end is held at Z = 20 ±0.1 (bbox.z.max) and the bolt's overall 25.3 by size.z, but its start, the head's top at Z = 0, by nothing"
+     "the shank's 20 mm length": [
+      "part/slope.shank_length"
+     ]
     }
    },
    {
@@ -3423,8 +4756,17 @@
     "at": "±0.1 mm on the head and the length",
     "value": 0.1,
     "for": {
-     "the head": "unchecked: its 13 across the flats is held ±0.1 by size.y (and its corners by size.x), but its 5.3 height isn't: bbox.z.min holds its bottom at Z = -5.3 and nothing its top at Z = 0",
-     "the length": "unchecked: the shank's 20 isn't held: bbox.z.max holds its end at Z = 20 ±0.1, size.z the bolt's overall 25.3 ±0.1, and nothing its start at Z = 0"
+     "the head": [
+      "part/size.y",
+      "part/size.x",
+      "part/section.head",
+      "part/share.head_top"
+     ],
+     "the length": [
+      "part/slope.shank_length",
+      "part/share.shank_end",
+      "part/share.head_top"
+     ]
     }
    },
    {
@@ -3469,7 +4811,9 @@
     "at": "-5.3 to 0,",
     "value": 0,
     "for": {
-     "the head's top": "unchecked: the head's top, Z = 0, where the shank starts, has no check: the flats' probes are at Z = -2.6 and the thread's lines start at Z = 2"
+     "the head's top": [
+      "part/share.head_top"
+     ]
     }
    },
    {
@@ -3487,7 +4831,9 @@
     "at": "shank from z = 0",
     "value": 0,
     "for": {
-     "the shank's start": "unchecked: the head's top, Z = 0, where the shank starts, has no check: the flats' probes are at Z = -2.6 and the thread's lines start at Z = 2"
+     "the shank's start": [
+      "part/share.head_top"
+     ]
     }
    },
    {
@@ -5866,6 +7212,69 @@
      16.3
     ],
     "says": "Its axis at Z = 16.3, Y = 0, within 0.1. Measured off the part's cylindrical faces (`checks.cylinder`): every face of its kind on the axis within 0.25 mm of the stated radius, the worst reported."
+   },
+   "bushing/cylinder.sleeve.radius": {
+    "class": "stated",
+    "quotes": [
+     "a flange 18 mm across and 2 mm thick, from Z = 0 to 2, and a sleeve 12 mm across from Z = 2 to 12. Its bore is 8.3 mm, through",
+     "±0.05 mm on the shaft and the bores, so the shaft's clearance in each bore is 0.1 to 0.2 mm; the collar's gap to the bushing 0.25 to 0.35 mm; ±0.1 mm on everything else"
+    ],
+    "says": "The sleeve's 12 mm, ±0.1: its outer cylinder's radius 5.95 to 6.05, off its own face along Z (`checks.cylinder`; the flange's r = 9 is too far from 6 to be taken for it). #40 V2: in.sleeve and out.past_sleeve held it to 11.8 to 16 only. The reference reads 6.0.",
+    "values": [
+     12,
+     0.1
+    ]
+   },
+   "bushing/cylinder.sleeve.position": {
+    "class": "stated",
+    "quotes": [
+     "a flange 18 mm across and 2 mm thick, from Z = 0 to 2, and a sleeve 12 mm across from Z = 2 to 12. Its bore is 8.3 mm, through",
+     "±0.05 mm on the shaft and the bores, so the shaft's clearance in each bore is 0.1 to 0.2 mm; the collar's gap to the bushing 0.25 to 0.35 mm; ±0.1 mm on everything else"
+    ],
+    "says": "The sleeve on the Z axis within 0.1 (\"±0.1 mm on everything else\").",
+    "values": [
+     0.1
+    ]
+   },
+   "bushing/in.flange_top": {
+    "class": "stated",
+    "quotes": [
+     "a flange 18 mm across and 2 mm thick, from Z = 0 to 2, and a sleeve 12 mm across from Z = 2 to 12. Its bore is 8.3 mm, through",
+     "±0.05 mm on the shaft and the bores, so the shaft's clearance in each bore is 0.1 to 0.2 mm; the collar's gap to the bushing 0.25 to 0.35 mm; ±0.1 mm on everything else"
+    ],
+    "says": "The flange's top at Z = 2, ±0.1, past the sleeve (r = 7.5): material at 1.9 (#40 V2: the flange's top had no check).",
+    "values": [
+     2,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "bushing/out.over_flange": {
+    "class": "stated",
+    "quotes": [
+     "a flange 18 mm across and 2 mm thick, from Z = 0 to 2, and a sleeve 12 mm across from Z = 2 to 12. Its bore is 8.3 mm, through",
+     "±0.05 mm on the shaft and the bores, so the shaft's clearance in each bore is 0.1 to 0.2 mm; the collar's gap to the bushing 0.25 to 0.35 mm; ±0.1 mm on everything else"
+    ],
+    "says": "Nothing at Z = 2.1 past the sleeve (r = 7.5): the flange's top no higher than 2 + 0.1.",
+    "values": [
+     2,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "bushing/share.flange_thickness": {
+    "class": "stated",
+    "quotes": [
+     "a flange 18 mm across and 2 mm thick, from Z = 0 to 2, and a sleeve 12 mm across from Z = 2 to 12. Its bore is 8.3 mm, through",
+     "±0.05 mm on the shaft and the bores, so the shaft's clearance in each bore is 0.1 to 0.2 mm; the collar's gap to the bushing 0.25 to 0.35 mm; ±0.1 mm on everything else"
+    ],
+    "says": "The flange's 2 mm, ±0.1, as a size, at r = 7.5: points 0.01 apart over 0.4 mm about its bottom and top (Z = -0.195 to 0.195 and 1.805 to 2.195), half in the material at 2 mm; 0.1 is 10 of 80 points, so 0.375 to 0.625. The reference reads 0.5.",
+    "values": [
+     2,
+     0.1,
+     0
+    ],
+    "held_to": 0.1
    }
   },
   "stated": [
@@ -5914,7 +7323,9 @@
     "at": "and 2 mm thick",
     "value": 2,
     "for": {
-     "the flange's 2 mm thickness": "unchecked: the flange's top, Z = 2, isn't probed: in.flange is at Z = 1 and out.past_sleeve at r = 8, Z = 6"
+     "the flange's 2 mm thickness": [
+      "bushing/share.flange_thickness"
+     ]
     }
    },
    {
@@ -5930,21 +7341,29 @@
     "at": "0 to 2, and",
     "value": 2,
     "for": {
-     "the flange's top": "unchecked: the flange's top, Z = 2, isn't probed: in.flange is at Z = 1 and out.past_sleeve at r = 8, Z = 6"
+     "the flange's top": [
+      "bushing/in.flange_top",
+      "bushing/out.over_flange"
+     ]
     }
    },
    {
     "at": "sleeve 12 mm across",
     "value": 12,
     "for": {
-     "the sleeve's diameter": "unchecked: held to 11.8 to 16 only: in.sleeve (material at r = 5.9) and out.past_sleeve (none at r = 8)"
+     "the sleeve's diameter": [
+      "bushing/cylinder.sleeve.radius"
+     ]
     }
    },
    {
     "at": "from z = 2 to 12",
     "value": 2,
     "for": {
-     "the sleeve's foot, the flange's top": "unchecked: the flange's top, Z = 2, isn't probed: in.flange is at Z = 1 and out.past_sleeve at r = 8, Z = 6"
+     "the sleeve's foot, the flange's top": [
+      "bushing/in.flange_top",
+      "bushing/out.over_flange"
+     ]
     }
    },
    {
@@ -6127,8 +7546,13 @@
       "collar/cylinder.set_screw.radius",
       "collar/cylinder.set_screw.position"
      ],
-     "the flange's 2 mm and the sleeve's 12 mm": "unchecked: the flange's top isn't probed; the sleeve's diameter is held to 11.8 to 16 only",
-     "the set-screw hole's 2.5 mm and Z = 16.3": "unchecked: only its top edge is held, to ±0.1 (in.set_screw_at_most, out.set_screw_at_least)"
+     "the flange's 2 mm and top, and the sleeve's 12 mm and place": [
+      "bushing/share.flange_thickness",
+      "bushing/in.flange_top",
+      "bushing/out.over_flange",
+      "bushing/cylinder.sleeve.radius",
+      "bushing/cylinder.sleeve.position"
+     ]
     }
    }
   ]
@@ -6534,6 +7958,493 @@
      59.5,
      0.1
     ]
+   },
+   "cabinet/in.inner_+x": {
+    "class": "stated",
+    "quotes": [
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The inside's +X face, X = 47, at ±0.1: material 0.1 into the wall, at 47.1. With out.inner_+x_out, the face to ±0.1.",
+    "values": [
+     47,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/out.inner_+x_out": {
+    "class": "stated",
+    "quotes": [
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 short of the inside's +X face (X = 47), at 46.9.",
+    "values": [
+     47,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/in.inner_-x": {
+    "class": "stated",
+    "quotes": [
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The inside's -X face, X = -47, at ±0.1: material 0.1 into the wall, at -47.1. With out.inner_-x_out, the face to ±0.1.",
+    "values": [
+     47,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/out.inner_-x_out": {
+    "class": "stated",
+    "quotes": [
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 short of the inside's -X face (X = -47), at -46.9.",
+    "values": [
+     47,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/in.inner_back": {
+    "class": "stated",
+    "quotes": [
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The inside's back face, Y = 77, at ±0.1: material 0.1 into it, at Y = 77.1.",
+    "values": [
+     77,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/out.inner_back_out": {
+    "class": "stated",
+    "quotes": [
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 short of the inside's back face, Y = 77, at Y = 76.9.",
+    "values": [
+     77,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/in.inner_floor": {
+    "class": "stated",
+    "quotes": [
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The inside's floor, Z = 3, at ±0.1: material 0.1 into it, at Z = 2.9.",
+    "values": [
+     3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/out.inner_floor_out": {
+    "class": "stated",
+    "quotes": [
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 short of the inside's floor, Z = 3, at Z = 3.1.",
+    "values": [
+     3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/in.inner_top": {
+    "class": "stated",
+    "quotes": [
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The inside's top, Z = 57, at ±0.1: material 0.1 into it, at Z = 57.1.",
+    "values": [
+     57,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/out.inner_top_out": {
+    "class": "stated",
+    "quotes": [
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 short of the inside's top, Z = 57, at Z = 56.9.",
+    "values": [
+     57,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/share.wall_+x": {
+    "class": "stated",
+    "quotes": [
+     "a box 100 mm along X, 80 mm deep along Y and 60 mm tall, with 3 mm walls, a floor, a top and a back, and open at the front, Y = 0",
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The 3 mm wall's own thickness at ±0.1: a 6 mm line of 301 points through the +X wall (47 to 50), along X at Y = 40, Z = 30, from 45.5 to 51.5, 1.5 mm past both faces, 2.9/6 to 3.1/6 in the material (the reference: 151 of 301, 0.5017). held_to: the window is 2.9 to 3.1 mm of the 6, to the 0.02 mm point spacing.",
+    "values": [
+     3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/share.wall_-x": {
+    "class": "stated",
+    "quotes": [
+     "a box 100 mm along X, 80 mm deep along Y and 60 mm tall, with 3 mm walls, a floor, a top and a back, and open at the front, Y = 0",
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The 3 mm wall's own thickness at ±0.1: a 6 mm line of 301 points through the -X wall (-50 to -47), along X, from -45.5 to -51.5, 1.5 mm past both faces, 2.9/6 to 3.1/6 in the material (the reference: 151 of 301, 0.5017). held_to: the window is 2.9 to 3.1 mm of the 6, to the 0.02 mm point spacing.",
+    "values": [
+     3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/share.back_wall": {
+    "class": "stated",
+    "quotes": [
+     "a box 100 mm along X, 80 mm deep along Y and 60 mm tall, with 3 mm walls, a floor, a top and a back, and open at the front, Y = 0",
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The 3 mm wall's own thickness at ±0.1: a 6 mm line of 301 points through the back (77 to 80), along Y at X = 0, Z = 30, from 75.5 to 81.5, 1.5 mm past both faces, 2.9/6 to 3.1/6 in the material (the reference: 151 of 301, 0.5017). held_to: the window is 2.9 to 3.1 mm of the 6, to the 0.02 mm point spacing.",
+    "values": [
+     3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/share.floor_wall": {
+    "class": "stated",
+    "quotes": [
+     "a box 100 mm along X, 80 mm deep along Y and 60 mm tall, with 3 mm walls, a floor, a top and a back, and open at the front, Y = 0",
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The 3 mm wall's own thickness at ±0.1: a 6 mm line of 301 points through the floor (0 to 3), along Z at X = 0, Y = 40, from -1.5 to 4.5, 1.5 mm past both faces, 2.9/6 to 3.1/6 in the material (the reference: 151 of 301, 0.5017). held_to: the window is 2.9 to 3.1 mm of the 6, to the 0.02 mm point spacing.",
+    "values": [
+     3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "cabinet/share.top_wall": {
+    "class": "stated",
+    "quotes": [
+     "a box 100 mm along X, 80 mm deep along Y and 60 mm tall, with 3 mm walls, a floor, a top and a back, and open at the front, Y = 0",
+     "So its inside runs from X = -47 to 47, Y = 0 to 77, Z = 3 to 57",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The 3 mm wall's own thickness at ±0.1: a 6 mm line of 301 points through the top (57 to 60), along Z, from 55.5 to 61.5, 1.5 mm past both faces, 2.9/6 to 3.1/6 in the material (the reference: 151 of 301, 0.5017). held_to: the window is 2.9 to 3.1 mm of the 6, to the 0.02 mm point spacing.",
+    "values": [
+     3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/in.body_+x": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The body's +X side, X = 46.5, at ±0.1: material at 46.4.",
+    "values": [
+     46.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/out.body_+x_out": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 past the body's +X side, at 46.6.",
+    "values": [
+     46.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/in.body_-x": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The body's -X side, X = -46.5, at ±0.1: material at -46.4.",
+    "values": [
+     46.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/out.body_-x_out": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing 0.1 past the body's -X side, at -46.6.",
+    "values": [
+     46.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/in.underside": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The body's underside, Z = 3.5, at ±0.1: material at 3.6.",
+    "values": [
+     3.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/out.under_body": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing under the body's Z = 3.5, at 3.4.",
+    "values": [
+     3.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/in.top_edge": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The body's top edge, Z = 50, at ±0.1: material at 49.9 in the +X wall.",
+    "values": [
+     50,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/out.over_top_edge": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing over the +X wall at Z = 50.1.",
+    "values": [
+     50,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/in.front_wall": {
+    "class": "derived",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Arithmetic: the 2 mm front wall from the body's front, Y = -0.5, puts its inside at Y = 1.5: material at 1.4, at X = 30 clear of the finger hole.",
+    "values": [
+     2,
+     0.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/out.front_wall_out": {
+    "class": "derived",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing at Y = 1.6, inside the drawer behind its 2 mm front wall (-0.5 + 2 = 1.5).",
+    "values": [
+     2,
+     0.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/in.plate_back_+x": {
+    "class": "stated",
+    "quotes": [
+     "a plate on the drawer's front 100 mm wide (X = -50 to 50), 3 mm thick, from Y = -3.5 to -0.5, and from Z = 0.5 to 59.5. So it stops 0.5 mm short of the cabinet's front edge",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The plate's back, Y = -0.5, at ±0.1, at X = 48, past the body: material at -0.6.",
+    "values": [
+     0.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/out.behind_plate_+x": {
+    "class": "stated",
+    "quotes": [
+     "a plate on the drawer's front 100 mm wide (X = -50 to 50), 3 mm thick, from Y = -3.5 to -0.5, and from Z = 0.5 to 59.5. So it stops 0.5 mm short of the cabinet's front edge",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing behind the plate's back at X = 48, Y = -0.4.",
+    "values": [
+     0.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/in.plate_back_-x": {
+    "class": "stated",
+    "quotes": [
+     "a plate on the drawer's front 100 mm wide (X = -50 to 50), 3 mm thick, from Y = -3.5 to -0.5, and from Z = 0.5 to 59.5. So it stops 0.5 mm short of the cabinet's front edge",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The plate's back, Y = -0.5, at ±0.1, at X = -48, past the body: material at -0.6.",
+    "values": [
+     0.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/out.behind_plate_-x": {
+    "class": "stated",
+    "quotes": [
+     "a plate on the drawer's front 100 mm wide (X = -50 to 50), 3 mm thick, from Y = -3.5 to -0.5, and from Z = 0.5 to 59.5. So it stops 0.5 mm short of the cabinet's front edge",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Nothing behind the plate's back at X = -48, Y = -0.4.",
+    "values": [
+     0.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/share.wall_+x": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The 2 mm wall's own thickness at ±0.1: a 4 mm line of 201 points through the +X wall (44.5 to 46.5), along X from 43.5 to 47.5, 1.9/4 to 2.1/4 in the material (the reference: 101 of 201, 0.5025). held_to: to the 0.02 mm point spacing.",
+    "values": [
+     2,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/share.wall_-x": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The 2 mm wall's own thickness at ±0.1: a 4 mm line of 201 points through the -X wall (-46.5 to -44.5), along X from -43.5 to -47.5, 1.9/4 to 2.1/4 in the material (the reference: 101 of 201, 0.5025). held_to: to the 0.02 mm point spacing.",
+    "values": [
+     2,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/share.back_wall": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The 2 mm wall's own thickness at ±0.1: a 4 mm line of 201 points through the back wall (74.5 to 76.5), along Y from 73.5 to 77.5, 1.9/4 to 2.1/4 in the material (the reference: 101 of 201, 0.5025). held_to: to the 0.02 mm point spacing.",
+    "values": [
+     2,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/share.floor_wall": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The 2 mm floor's own thickness at ±0.1: a 4 mm line of 201 points through the floor (3.5 to 5.5), along Z from 2.5 to 6.5, 1.9/4 to 2.1/4 in the material (the reference: 101 of 201, 0.5025). held_to: to the 0.02 mm point spacing.",
+    "values": [
+     2,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/share.plate_+x": {
+    "class": "stated",
+    "quotes": [
+     "a plate on the drawer's front 100 mm wide (X = -50 to 50), 3 mm thick, from Y = -3.5 to -0.5, and from Z = 0.5 to 59.5. So it stops 0.5 mm short of the cabinet's front edge",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The plate's own 3 mm at ±0.1: a 6 mm line along Y at X = 48 (past the body), Z = 30, from -5 to 1, 2.9/6 to 3.1/6 in the material (the reference: 151 of 301). held_to: to the 0.02 mm point spacing.",
+    "values": [
+     3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/share.plate_-x": {
+    "class": "stated",
+    "quotes": [
+     "a plate on the drawer's front 100 mm wide (X = -50 to 50), 3 mm thick, from Y = -3.5 to -0.5, and from Z = 0.5 to 59.5. So it stops 0.5 mm short of the cabinet's front edge",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The plate's own 3 mm at ±0.1: a 6 mm line along Y at X = -48 (past the body), Z = 30, from -5 to 1, 2.9/6 to 3.1/6 in the material (the reference: 151 of 301). held_to: to the 0.02 mm point spacing.",
+    "values": [
+     3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "drawer/cylinder.finger_hole.radius": {
+    "class": "stated",
+    "quotes": [
+     "It has a finger hole 20 mm across through it and the drawer's front wall, along Y, centred at X = 0, Z = 38, so it stops 2 mm below the drawer's top edge",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The finger hole's 20 mm across at ±0.1: a hole along Y, radius 9.95 to 10.05, off its own face (`checks.cylinder`). Its diameter and its centre are now held apart (the edge probes only held its top edge).",
+    "values": [
+     20,
+     0.1
+    ]
+   },
+   "drawer/cylinder.finger_hole.position": {
+    "class": "stated",
+    "quotes": [
+     "It has a finger hole 20 mm across through it and the drawer's front wall, along Y, centred at X = 0, Z = 38, so it stops 2 mm below the drawer's top edge",
+     "±0.1 mm on everything else"
+    ],
+    "says": "The finger hole's axis at X = 0, Z = 38, within 0.1.",
+    "values": [
+     0,
+     38,
+     0.1
+    ]
    }
   },
   "stated": [
@@ -6568,7 +8479,13 @@
     "at": "with 3 mm walls",
     "value": 3,
     "for": {
-     "the cabinet's walls": "unchecked: the cabinet's inner faces aren't probed (in.side, in.back, in.floor and in.top sit mid-wall); they're held only relative to the drawer, by its 0.4 to 0.6 gap, whose own faces aren't held either; only the volume (±4.5%) bounds them"
+     "the cabinet's walls": [
+      "cabinet/share.wall_+x",
+      "cabinet/share.wall_-x",
+      "cabinet/share.back_wall",
+      "cabinet/share.floor_wall",
+      "cabinet/share.top_wall"
+     ]
     }
    },
    {
@@ -6584,14 +8501,20 @@
     "at": "from x = -47",
     "value": 47,
     "for": {
-     "the inside's -X face": "unchecked: the cabinet's inner faces aren't probed (in.side, in.back, in.floor and in.top sit mid-wall); they're held only relative to the drawer, by its 0.4 to 0.6 gap, whose own faces aren't held either"
+     "the inside's -X face": [
+      "cabinet/in.inner_-x",
+      "cabinet/out.inner_-x_out"
+     ]
     }
    },
    {
     "at": "-47 to 47,",
     "value": 47,
     "for": {
-     "the inside's +X face": "unchecked: the cabinet's inner faces aren't probed (in.side, in.back, in.floor and in.top sit mid-wall); they're held only relative to the drawer, by its 0.4 to 0.6 gap, whose own faces aren't held either"
+     "the inside's +X face": [
+      "cabinet/in.inner_+x",
+      "cabinet/out.inner_+x_out"
+     ]
     }
    },
    {
@@ -6607,35 +8530,52 @@
     "at": "y = 0 to 77",
     "value": 77,
     "for": {
-     "the inside's back face": "unchecked: the cabinet's inner faces aren't probed (in.side, in.back, in.floor and in.top sit mid-wall); they're held only relative to the drawer, by its 0.4 to 0.6 gap, whose own faces aren't held either"
+     "the inside's back face": [
+      "cabinet/in.inner_back",
+      "cabinet/out.inner_back_out"
+     ]
     }
    },
    {
     "at": "z = 3 to 57",
     "value": 3,
     "for": {
-     "the inside's floor": "unchecked: the cabinet's inner faces aren't probed (in.side, in.back, in.floor and in.top sit mid-wall); they're held only relative to the drawer, by its 0.4 to 0.6 gap, whose own faces aren't held either"
+     "the inside's floor": [
+      "cabinet/in.inner_floor",
+      "cabinet/out.inner_floor_out"
+     ]
     }
    },
    {
     "at": "z = 3 to 57",
     "value": 57,
     "for": {
-     "the inside's top": "unchecked: the cabinet's inner faces aren't probed (in.side, in.back, in.floor and in.top sit mid-wall); they're held only relative to the drawer, by its 0.4 to 0.6 gap, whose own faces aren't held either"
+     "the inside's top": [
+      "cabinet/in.inner_top",
+      "cabinet/out.inner_top_out"
+     ]
     }
    },
    {
     "at": "with 2 mm walls",
     "value": 2,
     "for": {
-     "the drawer's walls": "unchecked: not probed but mid-wall (in.side at 45.5); only the volume (±5%) bounds them"
+     "the drawer's walls": [
+      "drawer/share.wall_+x",
+      "drawer/share.wall_-x",
+      "drawer/share.back_wall",
+      "drawer/in.front_wall",
+      "drawer/out.front_wall_out"
+     ]
     }
    },
    {
     "at": "a 2 mm floor",
     "value": 2,
     "for": {
-     "the drawer's floor": "unchecked: not probed but mid-floor (in.floor at 4.5); only the volume bounds it"
+     "the drawer's floor": [
+      "drawer/share.floor_wall"
+     ]
     }
    },
    {
@@ -6651,21 +8591,27 @@
     "at": "from x = -46.5",
     "value": 46.5,
     "for": {
-     "the body's -X side": "unchecked: the drawer body's outer faces aren't probed (in.side and in.floor sit mid-wall, and the box's ±50 and 0.5 are the front plate's); held only relative to the cabinet's inner faces, by the gap"
+     "the body's -X side": [
+      "drawer/in.body_-x",
+      "drawer/out.body_-x_out"
+     ]
     }
    },
    {
     "at": "-46.5 to 46.5",
     "value": 46.5,
     "for": {
-     "the body's +X side": "unchecked: the drawer body's outer faces aren't probed (in.side and in.floor sit mid-wall, and the box's ±50 and 0.5 are the front plate's); held only relative to the cabinet's inner faces, by the gap"
+     "the body's +X side": [
+      "drawer/in.body_+x",
+      "drawer/out.body_+x_out"
+     ]
     }
    },
    {
     "at": "y = -0.5 to 76.5",
     "value": 0.5,
     "for": {
-     "the body's front, behind the plate": "unchecked: the body meets the plate there: nothing separates the two, and the plate's back isn't held either"
+     "the body's front, behind the plate": "unchecked: no face to hold: the body's front meets the plate's back there, one solid; the plate's back beside the body is held (in.plate_back_±x, out.behind_plate_±x)"
     }
    },
    {
@@ -6681,14 +8627,20 @@
     "at": "z = 3.5 to 50",
     "value": 3.5,
     "for": {
-     "the body's underside": "unchecked: the drawer's box starts at the plate's Z = 0.5; the body's floor is held only relative to the cabinet's floor, by the gap"
+     "the body's underside": [
+      "drawer/in.underside",
+      "drawer/out.under_body"
+     ]
     }
    },
    {
     "at": "3.5 to 50.",
     "value": 50,
     "for": {
-     "the body's top edge": "unchecked: held only to Z ≤ 52, by out.over_body; nothing holds it from below"
+     "the body's top edge": [
+      "drawer/in.top_edge",
+      "drawer/out.over_top_edge"
+     ]
     }
    },
    {
@@ -6722,7 +8674,10 @@
     "at": "3 mm thick, from y",
     "value": 3,
     "for": {
-     "the plate's thickness": "unchecked: its front face is held (bbox.y.min, ±0.1), its back face only from the cabinet's side (the gap, at least 0.4 from Y = 0): a thinner plate passes"
+     "the plate's thickness": [
+      "drawer/share.plate_+x",
+      "drawer/share.plate_-x"
+     ]
     }
    },
    {
@@ -6738,7 +8693,12 @@
     "at": "-3.5 to -0.5",
     "value": 0.5,
     "for": {
-     "the plate's back face": "unchecked: held only from the cabinet's side: the gap keeps it 0.4 or more off the front edge, and nothing keeps it from being further"
+     "the plate's back face": [
+      "drawer/in.plate_back_+x",
+      "drawer/in.plate_back_-x",
+      "drawer/out.behind_plate_+x",
+      "drawer/out.behind_plate_-x"
+     ]
     }
    },
    {
@@ -6763,28 +8723,34 @@
     "at": "stops 0.5 mm short",
     "value": 0.5,
     "for": {
-     "the plate's gap to the cabinet's front edge": "unchecked: held only from below, 0.4 or more, by gap.cabinet.distance (the closest distance anywhere): a plate further short passes while another gap is the closest"
+     "the plate's gap to the cabinet's front edge": "unchecked: needs a gap within a region (a `Gap` whose closest distance is measured only between the member's material inside a stated box and the other part's): the plate's back (Y = -0.5 ±0.1, in.plate_back_±x and out.behind_plate_±x) and the cabinet's front (Y = 0 ±0.1, bbox.y.min) are each held, so this gap is 0.3 to 0.7, and 0.4 or more by gap.cabinet.distance: 0.4 to 0.7, not 0.4 to 0.6"
     }
    },
    {
     "at": "finger hole 20 mm across",
     "value": 20,
     "for": {
-     "the finger hole's diameter": "unchecked: only its top edge (Z = 48, ±0.1) is probed, by in.finger_hole_at_most and out.finger_hole_at_least, so its 20 and its 38 aren't separated: a 19 mm hole at Z = 38.5 passes"
+     "the finger hole's diameter": [
+      "drawer/cylinder.finger_hole.radius"
+     ]
     }
    },
    {
     "at": "centred at x = 0",
     "value": 0,
     "for": {
-     "the finger hole's X": "unchecked: out.finger_hole holds it open at X = 0, Z = 38 only; a hole off centre by up to about 9 mm passes"
+     "the finger hole's X": [
+      "drawer/cylinder.finger_hole.position"
+     ]
     }
    },
    {
     "at": "z = 38",
     "value": 38,
     "for": {
-     "the finger hole's height": "unchecked: as its diameter: only its top edge is held, at 48 = 38 + 10"
+     "the finger hole's height": [
+      "drawer/cylinder.finger_hole.position"
+     ]
     }
    },
    {
@@ -6810,7 +8776,7 @@
     "at": "and 0.6 mm",
     "value": 0.6,
     "for": {
-     "the drawer's greatest gap, everywhere": "unchecked: gap.cabinet.distance holds only the closest distance to 0.6: any other gap (a side, the floor, the back, the plate) wider than 0.6 passes, since none of the faces either side is held on its own"
+     "the drawer's greatest gap, everywhere": "unchecked: needs a gap within a region (a `Gap` whose closest distance is measured only between the member's material inside a stated box and the other part's): gap.cabinet.distance holds only the closest distance to 0.6. Each face either side of each gap is now held to ±0.1 (the cabinet's inner faces, the body's sides, underside and back, the plate's back), so each gap is 0.5 ±0.2, at least 0.4: up to 0.7, not 0.6"
     }
    },
    {
@@ -6837,7 +8803,44 @@
       "drawer/bbox.z.max",
       "drawer/size.z",
       "drawer/in.finger_hole_at_most",
-      "drawer/out.finger_hole_at_least"
+      "drawer/out.finger_hole_at_least",
+      "cabinet/in.inner_+x",
+      "cabinet/in.inner_-x",
+      "cabinet/in.inner_back",
+      "cabinet/in.inner_floor",
+      "cabinet/in.inner_top",
+      "cabinet/out.inner_+x_out",
+      "cabinet/out.inner_-x_out",
+      "cabinet/out.inner_back_out",
+      "cabinet/out.inner_floor_out",
+      "cabinet/out.inner_top_out",
+      "cabinet/share.wall_+x",
+      "cabinet/share.wall_-x",
+      "cabinet/share.back_wall",
+      "cabinet/share.floor_wall",
+      "cabinet/share.top_wall",
+      "drawer/in.body_+x",
+      "drawer/in.body_-x",
+      "drawer/in.underside",
+      "drawer/in.top_edge",
+      "drawer/in.front_wall",
+      "drawer/in.plate_back_+x",
+      "drawer/in.plate_back_-x",
+      "drawer/out.body_+x_out",
+      "drawer/out.body_-x_out",
+      "drawer/out.under_body",
+      "drawer/out.over_top_edge",
+      "drawer/out.front_wall_out",
+      "drawer/out.behind_plate_+x",
+      "drawer/out.behind_plate_-x",
+      "drawer/share.wall_+x",
+      "drawer/share.wall_-x",
+      "drawer/share.back_wall",
+      "drawer/share.floor_wall",
+      "drawer/share.plate_+x",
+      "drawer/share.plate_-x",
+      "drawer/cylinder.finger_hole.radius",
+      "drawer/cylinder.finger_hole.position"
      ]
     }
    },
@@ -7167,10 +9170,17 @@
    "gear-a/share.root": {
     "class": "derived",
     "quotes": [
-     "module 1.5, a 20° pressure angle, the standard full-depth involute profile (an addendum of one module, a dedendum of 1.25), 6 mm thick. Gear A has 12 teeth, gear B 28. Each has a 5.4 mm bore"
+     "module 1.5",
+     "an addendum of one module, a dedendum of 1.25",
+     "Gear A has 12 teeth",
+     "±0.1 mm on everything else"
     ],
-    "says": "Roots at 9 - 1.25·1.5 = 7.125: solid at r = 7. A bound from below only.",
-    "values": []
+    "says": "Arithmetic: the root radius 1.5·12/2 − 1.25·1.5 = 7.125, at least 7.025 with ±0.1: a ring there must be solid all round (share 0.99 or more). With root_at_most, the root to ±0.1 (#40 round 2: the ring was at 7, -0.125).",
+    "values": [
+     1.25,
+     0.1
+    ],
+    "held_to": 0.1
    },
    "gear-a/gap.gear-b.interference": {
     "class": "stated",
@@ -7352,10 +9362,17 @@
    "gear-b/share.root": {
     "class": "derived",
     "quotes": [
-     "module 1.5, a 20° pressure angle, the standard full-depth involute profile (an addendum of one module, a dedendum of 1.25), 6 mm thick. Gear A has 12 teeth, gear B 28. Each has a 5.4 mm bore"
+     "module 1.5",
+     "an addendum of one module, a dedendum of 1.25",
+     "gear B 28",
+     "±0.1 mm on everything else"
     ],
-    "says": "Roots at 21 - 1.875 = 19.125: solid at r = 19.",
-    "values": []
+    "says": "Arithmetic: the root radius 1.5·28/2 − 1.25·1.5 = 19.125, at least 19.025 with ±0.1: a ring there must be solid all round (share 0.99 or more). With root_at_most, the root to ±0.1 (#40 round 2: the ring was at 19, -0.125).",
+    "values": [
+     1.25,
+     0.1
+    ],
+    "held_to": 0.1
    },
    "gear-b/gap.plate.interference": {
     "class": "stated",
@@ -7382,13 +9399,13 @@
      "Each tooth's width within about 0.1 mm of the involute's",
      "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
     ],
-    "says": "The involute's share at r = 9.75: half-angle π/24 + inv 20° - inv(acos(8.457/9.75)), share 0.355; ±0.02 of the 5.1 mm pitch there is ±0.1 mm. With the pitch ring it holds the flank's shape: straight flanks fail. held_to: half the window, 0.02 of the ring, times the 5.105 mm pitch there: ±0.1021 mm on the teeth's mean width at r = 9.75 (each tooth's isn't held on its own).",
+    "says": "The involute's share at r = 9.75: half-angle π/24 + inv 20° - inv(acos(8.457/9.75)), share 0.355; ±0.0195 of the 5.105 mm pitch there is ±0.0995 mm. With the pitch ring it holds the flank's shape: straight flanks fail. held_to: half the window, 0.0195 of the ring, times the 5.105 mm pitch there: ±0.0995 mm on the teeth's mean width at r = 9.75 (each tooth's isn't held on its own). #40 round 2: the window was ±0.02, ±0.1021 mm, over the 0.1.",
     "values": [
      20,
      1.5,
      0.1
     ],
-    "held_to": 0.1021
+    "held_to": 0.0995
    },
    "gear-a/changes.addendum": {
     "class": "derived",
@@ -7433,10 +9450,12 @@
      "Gear A has 12 teeth",
      "±0.1 mm on everything else"
     ],
-    "says": "Arithmetic: the root radius 1.5·12/2 − 1.25·1.5 = 7.125, at most 7.225 with ±0.1: a ring at 7.24 must meet the gaps (share at most 0.95). With the root ring below, the root is held to its ±0.1.",
+    "says": "Arithmetic: the root radius 1.5·12/2 − 1.25·1.5 = 7.125, at most 7.225 with ±0.1: a ring there must meet the gaps (share at most 0.95; the reference's 0.56). With the root ring, the root to ±0.1 (#40 round 2: the ring was at 7.24, +0.115).",
     "values": [
-     1.25
-    ]
+     1.25,
+     0.1
+    ],
+    "held_to": 0.1
    },
    "gear-b/share.root_at_most": {
     "class": "derived",
@@ -7446,10 +9465,12 @@
      "gear B 28",
      "±0.1 mm on everything else"
     ],
-    "says": "Arithmetic: the root radius 1.5·28/2 − 1.25·1.5 = 19.125, at most 19.225 with ±0.1: a ring at 19.24 must meet the gaps (share at most 0.95). With the root ring below, the root is held to its ±0.1.",
+    "says": "Arithmetic: the root radius 1.5·28/2 − 1.25·1.5 = 19.125, at most 19.225 with ±0.1: a ring there must meet the gaps (share at most 0.95; the reference's 0.56). With the root ring, the root to ±0.1 (#40 round 2: the ring was at 19.24, +0.115).",
     "values": [
-     1.25
-    ]
+     1.25,
+     0.1
+    ],
+    "held_to": 0.1
    },
    "gear-a/share.involute_base": {
     "class": "derived",
@@ -7544,13 +9565,13 @@
      "module 1.5, a 20° pressure angle, the standard full-depth involute profile (an addendum of one module, a dedendum of 1.25), 6 mm thick. Gear A has 12 teeth, gear B 28. Each has a 5.4 mm bore",
      "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
     ],
-    "says": "Arithmetic, the involute's tooth thickness at r = 22.35: a share of 0.249 of the ring is tooth; ±0.1 mm of tooth width gives 0.229–0.269. Straight 20° flanks give 0.274 there and fail (planted, held by test_planted_in_image.py). held_to: half the window, 0.02 of the ring, times the 5.015 mm pitch there: ±0.1003 mm on the teeth's mean width at r = 22.35 (each tooth's isn't held on its own).",
+    "says": "Arithmetic, the involute's tooth thickness at r = 22.35: a share of 0.249 of the ring is tooth; ±0.0978 mm of tooth width gives 0.2295–0.2685. Straight 20° flanks give 0.274 there and fail (planted, held by test_planted_in_image.py). held_to: half the window, 0.0195 of the ring, times the 5.015 mm pitch there: ±0.0978 mm on the teeth's mean width at r = 22.35 (each tooth's isn't held on its own). #40 round 2: the window was ±0.02, ±0.1003 mm, over the 0.1.",
     "values": [
      20,
      1.5,
      0.1
     ],
-    "held_to": 0.1003
+    "held_to": 0.0978
    },
    "gear-b/changes.involute_tip": {
     "class": "stated",
@@ -7778,6 +9799,70 @@
      30.2
     ],
     "says": "Post B under gear B, at X = 30.2, Y = 0, within 0.1. Measured off the part's cylindrical faces (`checks.cylinder`): every face of its kind on the axis within 0.25 mm of the stated radius, the worst reported."
+   },
+   "plate/in.plate_top": {
+    "class": "stated",
+    "quotes": [
+     "from X = -12 to 58, Y = -25 to 25, Z = 0 to 4, with a post 5 mm across standing up under each gear, from Z = 4 to 14",
+     "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
+    ],
+    "says": "The plate's top, Z = 4, at ±0.1: material at 3.9, at X = 50, Y = 20, clear of the posts and the gears.",
+    "values": [
+     4,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "plate/out.over_plate": {
+    "class": "stated",
+    "quotes": [
+     "from X = -12 to 58, Y = -25 to 25, Z = 0 to 4, with a post 5 mm across standing up under each gear, from Z = 4 to 14",
+     "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
+    ],
+    "says": "Nothing over the plate's top at Z = 4.1.",
+    "values": [
+     4,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "plate/section.plate": {
+    "class": "stated",
+    "quotes": [
+     "from X = -12 to 58, Y = -25 to 25, Z = 0 to 4, with a post 5 mm across standing up under each gear, from Z = 4 to 14",
+     "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
+    ],
+    "says": "The plate's 4 mm at ±0.1: its section at X = 50, past the posts (X = 0 and 30.2), 3.9 to 4.1 across Z.",
+    "values": [
+     4,
+     0.1
+    ]
+   },
+   "plate/in.post_a_top": {
+    "class": "stated",
+    "quotes": [
+     "from X = -12 to 58, Y = -25 to 25, Z = 0 to 4, with a post 5 mm across standing up under each gear, from Z = 4 to 14",
+     "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
+    ],
+    "says": "Post A's own top, Z = 14, at ±0.1: material on its axis (X = 0) at 13.9 (the box's Z holds the taller post's, from above).",
+    "values": [
+     14,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "plate/in.post_b_top": {
+    "class": "stated",
+    "quotes": [
+     "from X = -12 to 58, Y = -25 to 25, Z = 0 to 4, with a post 5 mm across standing up under each gear, from Z = 4 to 14",
+     "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
+    ],
+    "says": "Post B's own top, Z = 14, at ±0.1: material on its axis (X = 30.2) at 13.9 (the box's Z holds the taller post's, from above).",
+    "values": [
+     14,
+     0.1
+    ],
+    "held_to": 0.1
    }
   },
   "stated": [
@@ -7811,7 +9896,12 @@
     "at": "a dedendum of 1.25",
     "value": 1.25,
     "for": {
-     "the dedendum (the root radius)": "unchecked: held to about -0.125/+0.115 on the root radius only (7.125 and 19.125), by share.root (solid at r = 7.0 and 19.0) and share.root_at_most (gaps at 7.24 and 19.24): looser than the ±0.1 on everything else"
+     "the dedendum (the root radius)": [
+      "gear-a/share.root",
+      "gear-a/share.root_at_most",
+      "gear-b/share.root",
+      "gear-b/share.root_at_most"
+     ]
     }
    },
    {
@@ -7949,7 +10039,11 @@
     "at": "0 to 4,",
     "value": 4,
     "for": {
-     "the plate's top": "unchecked: not probed: the gears' 0.5 above it is further than their clearance on the posts, so gap.plate.distance doesn't reach it; only the volume (±3%) bounds it"
+     "the plate's top": [
+      "plate/in.plate_top",
+      "plate/out.over_plate",
+      "plate/section.plate"
+     ]
     }
    },
    {
@@ -7970,7 +10064,10 @@
     "at": "from z = 4 to 14",
     "value": 4,
     "for": {
-     "the posts' foot, the plate's top": "unchecked: as the plate's top: not probed"
+     "the posts' foot, the plate's top": [
+      "plate/in.plate_top",
+      "plate/out.over_plate"
+     ]
     }
    },
    {
@@ -7978,7 +10075,9 @@
     "value": 14,
     "for": {
      "the posts' top": [
-      "plate/bbox.z.max"
+      "plate/bbox.z.max",
+      "plate/in.post_a_top",
+      "plate/in.post_b_top"
      ]
     }
    },
@@ -7986,7 +10085,7 @@
     "at": "posts 0.5 mm above the plate",
     "value": 0.5,
     "for": {
-     "the gears' height over the plate": "unchecked: the gears' underside is held at Z = 4.5 (bbox.z.min, ±0.1) but the plate's top isn't, so the 0.5 between them is held only to 0.15 or more, by gap.plate.distance"
+     "the gears' height over the plate": "unchecked: needs a gap within a region (the closest distance between a gear's material and the plate's, measured only below Z = 4.5 + 0.2, under the gear's face, clear of the post): gap.plate.distance is the bore's clearance on the post, 0.15 to 0.25, never this 0.5. The two faces are each held to ±0.1 (gear-*/bbox.z.min; plate/in.plate_top, out.over_plate), so the 0.5 is 0.3 to 0.7, not ±0.1"
     }
    },
    {
@@ -8065,14 +10164,17 @@
     "at": "within about 0.1 mm",
     "value": 0.1,
     "for": {
-     "each tooth's width": [
+     "the teeth's mean width at each ring": [
+      "gear-a/share.pitch",
+      "gear-a/share.addendum",
       "gear-a/share.involute_base",
       "gear-a/share.involute_tip",
-      "gear-a/share.pitch",
+      "gear-b/share.pitch",
       "gear-b/share.addendum",
       "gear-b/share.involute_base",
-      "gear-b/share.pitch"
-     ]
+      "gear-b/share.involute_tip"
+     ],
+     "each tooth's own width": "unchecked: needs a per-run width on a ring (a `Sample` field, as `gaps` is for a line, for a closed ring: each run of inside points, wrapping round, times the arc spacing, within a window): every ring here holds the teeth's mean width at its radius, to ±0.0942 to ±0.0995 mm, and one thin tooth among wide ones passes"
     },
     "tolerance": true
    },
@@ -8109,7 +10211,16 @@
       "gear-b/bbox.z.max",
       "gear-b/size.z",
       "gear-a/cylinder.bore.position",
-      "gear-b/cylinder.bore.position"
+      "gear-b/cylinder.bore.position",
+      "plate/in.plate_top",
+      "plate/out.over_plate",
+      "plate/section.plate",
+      "plate/in.post_a_top",
+      "plate/in.post_b_top",
+      "gear-a/share.root",
+      "gear-a/share.root_at_most",
+      "gear-b/share.root",
+      "gear-b/share.root_at_most"
      ]
     }
    }
@@ -8624,6 +10735,61 @@
      6.65
     ],
     "says": "Gaps along r = 3.425: the roots at most 6.85 across, as m8-bolt's 0.2 of the profile's 6.65."
+   },
+   "bolt/section.head": {
+    "class": "stated",
+    "quotes": [
+     "a hex head 13 mm across the flats and 5.3 mm tall, from Z = -5.3 to 0",
+     "±0.1 mm on the hexagons and lengths",
+     "a shank threaded along its whole length from Z = 0 to 30"
+    ],
+    "says": "The head's 5.3 mm, ±0.1, as a size: the plane X = 5 cuts the head alone (the crests are at r = 4, the corners at 7.5), and its extent along Z there is the head's height (#40 V2: its top, Z = 0, had no check). No probe points: the thread's measure is near its time. The reference reads 5.3.",
+    "values": [
+     5.3,
+     0.1
+    ]
+   },
+   "bolt/share.head_top": {
+    "class": "frame",
+    "quotes": [
+     "±0.1 mm on the hexagons and lengths",
+     "a hex head 13 mm across the flats and 5.3 mm tall, from Z = -5.3 to 0",
+     "a shank threaded along its whole length from Z = 0 to 30"
+    ],
+    "says": "The head's top, Z = 0, where the shank starts, ±0.1, at Y = 6, past the crests: 24 points 0.01 apart from Z = -0.115 to 0.115, 12 in the material at 0; 0.1 is 10 of them, so 0.083 to 0.917. The reference reads 0.5.",
+    "values": [
+     0,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "bolt/share.shank_end": {
+    "class": "frame",
+    "quotes": [
+     "±0.1 mm on the hexagons and lengths",
+     "a hex head 13 mm across the flats and 5.3 mm tall, from Z = -5.3 to 0",
+     "a shank threaded along its whole length from Z = 0 to 30"
+    ],
+    "says": "The shank's end, Z = 30, ±0.1, on the axis: 24 points 0.01 apart about it, 12 in at the nominal; 0.083 to 0.917, as share.head_top. The high end of slope.shank_length. The reference reads 0.5.",
+    "values": [
+     30,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "bolt/slope.shank_length": {
+    "class": "stated",
+    "quotes": [
+     "a shank threaded along its whole length from Z = 0 to 30",
+     "±0.1 mm on the hexagons and lengths",
+     "a hex head 13 mm across the flats and 5.3 mm tall, from Z = -5.3 to 0"
+    ],
+    "says": "The shank's 30 mm, ±0.1, as a size: share.shank_end less share.head_top is (length - 30)/0.24, so ±0.1 is ±0.417, 10 of 24 points (#40 V2: its end by bbox.z.max, its start by nothing). The reference reads 0.",
+    "values": [
+     30,
+     0.1
+    ],
+    "held_to": 0.1
    }
   },
   "stated": [
@@ -8649,7 +10815,9 @@
     "at": "and 5.3 mm tall",
     "value": 5.3,
     "for": {
-     "the head's 5.3 mm height": "unchecked: its bottom is held at Z = -5.3 ±0.1 (bbox.z.min); its top at Z = 0 by nothing"
+     "the head's 5.3 mm height": [
+      "bolt/section.head"
+     ]
     }
    },
    {
@@ -8665,14 +10833,18 @@
     "at": "-5.3 to 0,",
     "value": 0,
     "for": {
-     "the head's top": "unchecked: the head's top, Z = 0, where the shank starts, has no check: the flats' probes are at Z = -2.6 and the thread's lines start at Z = 2"
+     "the head's top": [
+      "bolt/share.head_top"
+     ]
     }
    },
    {
     "at": "from z = 0 to 30",
     "value": 0,
     "for": {
-     "the shank's start": "unchecked: the head's top, Z = 0, where the shank starts, has no check: the flats' probes are at Z = -2.6 and the thread's lines start at Z = 2"
+     "the shank's start": [
+      "bolt/share.head_top"
+     ]
     }
    },
    {
@@ -8835,7 +11007,13 @@
       "nut/bbox.y.max",
       "nut/size.y"
      ],
-     "lengths": "unchecked: the nut's 6.5 is held ±0.1 by nut/size.z and the bolt's overall 35.3 by bolt/size.z, but the head's 5.3 and the shank's 30 aren't: where they meet, the head's top at Z = 0, has no check"
+     "lengths": [
+      "bolt/section.head",
+      "bolt/share.head_top",
+      "bolt/share.shank_end",
+      "bolt/slope.shank_length",
+      "nut/size.z"
+     ]
     }
    }
   ]
@@ -11652,6 +13830,318 @@
     ],
     "values": [],
     "says": "On the axle's axis, Y through the origin, within 0.1 (\"±0.1 mm on everything else\"). Measured off the part's cylindrical faces (`checks.cylinder`): every face of its kind on the axis within 0.25 mm of the stated radius, the worst reported."
+   },
+   "fork/in.arm_+y_end_+x": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y arm's X = 8 end at ±0.1: material at 7.9, Z = 10.",
+    "values": [
+     8,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/out.past_arm_+y_+x": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing 0.1 past the +Y arm's X = 8 end, at 8.1.",
+    "values": [
+     8,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.arm_+y_end_-x": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y arm's X = -8 end at ±0.1: material at -7.9, Z = 10.",
+    "values": [
+     8,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/out.past_arm_+y_-x": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing 0.1 past the +Y arm's X = -8 end, at -8.1.",
+    "values": [
+     8,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.arm_+y_inner": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y arm's inner face, Y = 9.3, at ±0.1: material at 9.4.",
+    "values": [
+     9.3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/out.inside_arm_+y": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing 0.1 inside the +Y arm's inner face, at Y = 9.2.",
+    "values": [
+     9.3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.arm_+y_outer": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y arm's own outer face, Y = 13.3, at ±0.1: material at 13.2, at X = 0, Z = 10 (bbox.y holds the plate's edge or the arm's, whichever is further, to the other side).",
+    "values": [
+     13.3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.arm_+y_foot": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y arm's own foot, Z = -8, at ±0.1: material at -7.9 (bbox.z.min holds the lower arm's, from below).",
+    "values": [
+     8,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/share.arm_+y_length": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y arm's own 16 mm along X at ±0.1 (the box's X is the plate's 24): an 18 mm line of 361 points along X at Y = 11.3, Z = 10, 15.9/18 to 16.1/18 in the material (the reference: 321 of 361, 0.8892). held_to: to the 0.05 mm point spacing.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/share.arm_+y_thickness": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y arm's own 4 mm along Y at ±0.1: a 6 mm line of 301 points along Y at X = 0, Z = 10, 1 mm past both faces, 3.9/6 to 4.1/6 in the material (the reference: 201 of 301, 0.6678). held_to: to the 0.02 mm point spacing.",
+    "values": [
+     4,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.plate_+y_edge": {
+    "class": "stated",
+    "quotes": [
+     "a top plate joining them, 24 mm along X, from Y = -13.3 to 13.3 and from Z = 26 to 30",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The top plate's own Y = 13.3 edge at ±0.1: material at 13.2, at X = 10, past the arms, Z = 28.",
+    "values": [
+     13.3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.arm_-y_end_+x": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y arm's X = 8 end at ±0.1: material at 7.9, Z = 10.",
+    "values": [
+     8,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/out.past_arm_-y_+x": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing 0.1 past the -Y arm's X = 8 end, at 8.1.",
+    "values": [
+     8,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.arm_-y_end_-x": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y arm's X = -8 end at ±0.1: material at -7.9, Z = 10.",
+    "values": [
+     8,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/out.past_arm_-y_-x": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing 0.1 past the -Y arm's X = -8 end, at -8.1.",
+    "values": [
+     8,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.arm_-y_inner": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y arm's inner face, Y = -9.3, at ±0.1: material at -9.4.",
+    "values": [
+     9.3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/out.inside_arm_-y": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing 0.1 inside the -Y arm's inner face, at Y = -9.2.",
+    "values": [
+     9.3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.arm_-y_outer": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y arm's own outer face, Y = -13.3, at ±0.1: material at -13.2, at X = 0, Z = 10 (bbox.y holds the plate's edge or the arm's, whichever is further, to the other side).",
+    "values": [
+     13.3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.arm_-y_foot": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y arm's own foot, Z = -8, at ±0.1: material at -7.9 (bbox.z.min holds the lower arm's, from below).",
+    "values": [
+     8,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/share.arm_-y_length": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y arm's own 16 mm along X at ±0.1 (the box's X is the plate's 24): an 18 mm line of 361 points along X at Y = -11.3, Z = 10, 15.9/18 to 16.1/18 in the material (the reference: 321 of 361, 0.8892). held_to: to the 0.05 mm point spacing.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/share.arm_-y_thickness": {
+    "class": "stated",
+    "quotes": [
+     "two arms, each 16 mm along X (X = -8 to 8) and 4 mm thick, from Y = -13.3 to -9.3 and from Y = 9.3 to 13.3 (0.3 mm clear of the spacers), from Z = -8 to 26, each with a 5.3 mm hole for the axle",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y arm's own 4 mm along Y at ±0.1: a 6 mm line of 301 points along Y at X = 0, Z = 10, 1 mm past both faces, 3.9/6 to 4.1/6 in the material (the reference: 201 of 301, 0.6678). held_to: to the 0.02 mm point spacing.",
+    "values": [
+     4,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.plate_-y_edge": {
+    "class": "stated",
+    "quotes": [
+     "a top plate joining them, 24 mm along X, from Y = -13.3 to 13.3 and from Z = 26 to 30",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The top plate's own Y = -13.3 edge at ±0.1: material at -13.2, at X = 10, past the arms, Z = 28.",
+    "values": [
+     13.3,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/in.plate_underside": {
+    "class": "stated",
+    "quotes": [
+     "a top plate joining them, 24 mm along X, from Y = -13.3 to 13.3 and from Z = 26 to 30",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The top plate's underside, Z = 26, at ±0.1: material at 26.1, between the arms.",
+    "values": [
+     26,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "fork/out.under_plate": {
+    "class": "stated",
+    "quotes": [
+     "a top plate joining them, 24 mm along X, from Y = -13.3 to 13.3 and from Z = 26 to 30",
+     "±0.05 mm on the axle and the bores and holes, so the axle's clearance in each is 0.1 to 0.2 mm; the gaps between the wheel, the spacers and the fork 0.25 to 0.35 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing under the plate between the arms at Z = 25.9.",
+    "values": [
+     26,
+     0.1
+    ],
+    "held_to": 0.1
    }
   },
   "stated": [
@@ -11810,28 +14300,44 @@
     "at": "each 16 mm along x",
     "value": 16,
     "for": {
-     "the arms' length along X": "unchecked: the arms' X extent isn't probed: fork/bbox.x and size.x (±12) are the top plate's"
+     "the arms' length along X": [
+      "fork/share.arm_+y_length",
+      "fork/share.arm_-y_length"
+     ]
     }
    },
    {
     "at": "(x = -8",
     "value": 8,
     "for": {
-     "the arms' -X edge": "unchecked: the arms' X extent isn't probed: fork/bbox.x and size.x (±12) are the top plate's"
+     "the arms' -X edge": [
+      "fork/in.arm_+y_end_-x",
+      "fork/in.arm_-y_end_-x",
+      "fork/out.past_arm_+y_-x",
+      "fork/out.past_arm_-y_-x"
+     ]
     }
    },
    {
     "at": "-8 to 8)",
     "value": 8,
     "for": {
-     "the arms' +X edge": "unchecked: the arms' X extent isn't probed: fork/bbox.x and size.x (±12) are the top plate's"
+     "the arms' +X edge": [
+      "fork/in.arm_+y_end_+x",
+      "fork/in.arm_-y_end_+x",
+      "fork/out.past_arm_+y_+x",
+      "fork/out.past_arm_-y_+x"
+     ]
     }
    },
    {
     "at": "and 4 mm thick",
     "value": 4,
     "for": {
-     "the arms' thickness": "unchecked: the outer faces are held by fork/bbox.y (±0.1), the inner only through the spacers' gap and box (about ±0.15): about ±0.25 on the thickness"
+     "the arms' thickness": [
+      "fork/share.arm_+y_thickness",
+      "fork/share.arm_-y_thickness"
+     ]
     }
    },
    {
@@ -11839,7 +14345,8 @@
     "value": 13.3,
     "for": {
      "the -Y arm's outer face": [
-      "fork/bbox.y.min"
+      "fork/bbox.y.min",
+      "fork/in.arm_-y_outer"
      ]
     }
    },
@@ -11847,14 +14354,20 @@
     "at": "-13.3 to -9.3",
     "value": 9.3,
     "for": {
-     "the -Y arm's inner face": "unchecked: the arms' inner faces are held only through the spacers' gap (0.25 to 0.35, the closest distance) and the spacers' box (±0.1): about ±0.15, not ±0.1"
+     "the -Y arm's inner face": [
+      "fork/in.arm_-y_inner",
+      "fork/out.inside_arm_-y"
+     ]
     }
    },
    {
     "at": "y = 9.3 to",
     "value": 9.3,
     "for": {
-     "the +Y arm's inner face": "unchecked: the arms' inner faces are held only through the spacers' gap (0.25 to 0.35, the closest distance) and the spacers' box (±0.1): about ±0.15, not ±0.1"
+     "the +Y arm's inner face": [
+      "fork/in.arm_+y_inner",
+      "fork/out.inside_arm_+y"
+     ]
     }
    },
    {
@@ -11862,7 +14375,8 @@
     "value": 13.3,
     "for": {
      "the +Y arm's outer face": [
-      "fork/bbox.y.max"
+      "fork/bbox.y.max",
+      "fork/in.arm_+y_outer"
      ]
     }
    },
@@ -11881,7 +14395,9 @@
     "value": 8,
     "for": {
      "the arms' bottom": [
-      "fork/bbox.z.min"
+      "fork/bbox.z.min",
+      "fork/in.arm_+y_foot",
+      "fork/in.arm_-y_foot"
      ]
     }
    },
@@ -11889,7 +14405,7 @@
     "at": "-8 to 26,",
     "value": 26,
     "for": {
-     "the arms' top, where they meet the plate": "unchecked: the arms join the plate there: nothing separates them, and the plate's underside isn't probed (in.top sits at Z = 28)"
+     "the arms' top, where they meet the plate": "unchecked: no face to hold: the arms join the plate there, one solid; the plate's underside between them, the same Z = 26, is held (in.plate_underside, out.under_plate)"
     }
    },
    {
@@ -11917,7 +14433,8 @@
     "value": 13.3,
     "for": {
      "the plate's -Y edge": [
-      "fork/bbox.y.min"
+      "fork/bbox.y.min",
+      "fork/in.plate_-y_edge"
      ]
     }
    },
@@ -11926,7 +14443,8 @@
     "value": 13.3,
     "for": {
      "the plate's +Y edge": [
-      "fork/bbox.y.max"
+      "fork/bbox.y.max",
+      "fork/in.plate_+y_edge"
      ]
     }
    },
@@ -11934,7 +14452,10 @@
     "at": "from z = 26",
     "value": 26,
     "for": {
-     "the plate's underside": "unchecked: not probed: in.top sits at Z = 28, mid-plate; only the volume bounds it"
+     "the plate's underside": [
+      "fork/in.plate_underside",
+      "fork/out.under_plate"
+     ]
     }
    },
    {
@@ -12054,7 +14575,31 @@
       "fork/size.y",
       "fork/bbox.z.min",
       "fork/bbox.z.max",
-      "fork/size.z"
+      "fork/size.z",
+      "fork/in.arm_+y_end_+x",
+      "fork/out.past_arm_+y_+x",
+      "fork/in.arm_+y_end_-x",
+      "fork/out.past_arm_+y_-x",
+      "fork/in.arm_+y_inner",
+      "fork/out.inside_arm_+y",
+      "fork/in.arm_+y_outer",
+      "fork/in.arm_+y_foot",
+      "fork/share.arm_+y_length",
+      "fork/share.arm_+y_thickness",
+      "fork/in.plate_+y_edge",
+      "fork/in.arm_-y_end_+x",
+      "fork/out.past_arm_-y_+x",
+      "fork/in.arm_-y_end_-x",
+      "fork/out.past_arm_-y_-x",
+      "fork/in.arm_-y_inner",
+      "fork/out.inside_arm_-y",
+      "fork/in.arm_-y_outer",
+      "fork/in.arm_-y_foot",
+      "fork/share.arm_-y_length",
+      "fork/share.arm_-y_thickness",
+      "fork/in.plate_-y_edge",
+      "fork/in.plate_underside",
+      "fork/out.under_plate"
      ]
     }
    }
@@ -12829,6 +15374,28 @@
     "values": [
      40
     ]
+   },
+   "part/centre.y": {
+    "class": "frame",
+    "quotes": [
+     "centre it on y = 0",
+     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre it on Y = 0 and Z = 0"
+    ],
+    "says": "The part's box centre on Y = 0 within its tolerance (`Member.centred`): the size is the model's to choose, so only its middle is held. The strap's width lies along Y, so the hook is symmetrical about it.",
+    "values": [
+     0
+    ]
+   },
+   "part/centre.z": {
+    "class": "frame",
+    "quotes": [
+     "and z = 0",
+     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre it on Y = 0 and Z = 0"
+    ],
+    "says": "The part's box centre on Z = 0 within its tolerance (`Member.centred`): \"centre it\" read as the whole hook's extent, the box the check has; a hook drawn about its wall plate with a lip above the plate's top would be off by the lip's overreach (the reference's lip, to Z = 12, is inside its plate's ±40).",
+    "values": [
+     0
+    ]
    }
   },
   "stated": [
@@ -12863,7 +15430,7 @@
     "at": "the wall is the plane x = 0",
     "value": 0,
     "for": {
-     "the wall's plane, which the hook screws to": "unchecked: nothing holds the hook on the wall: within.x keeps it from going behind X = 0 (to -0.1), but a hook whose back stands off the wall passes; the holes and the load check don't place it either"
+     "the wall's plane, which the hook screws to": "unchecked: qualitative, for the Sponsor: that the hook's back sits flat on the wall. within.x keeps it from behind X = 0 (to -0.1); a hook whose back stands off the wall passes"
     }
    },
    {
@@ -12879,14 +15446,18 @@
     "at": "centre it on y = 0",
     "value": 0,
     "for": {
-     "centred on Y = 0": "unchecked: within.y only keeps it inside Y = ±40: a hook off centre by up to 22.5 (its strap seat 35 wide, by section.strap_seat) passes"
+     "centred on Y = 0": [
+      "part/centre.y"
+     ]
     }
    },
    {
     "at": "and z = 0.",
     "value": 0,
     "for": {
-     "centred on Z = 0": "unchecked: within.z only keeps it inside Z = ±60: any hook up to 120 tall placed anywhere in that passes"
+     "centred on Z = 0": [
+      "part/centre.z"
+     ]
     }
    }
   ]

@@ -136,12 +136,23 @@ def member(m: Member, measured: dict[str, Any]) -> list[Check]:
         )
     if m.own_gap is not None:
         found.extend(gapped("own", (0.0, 0.01), m.own_gap, measured.get("self")))
+    for spec in m.region_gaps:
+        got = (measured.get("regions") or {}).get(spec.name) or {}
+        distance = got.get("distance")
+        ok = distance is not None and spec.distance[0] <= distance <= spec.distance[1]
+        found.append(Check(f"region.{spec.name}", ok, list(spec.distance), distance))
+    extents: dict[str, float] = {}
     for k, spec in enumerate(m.section_spans):
         cut = (measured.get("sections") or [{}] * len(m.section_spans))[k] or {}
         extent = 0.0
         if cut.get("area"):
             low, high = cut["bbox"]["xyz".index(spec.across)]
             extent = round(high - low, 4)
+        extents[spec.name] = extent
+    for spec in m.section_spans:
+        extent = extents[spec.name]
+        if spec.less is not None:
+            extent = round(extent - extents[spec.less], 4)
         ok = spec.span[0] <= extent <= spec.span[1]
         found.append(Check(f"section.{spec.name}", ok, list(spec.span), extent))
     if m.vents is not None:
@@ -152,6 +163,23 @@ def member(m: Member, measured: dict[str, Any]) -> list[Check]:
     return found
 
 
+def runs(inside: list[bool]) -> list[int]:
+    """Each run of inside points round a ring, in points, the one across the start
+    joined to the one at the end."""
+    if all(inside) or not any(inside):
+        return []
+    start = inside.index(False)
+    turned = inside[start:] + inside[:start]
+    found, count = [], 0
+    for point in turned + [False]:
+        if point:
+            count += 1
+        elif count:
+            found.append(count)
+            count = 0
+    return found
+
+
 def sampled(sample: Sample, inside: list[bool]) -> list[Check]:
     share = round(sum(inside) / len(inside), 4) if inside else 0.0
     low, high = sample.share
@@ -159,6 +187,13 @@ def sampled(sample: Sample, inside: list[bool]) -> list[Check]:
     found = []
     if (low, high) != (0.0, 1.0):
         found.append(Check(f"share.{sample.name}", low <= share <= high, list(sample.share), share))
+    if sample.runs is not None:
+        widths = runs(inside) if sample.closed else []
+        found_runs = [round(w * sample.spacing, 4) for w in widths]
+        low_r, high_r = sample.runs
+        ok = bool(found_runs) and all(low_r <= w <= high_r for w in found_runs)
+        worst = [min(found_runs), max(found_runs)] if found_runs else None
+        found.append(Check(f"runs.{sample.name}", ok, list(sample.runs), worst))
     if sample.changes is not None:
         pairs = zip(inside, inside[1:] + inside[:1] if sample.closed else inside[1:], strict=False)
         changes = sum(a != b for a, b in pairs)

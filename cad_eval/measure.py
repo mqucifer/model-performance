@@ -131,6 +131,44 @@ def against(others: list) -> dict:
     return found
 
 
+def clipped(shape, box: list):  # noqa: ANN001, ANN201
+    """Only the material of `shape` inside the box ((x0, x1), (y0, y1), (z0, z1))."""
+    import cadquery as cq  # noqa: PLC0415
+
+    (x0, x1), (y0, y1), (z0, z1) = box
+    return shape.intersect(cq.Solid.makeBox(x1 - x0, y1 - y0, z1 - z0, pnt=cq.Vector(x0, y0, z0)))
+
+
+def region(shape, request: dict) -> dict:  # noqa: ANN001
+    """The closest distance, within a box, to another part or between the shape's own
+    solids: one face pair's clearance."""
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # noqa: PLC0415
+
+    try:
+        here = clipped(shape, request["box"])
+        if request["other"] == "self":
+            solids = here.Solids()
+            if len(solids) < 2:
+                return {"distance": None, "error": "fewer than two solids in the box"}
+            pairs = [(a, b) for i, a in enumerate(solids) for b in solids[i + 1 :]]
+        else:
+            other = against([request["other"]])[request["other"]["name"]]
+            if isinstance(other, str):
+                return {"distance": None, "error": other}
+            there = clipped(other, request["box"])
+            if not here.Solids() or not there.Solids():
+                return {"distance": None, "error": "no material in the box"}
+            pairs = [(here, there)]
+        found = []
+        for a, b in pairs:
+            d = BRepExtrema_DistShapeShape(a.wrapped, b.wrapped)
+            if d.IsDone():
+                found.append(d.Value())
+        return {"distance": round(min(found), 4) if found else None}
+    except Exception as exc:  # noqa: BLE001
+        return {"distance": None, "error": f"{type(exc).__name__}: {exc}"[:300]}
+
+
 def own(shape) -> dict:  # noqa: ANN001
     """The largest overlap and the smallest gap between a shape's own solids."""
     solids = shape.Solids()
@@ -449,6 +487,8 @@ def measure(request: dict) -> dict:
             }
         if request.get("self"):
             out["self"] = own(shape)
+        if request.get("regions"):
+            out["regions"] = {r["name"]: region(shape, r) for r in request["regions"]}
         if request.get("cylinders"):
             out["cylinders"] = cylinders(shape)
         if request.get("section"):

@@ -4,6 +4,7 @@ with a scripted model and a fake container."""
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -35,10 +36,15 @@ def measured(m: Member, **override: Any) -> dict[str, Any]:
         "mesh": {"watertight": True, "winding_consistent": True, "is_volume": True},
     }
     if m.section_spans:
+        mid = {s.name: sum(s.span) / 2 for s in m.section_spans}
+        # A section read less another is that much wider, so the difference is to spec.
+        wide = {s.name: mid[s.name] + (mid[s.less] if s.less else 0.0) for s in m.section_spans}
         found["sections"] = [
-            {"area": 1.0, "bbox": [[0.0, sum(s.span) / 2 if a == s.across else 0.0] for a in "xyz"]}
+            {"area": 1.0, "bbox": [[0.0, wide[s.name] if a == s.across else 0.0] for a in "xyz"]}
             for s in m.section_spans
         ]
+    if m.region_gaps:
+        found["regions"] = {g.name: {"distance": sum(g.distance) / 2} for g in m.region_gaps}
     if m.cylinders:
         found["cylinders"] = [
             {
@@ -486,3 +492,54 @@ def test_a_centred_member_holds_its_middle_whatever_its_size() -> None:
     assert all(c.ok for c in checks.member(m, measured(m, bbox=[[0, 10], [-7, 7], [0, 5]])))
     off = checks.member(m, measured(m, bbox=[[0, 10], [-6, 8], [0, 5]]))
     assert [c.name for c in off if not c.ok] == ["centre.y"]
+
+
+def test_a_section_less_another_is_their_difference() -> None:
+    """A hook's overhang: its tip's section less the beam's thickness."""
+    from cad_eval.cases import SectionSpan  # noqa: PLC0415
+
+    m = Member(
+        "m",
+        bbox=((0, 10), (0, 10), (0, 10)),
+        section_spans=(
+            SectionSpan("beam", "z", 5, "x", (1.55, 1.65)),
+            SectionSpan("overhang", "y", 0, "x", (0.95, 1.05), less="beam"),
+        ),
+    )
+
+    def cut(width: float) -> dict:
+        return {"area": 1.0, "bbox": [[0, width], [0, 0], [0, 0]]}
+
+    good = measured(m, sections=[cut(1.6), cut(2.6)])
+    assert [c.found for c in checks.member(m, good) if c.name.startswith("section")] == [1.6, 1.0]
+    short = measured(m, sections=[cut(1.6), cut(2.5)])
+    assert [c.name for c in checks.member(m, short) if not c.ok] == ["section.overhang"]
+
+
+def test_each_run_round_a_ring_is_held_not_only_their_mean() -> None:
+    """Each tooth's own width (round 2 of #41's audit): one thin tooth among wide ones
+    keeps the mean, and fails."""
+    teeth = ring("teeth", (0, 0, 0), 10, n=200, runs=(1.2, 1.9))
+    spacing = 2 * math.pi * 10 / 200
+    even = [(k % 20) < 5 for k in range(200)]  # 10 teeth, 5 points each
+    assert checks.sampled(teeth, even)[0].ok
+    assert checks.sampled(teeth, even)[0].found == [round(5 * spacing, 4)] * 2
+    thin = [((k % 20) < 5) and k not in (0, 1, 2) for k in range(200)]
+    assert not checks.sampled(teeth, thin)[0].ok
+    # A run across the start is one run.
+    assert checks.runs([True, False, False, True, True]) == [3]
+
+
+def test_a_region_gap_is_its_own_check() -> None:
+    from cad_eval.cases import RegionGap  # noqa: PLC0415
+
+    m = Member(
+        "m",
+        bbox=((0, 1), (0, 1), (0, 1)),
+        region_gaps=(RegionGap("front", "self", ((0, 1), (0, 1), (0, 1)), (0.25, 0.35)),),
+    )
+    assert all(c.ok for c in checks.member(m, measured(m)))
+    wide = checks.member(m, measured(m, regions={"front": {"distance": 0.4}}))
+    assert [c.name for c in wide if not c.ok] == ["region.front"]
+    lost = checks.member(m, measured(m, regions={}))
+    assert [c.name for c in lost if not c.ok] == ["region.front"]

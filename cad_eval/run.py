@@ -94,6 +94,19 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
             ]
         if m.own_gap is not None:
             request["self"] = True
+        if m.region_gaps:
+            request["regions"] = [
+                {
+                    "name": g.name,
+                    "box": [list(axis) for axis in g.box],
+                    "other": "self"
+                    if g.other == "self"
+                    else {"name": g.other, "path": f"{g.other}.step"}
+                    if g.other in members
+                    else {"name": g.other, "source": case.mates[g.other]},
+                }
+                for g in m.region_gaps
+            ]
         if m.holes or m.cylinders:
             request["cylinders"] = True
         if m.load is not None:

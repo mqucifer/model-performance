@@ -30,6 +30,9 @@ cq.exporters.export(b, "lid.step")
 # V5's pin (press-fit-pin, 20261027T141934Z): chamfered at both ends.
 pin = cq.Workplane("XY").circle(2.55).extrude(16).edges("%CIRCLE").chamfer(0.5)
 cq.exporters.export(pin, "pin.step")
+# Two solids of one part, 0.5 apart along X.
+two = cq.Workplane("XY").box(2, 2, 2).union(cq.Workplane("XY").center(2.5, 0).box(2, 2, 2))
+cq.exporters.export(two, "two.step")
 """
 
 
@@ -109,3 +112,26 @@ def test_a_section_clipped_to_a_span_reads_only_its_part(tools: PartTools) -> No
     found = tools.measure_request({"path": "part.step", "sections": [whole, half]})["sections"]
     assert found[0]["bbox"][0] == [-15.0, 15.0]
     assert found[1]["bbox"][0] == [0.0, 15.0]
+
+
+def test_a_gap_within_a_box_and_between_a_parts_own_solids(tools: PartTools) -> None:
+    """Round 2 of #41's audit: one face pair's clearance, not only the closest of all."""
+    lid = {"name": "lid", "path": "lid.step"}
+    found = tools.measure_request(
+        {
+            "path": "part.step",
+            "regions": [
+                {"name": "top", "other": lid, "box": [[-15, -2], [-10, 10], [0, 10]]},
+                {"name": "none", "other": lid, "box": [[100, 101], [0, 1], [0, 1]]},
+            ],
+        }
+    )["regions"]
+    assert abs(found["top"]["distance"] - 0.3) < 1e-3
+    assert found["none"]["distance"] is None and "no material" in found["none"]["error"]
+    own = tools.measure_request(
+        {
+            "path": "two.step",
+            "regions": [{"name": "g", "other": "self", "box": [[-5, 5], [-5, 5], [-5, 5]]}],
+        }
+    )["regions"]
+    assert abs(own["g"]["distance"] - 0.5) < 1e-3

@@ -80,7 +80,10 @@ class Sample:
     changes: tuple[int, int] | None = None
     closed: bool = False
     gaps: Span | None = None
-    spacing: float = 0.0  # between points along a line, mm
+    spacing: float = 0.0  # between points along a line, or round a ring, mm
+    # Round a ring, the range of each run of points in the material, in mm of arc:
+    # each tooth's own width, where the share holds only their mean (round 2 of #41).
+    runs: Span | None = None
     # For a line, the range of the mean distance in mm between one rise into the
     # material and the next: a thread's pitch, measured (the second review of #41).
     period: Span | None = None
@@ -95,6 +98,7 @@ def ring(
     n: int = 360,
     share: Span = (0.0, 1.0),
     changes: tuple[int, int] | None = None,
+    runs: Span | None = None,
 ) -> Sample:
     """`n` points round a circle of `radius` about `axis` through `centre`."""
     i, j = [k for k in range(3) if k != "xyz".index(axis)]
@@ -105,7 +109,8 @@ def ring(
         p[i] += radius * math.cos(angle)
         p[j] += radius * math.sin(angle)
         points.append((round(p[0], 3), round(p[1], 3), round(p[2], 3)))
-    return Sample(name, tuple(points), share, changes, closed=True)
+    spacing = 2 * math.pi * radius / n
+    return Sample(name, tuple(points), share, changes, closed=True, spacing=spacing, runs=runs)
 
 
 def line(
@@ -247,6 +252,21 @@ class SectionSpan:
     # The cut only within this span along this axis, when the plane cuts two features
     # and one is held: a clevis's cheek, of the two (round 2 of #41's audit).
     clip: tuple[str, Span] | None = None
+    # Read as this extent less another section span's, by name: a hook's overhang, its
+    # tip's section less the beam's own thickness, wherever its catch sits.
+    less: str | None = None
+
+
+@dataclass(frozen=True)
+class RegionGap:
+    """The closest distance to `other` (a member, a mate, or "self" for the member's own
+    solids) of only the material in `box`: one face pair's clearance, where a `Gap`
+    holds only the closest of all (round 2 of #41's audit: "0.3 mm everywhere")."""
+
+    name: str
+    other: str
+    box: tuple[Span, Span, Span]
+    distance: Span
 
 
 @dataclass(frozen=True)
@@ -295,6 +315,7 @@ class Member:
     section_spans: tuple[SectionSpan, ...] = ()
     slopes: tuple[Slope, ...] = ()
     cylinders: tuple[Cylinder, ...] = ()
+    region_gaps: tuple[RegionGap, ...] = ()
     # Where the part's middle must be, by axis, when its size is the model's to choose
     # ("centred on Y = 0"): its box's centre within `tol` of it (round 2 of #41's audit).
     centred: tuple[tuple[str, float], ...] = ()
@@ -424,18 +445,29 @@ def mirrored(points: dict[str, Point]) -> dict[str, Point]:
 # press-fit-pin's 0.5 mm by 45° chamfers, at their stated ±0.1 (#40: only a chamfer's
 # existence was held): at a height h over an end the chamfer's face is at r = 2.55 - c
 # + h, so at h = 0.1 and 0.3, between 2.05 and 2.25, and between 2.25 and 2.45; each probe
-# 0.02 past that band.
+# on that band's edge (#40 V2: 0.02 past it, so ±0.12). And each leg on its own, so the 45°
+# is held as the legs' ±0.1 allow, 34° to 56° (#40 V2: the two heights held 31° to 54°,
+# and a round passed): the radial leg 0.01 over the end, where the face is at r = 2.56 - c,
+# and the axial one at r = 2.52, where it is at h = c - 0.03.
 CHAMFER_IN = {
-    "chamfer_bottom_low": (2.03, 0, 0.1),
-    "chamfer_bottom_high": (2.23, 0, 0.3),
-    "chamfer_top_low": (0, 2.03, 15.9),
-    "chamfer_top_high": (0, 2.23, 15.7),
+    "chamfer_bottom_low": (2.05, 0, 0.1),
+    "chamfer_bottom_high": (2.25, 0, 0.3),
+    "chamfer_top_low": (0, 2.05, 15.9),
+    "chamfer_top_high": (0, 2.25, 15.7),
+    "chamfer_bottom_radial": (1.96, 0, 0.01),
+    "chamfer_bottom_axial": (2.52, 0, 0.57),
+    "chamfer_top_radial": (0, 1.96, 15.99),
+    "chamfer_top_axial": (0, 2.52, 15.43),
 }
 CHAMFER_OUT = {
-    "chamfer_bottom_low_out": (2.27, 0, 0.1),
-    "chamfer_bottom_high_out": (2.47, 0, 0.3),
-    "chamfer_top_low_out": (0, 2.27, 15.9),
-    "chamfer_top_high_out": (0, 2.47, 15.7),
+    "chamfer_bottom_low_out": (2.25, 0, 0.1),
+    "chamfer_bottom_high_out": (2.45, 0, 0.3),
+    "chamfer_top_low_out": (0, 2.25, 15.9),
+    "chamfer_top_high_out": (0, 2.45, 15.7),
+    "chamfer_bottom_radial_out": (2.16, 0, 0.01),
+    "chamfer_bottom_axial_out": (2.52, 0, 0.37),
+    "chamfer_top_radial_out": (0, 2.16, 15.99),
+    "chamfer_top_axial_out": (0, 2.52, 15.63),
 }
 # snap-enclosure, held on both ends to its stated ±0.05 (arms, hooks) and ±0.1 (the rest)
 # (#40: most were held to 0.6-1.1 mm, and only on +X). Each probe sits its tolerance
@@ -527,21 +559,55 @@ CASES: dict[str, Case] = {
                     volume=2 * 30 * 20 * 3 + 4 * 20 * 0.4,
                     # Every stated tolerance at its limit at once moves it 4.2% (#40 V2).
                     volume_rel=0.045,
-                    # The web's top at 0.4 ± 0.05: in below, out above.
+                    # The web's top at 0.4 ± 0.05: in below, out above, each on the band's
+                    # edge (#40 V2: 0.01 past it, so ±0.06).
                     inside={
-                        "web_at_least": (0, 0, 0.34),
+                        "web_at_least": (0, 0, 0.35),
+                        # The web along the flaps' whole 20 mm: both its ends (#40 V2: +Y only).
                         "web_edge": (0, 9.9, 0.2),
+                        "web_edge_-y": (0, -9.9, 0.2),
                         "flap_-x": (-17, 0, 1.5),
                         "flap_+x": (17, 0, 1.5),
-                        "flap_edge_-x": (-2.11, 0, 1.5),
-                        "flap_edge_+x": (2.11, 0, 1.5),
+                        # The flaps' inner ends, X = ±2, at ±0.1 (#40 V2: 0.11).
+                        "flap_edge_-x": (-2.1, 0, 1.5),
+                        "flap_edge_+x": (2.1, 0, 1.5),
                     },
                     outside={
-                        "web_at_most": (0, 0, 0.46),
+                        "web_at_most": (0, 0, 0.45),
                         "gap": (0, 0, 1.5),
-                        "gap_edge_-x": (-1.89, 0, 1.5),
-                        "gap_edge_+x": (1.89, 0, 1.5),
+                        "gap_edge_-x": (-1.9, 0, 1.5),
+                        "gap_edge_+x": (1.9, 0, 1.5),
                     },
+                    # The web's 0.4 thickness at its ±0.05, so with its top it's flush, and its
+                    # 20 mm width at ±0.1, off the plane X = 0, which cuts the web alone (#40
+                    # V2: its bottom had no check, so a web from Z = 0.19 to 0.45 passed).
+                    section_spans=(
+                        SectionSpan("web_thickness", "x", 0, "z", (0.35, 0.45)),
+                        SectionSpan("web_width", "x", 0, "y", (19.9, 20.1)),
+                    ),
+                    # Each flap's 30 mm and the 4 mm gap, ±0.1, as sizes (#40 V2: only their
+                    # ends were held, so the sizes to ±0.2): points 0.01 apart over 0.4 mm
+                    # about each end, half in the material at the size; 0.1 is 10 of 80.
+                    samples=(
+                        Sample(
+                            "flap_-x",
+                            line("", (-32.195, 0, 1.5), (-31.805, 0, 1.5), n=40).points
+                            + line("", (-2.195, 0, 1.5), (-1.805, 0, 1.5), n=40).points,
+                            (0.375, 0.625),
+                        ),
+                        Sample(
+                            "flap_+x",
+                            line("", (1.805, 0, 1.5), (2.195, 0, 1.5), n=40).points
+                            + line("", (31.805, 0, 1.5), (32.195, 0, 1.5), n=40).points,
+                            (0.375, 0.625),
+                        ),
+                        Sample(
+                            "gap",
+                            line("", (-2.195, 0, 1.5), (-1.805, 0, 1.5), n=40).points
+                            + line("", (1.805, 0, 1.5), (2.195, 0, 1.5), n=40).points,
+                            (0.375, 0.625),
+                        ),
+                    ),
                 ),
             ),
         ),
@@ -582,23 +648,83 @@ CASES: dict[str, Case] = {
                     volume_rel=0.055,  # every stated tolerance at its limit (#40 V2)
                     inside={
                         "base": (0, 0, 2),
+                        # The base's +X end, X = 5, ±0.1, at its own height (#40 V2).
+                        "base_end": (4.9, 0, 2),
                         "beam": (4.2, 0, 10),
                         "beam_at_least_-x": (3.45, 0, 10),
                         "beam_at_least_+x": (4.95, 0, 10),
-                        # The overhang's 1.0 ± 0.05, just over the catch, where the ramp
-                        # hasn't yet turned in (#40: at Z = 17.05 it passed 0.915).
-                        "hook_tip": (5.93, 0, 17.01),
-                        "ramp": (5.3, 0, 19),
+                        # The catch at most 17.05: its gap to the ledge at most 0.15, inside
+                        # its ±0.1 (`under_catch` holds it from below, at 16.95).
+                        "catch_at_most": (5.5, 0, 17.05),
+                        # The ramp, at 5.333 at Z = 19, ±0.1 (#40 V2: -0.03/+0.17).
+                        "ramp": (5.234, 0, 19),
                     },
                     outside={
+                        "past_base_end": (5.1, 0, 2),
                         "beam_at_most_-x": (3.35, 0, 10),
                         "beam_at_most_+x": (5.05, 0, 10),
                         "under_catch": (5.5, 0, 16.95),
                         "past_tip": (6.06, 0, 17.1),
-                        "past_ramp": (5.5, 0, 19),
+                        "past_ramp": (5.433, 0, 19),
                         "beside_beam": (0, 0, 10),
                     },
                     gaps=(Gap("panel", distance=(0.05, 0.15)),),
+                    # The beam's 1.6 thickness at its ±0.05 and its 8 mm width at ±0.1, off
+                    # the plane Z = 10, which cuts the beam alone (#40 V2: each face was held
+                    # to ±0.05, so the 1.6 to ±0.1, and the width not at all).
+                    section_spans=(
+                        SectionSpan("beam_thickness", "z", 10, "x", (1.55, 1.65)),
+                        SectionSpan("beam_width", "z", 10, "y", (7.9, 8.1)),
+                        # The hook's overhang, 1.0 ± 0.05, wherever its catch sits (16.95 to
+                        # 17.05, by its gap to the ledge): the section at Y = 0 between Z =
+                        # 16.9 and 17.2 runs from the beam's back to the tip, less the beam's
+                        # thickness. A probe at one height failed a correct catch at 17.02 or
+                        # passed a short overhang, as the 1-in-3 ramp turns in (round 2).
+                        SectionSpan(
+                            "overhang",
+                            "y",
+                            0,
+                            "x",
+                            (0.95, 1.05),
+                            clip=("z", (16.9, 17.2)),
+                            less="beam_thickness",
+                        ),
+                    ),
+                    # Sizes and places by points 0.01 apart over 0.4 mm about a face: the
+                    # share in the material is where the face is (#40 V2).
+                    samples=(
+                        # The base's 10 mm along X and 4 mm tall, ±0.1: about both ends,
+                        # half in at the size, and 0.1 is 10 of 80 points.
+                        Sample(
+                            "base_length",
+                            line("", (-5.195, 0, 2), (-4.805, 0, 2), n=40).points
+                            + line("", (4.805, 0, 2), (5.195, 0, 2), n=40).points,
+                            (0.375, 0.625),
+                        ),
+                        Sample(
+                            "base_height",
+                            line("", (0, 0, -0.195), (0, 0, 0.195), n=40).points
+                            + line("", (0, 0, 3.805), (0, 0, 4.195), n=40).points,
+                            (0.375, 0.625),
+                        ),
+                        # The base's top beside the beam, Z = 4, and the beam's, Z = 20, each
+                        # ±0.1 (10 of 40 points); the beam's face, X = 5 ±0.05; and the hook's
+                        # The beam's face, X = 5 ±0.05.
+                        line(
+                            "base_top", (-2.5, 0, 3.805), (-2.5, 0, 4.195), n=40, share=(0.25, 0.75)
+                        ),
+                        line(
+                            "beam_top", (4.2, 0, 19.805), (4.2, 0, 20.195), n=40, share=(0.25, 0.75)
+                        ),
+                        line(
+                            "beam_face", (4.805, 0, 10), (5.195, 0, 10), n=40, share=(0.375, 0.625)
+                        ),
+                    ),
+                    slopes=(
+                        # The beam's 16 mm above the base, ±0.1: its top's share less the
+                        # base top's, 0.1 a share of 0.25.
+                        Slope("beam_height", "beam_top", "base_top", (-0.25, 0.25)),
+                    ),
                 ),
             ),
             mates={"panel": LEDGE},
@@ -613,21 +739,56 @@ CASES: dict[str, Case] = {
                     # The groove: the tongue's flanks offset 0.2 mm square to themselves.
                     volume=30 * (24 * 9.8 - (2 * 5.2954 + 2 * 7.2954) / 2 * 5),
                     volume_rel=0.035,  # every stated tolerance at its limit (#40 V2)
-                    # 0.05 mm square to a flank is 0.054 mm across it.
+                    # 0.05 mm square to a flank is 0.054 mm across it. Each probe on the
+                    # clearance's 0.15 or 0.25 (#40 V2: 0.255 and 0.26 were held), each flank
+                    # at three heights, so its lean is held, and the groove's top at three
+                    # places along X: the most "on every face" where it's probed.
                     inside={
-                        "flank_+y": (0, 6.355, 7.7),
-                        "flank_-y": (0, -6.355, 7.7),
-                        "over_groove": (0, 0, 10.26),
-                        "bottom": (0, 10, 5.26),
+                        "flank_+y": (0, 6.349, 7.7),
+                        "flank_-y": (0, -6.349, 7.7),
+                        "flank_low_+y": (0, 5.509, 5.6),
+                        "flank_low_-y": (0, -5.509, 5.6),
+                        "flank_high_+y": (0, 7.189, 9.8),
+                        "flank_high_-y": (0, -7.189, 9.8),
+                        "over_groove": (0, 0, 10.25),
+                        "over_groove_-x": (-14, 0, 10.25),
+                        "over_groove_+x": (14, 0, 10.25),
+                        "bottom": (0, 10, 5.25),
                     },
                     outside={
                         "groove": (0, 0, 8),
-                        "flank_clear_+y": (0, 6.24, 7.7),
-                        "flank_clear_-y": (0, -6.24, 7.7),
-                        "groove_top_clear": (0, 0, 10.14),
-                        "bottom_clear": (0, 10, 5.14),
+                        "flank_clear_+y": (0, 6.242, 7.7),
+                        "flank_clear_-y": (0, -6.242, 7.7),
+                        "flank_low_clear_+y": (0, 5.402, 5.6),
+                        "flank_low_clear_-y": (0, -5.402, 5.6),
+                        "flank_high_clear_+y": (0, 7.082, 9.8),
+                        "flank_high_clear_-y": (0, -7.082, 9.8),
+                        "groove_top_clear": (0, 0, 10.15),
+                        "groove_top_clear_-x": (-14, 0, 10.15),
+                        "groove_top_clear_+x": (14, 0, 10.15),
+                        "bottom_clear": (0, 10, 5.15),
                     },
                     gaps=(Gap("rail", distance=(0.15, 0.25)),),
+                    # The clearance 0.15 to 0.25 "on every face": each face pair's own, in a
+                    # box that holds that pair alone, the whole block's length (#40 round 3:
+                    # gap.rail.distance held only the closest face's). The flanks' boxes stop
+                    # short of the base and the tongue's top, the top's within the tongue's
+                    # corners, and the base's outside the tongue.
+                    region_gaps=(
+                        RegionGap(
+                            "flank_+y", "rail", ((-15, 15), (5.5, 7.5), (5.6, 9.6)), (0.15, 0.25)
+                        ),
+                        RegionGap(
+                            "flank_-y", "rail", ((-15, 15), (-7.5, -5.5), (5.6, 9.6)), (0.15, 0.25)
+                        ),
+                        RegionGap("top", "rail", ((-15, 15), (-6.5, 6.5), (9, 11)), (0.15, 0.25)),
+                        RegionGap(
+                            "base_+y", "rail", ((-15, 15), (7.5, 10.5), (4, 6.5)), (0.15, 0.25)
+                        ),
+                        RegionGap(
+                            "base_-y", "rail", ((-15, 15), (-10.5, -7.5), (4, 6.5)), (0.15, 0.25)
+                        ),
+                    ),
                 ),
             ),
             mates={"rail": DOVETAIL},
@@ -646,22 +807,74 @@ CASES: dict[str, Case] = {
                     volume_rel=0.065,
                     inside={
                         "pin_end": (0, -14.9, 0),
-                        "knuckle_b": (0, 4.79, 2.5),
-                        "knuckle_a": (0, 5.21, 2.5),
-                        "plate_b": (3.36, 10, 0),
-                        "plate_a": (-3.36, 0, 0),
+                        # The knuckles' facing ends and the plates' inner edges, each at its
+                        # ±0.1 (round 2: 0.06 inside, a valid end 0.08 off, its clearance
+                        # kept by the other's, failed).
+                        "knuckle_b": (0, 4.75, 2.5),
+                        "knuckle_a": (0, 5.25, 2.5),
+                        "plate_b": (3.4, 10, 0),
+                        "plate_a": (-3.4, 0, 0),
+                        # Each face at ±0.1 the box doesn't hold (#40 round 2): the plates'
+                        # faces at Z = ±1.5 and their ends at Y = ±15 (+X is plate B's, -X
+                        # A's); the pin's and knuckle A's outer ends at Y = ±15; the -Y
+                        # knuckles' ends (B's at -4.85, A's at -5.15); and each knuckle out to
+                        # r = 2.9, so the knuckles' cylinder holds it.
+                        **mirrored(
+                            {
+                                "plate_top": (15, 10, 1.4),
+                                "plate_bottom": (15, 10, -1.4),
+                                "plate_-y": (15, -14.9, 0),
+                                "plate_+y": (15, 14.9, 0),
+                            }
+                        ),
+                        "pin_end_+y": (0, 14.9, 0),
+                        "knuckle_a_end_-y": (0, -14.9, 2.5),
+                        "knuckle_a_end_+y": (0, 14.9, 2.5),
+                        "knuckle_b_-y": (0, -4.75, 2.5),
+                        "knuckle_a_-y": (0, -5.25, 2.5),
+                        "knuckle_a_-y_round": (0, -10, 2.9),
+                        "knuckle_b_round": (0, 0, 2.9),
+                        "knuckle_a_+y_round": (0, 10, 2.9),
                     },
                     outside={
                         "knuckle_ends": (0, 5.0, 2.5),
                         "knuckle_a_to_plate_b": (3.15, 10, 0),
                         "knuckle_b_to_plate_a": (-3.15, 0, 0),
+                        # 0.1 past each knuckle's end and short of each plate's inner edge,
+                        # and over and under each plate (#40 round 2).
+                        "past_knuckle_b": (0, 4.95, 2.5),
+                        "short_of_knuckle_a": (0, 5.05, 2.5),
+                        "past_knuckle_b_-y": (0, -4.95, 2.5),
+                        "short_of_knuckle_a_-y": (0, -5.05, 2.5),
+                        "short_of_plate_b": (3.2, 10, 0),
+                        "short_of_plate_a": (-3.2, 0, 0),
+                        **mirrored({"over_plate": (15, 10, 1.6), "under_plate": (15, 10, -1.6)}),
                     },
+                    # Each bridge over its knuckle's length, across the 0.3 between the
+                    # knuckle and its plate (#40 round 2).
+                    samples=tuple(
+                        line(name, (x, y0, 0), (x, y1, 0), n=50, share=(0.99, 1.0))
+                        for name, x, y0, y1 in (
+                            ("bridge_a_-y", -3.15, -14.9, -5.3),
+                            ("bridge_a_+y", -3.15, 5.3, 14.9),
+                            ("bridge_b", 3.15, -4.7, 4.7),
+                        )
+                    ),
+                    # Each plate's own 3 mm at ±0.1, where nothing else is: the box's Z is
+                    # the knuckles' (#40 round 2).
+                    section_spans=(
+                        SectionSpan("plate_a", "x", -15, "z", (2.9, 3.1)),
+                        SectionSpan("plate_b", "x", 15, "z", (2.9, 3.1)),
+                    ),
                     own_gap=(0.25, 0.35),
                     # The 3 mm pin and the 3.6 mm bore, each ±0.05, on the Y axis at ±0.1
                     # (the second review of #41: probes held them to about ±0.1).
                     cylinders=(
                         Cylinder("pin", "y", (0, 0, 0), (1.475, 1.525), kind="outer"),
                         Cylinder("bore", "y", (0, 0, 0), (1.775, 1.825)),
+                        # Every knuckle's 6 mm at ±0.1: each outer face within 0.25 of r = 3
+                        # is held (`checks.cylinder`), and the round probes put each there.
+                        Cylinder("knuckles", "y", (0, 0, 0), (2.95, 3.05), kind="outer"),
                     ),
                 ),
             ),
@@ -716,7 +929,12 @@ CASES: dict[str, Case] = {
                             share=(0.205, 0.243),
                             changes=(40, 40),
                         ),
-                        ring("root", (0, 0, 4), 13.0, n=181, share=(0.99, 1.0)),
+                        # The roots 26.25 across, r = 13.125, ±0.1 (the tips', as the text
+                        # gives the roots none): solid all round at r = 13.025, and each of
+                        # the 20 gaps reaching below r = 13.225 (#40 V2: held from below only,
+                        # at r = 13, so a shallower root passed).
+                        ring("root", (0, 0, 4), 13.025, n=181, share=(0.99, 1.0)),
+                        ring("root_at_most", (0, 0, 4), 13.225, n=499, changes=(40, 40)),
                         ring("past_tips", (0, 0, 4), 16.6, n=181, share=(0.0, 0.01)),
                     ),
                 ),
@@ -736,6 +954,9 @@ CASES: dict[str, Case] = {
                     ),
                     inside={"flat_at_least": (0, 6.4, -2.6), "corner": (7.4, 0, -2.6)},
                     outside={"flat_at_most": (0, 6.6, -2.6), "past_corner": (7.6, 0, -2.6)},
+                    # The head's 5.3 mm, ±0.1, off the plane X = 5, which cuts the head alone,
+                    # past the crests (#40 V2: its top, Z = 0, had no check).
+                    section_spans=(SectionSpan("head", "x", 5, "z", (5.2, 5.4)),),
                     samples=(
                         # Along the flanks: in and out at each half pitch, 12.8 pitches.
                         line(
@@ -781,6 +1002,14 @@ CASES: dict[str, Case] = {
                             "past_crests", (0, -4.01, 2), (0, -4.01, 18), n=120, share=(0.0, 0.01)
                         ),
                         helix("right_hand", 3.6, 1.25, 3, 17),
+                        # The head's top, Z = 0, past the crests, and the shank's end, Z = 20,
+                        # each ±0.1: 24 points 0.01 apart about each, 10 of them to 0.1 (#40
+                        # V2: the shank's start had no check). Few: the thread's measure is
+                        # near its time.
+                        line("head_top", (0, 6, -0.115), (0, 6, 0.115), n=24, share=(0.083, 0.917)),
+                        line(
+                            "shank_end", (0, 0, 19.885), (0, 0, 20.115), n=24, share=(0.083, 0.917)
+                        ),
                     ),
                     # 60°: the share falls 2 tan 30° x 0.43 / 1.25 = 0.397 from r = 3.45 to
                     # 3.88 drawn flat; swept, the lines read about 0.018 more (the
@@ -788,7 +1017,12 @@ CASES: dict[str, Case] = {
                     # (read 0.365 and 0.37) fails, as do 85° and a square thread (the second
                     # review of #41: the reference was 68°, P/8 where P/16 belongs, and 55°
                     # passed). 400 points a line, as 200 read the share only to 0.01.
-                    slopes=(Slope("flank_angle", "flanks_low", "crests", (0.39, 0.44)),),
+                    slopes=(
+                        Slope("flank_angle", "flanks_low", "crests", (0.39, 0.44)),
+                        # The shank's 20 mm, ±0.1: its end's share less the head top's, 0.1
+                        # 10 of 24 points.
+                        Slope("shank_length", "shank_end", "head_top", (-0.417, 0.417)),
+                    ),
                 ),
             ),
         ),
@@ -913,16 +1147,36 @@ CASES: dict[str, Case] = {
                 ),
                 Member(
                     "bushing",
-                    cylinders=(Cylinder("bore", "z", (0, 0, 6), (4.125, 4.175)),),
+                    cylinders=(
+                        Cylinder("bore", "z", (0, 0, 6), (4.125, 4.175)),
+                        # The sleeve's 12 mm, ±0.1, on the axis (#40 V2: held to 11.8 to 16).
+                        Cylinder("sleeve", "z", (0, 0, 7), (5.95, 6.05), kind="outer"),
+                    ),
                     bbox=((-9, 9), (-9, 9), (0, 12)),
                     volume=math.pi * (9**2 * 2 + 6**2 * 10 - 4.15**2 * 12),
                     volume_rel=0.06,  # every stated tolerance at its limit: 5.3% (#40 V2)
                     inside={
                         "flange": (0, 8.9, 1),
+                        # The flange's top, Z = 2, ±0.1, past the sleeve (#40 V2: no check).
+                        "flange_top": (7.5, 0, 1.9),
                         "sleeve": (5.9, 0, 10),
                         "bore_at_most": (4.18, 0, 6),
                     },
-                    outside={"bore_at_least": (4.12, 0, 6), "past_sleeve": (0, 8, 6)},
+                    outside={
+                        "bore_at_least": (4.12, 0, 6),
+                        "past_sleeve": (0, 8, 6),
+                        "over_flange": (7.5, 0, 2.1),
+                    },
+                    # The flange's 2 mm, ±0.1, as a size: points 0.01 apart over 0.4 mm about
+                    # its bottom and top, half in the material at 2 mm; 0.1 is 10 of 80.
+                    samples=(
+                        Sample(
+                            "flange_thickness",
+                            line("", (0, -7.5, -0.195), (0, -7.5, 0.195), n=40).points
+                            + line("", (0, -7.5, 1.805), (0, -7.5, 2.195), n=40).points,
+                            (0.375, 0.625),
+                        ),
+                    ),
                 ),
                 Member(
                     "collar",
@@ -963,8 +1217,35 @@ CASES: dict[str, Case] = {
                         "back": (0, 78.5, 30),
                         "floor": (0, 40, 1.5),
                         "top": (0, 40, 58.5),
+                        # The inside's faces, X = ±47, Y = 77, Z = 3 and 57, each at ±0.1:
+                        # material 0.1 into the wall, none 0.1 short of it (#40 round 2).
+                        "inner_+x": (47.1, 40, 30),
+                        "inner_-x": (-47.1, 40, 30),
+                        "inner_back": (0, 77.1, 30),
+                        "inner_floor": (0, 40, 2.9),
+                        "inner_top": (0, 40, 57.1),
                     },
-                    outside={"inside": (0, 40, 30), "open_front": (0, 0.5, 30)},
+                    outside={
+                        "inside": (0, 40, 30),
+                        "open_front": (0, 0.5, 30),
+                        "inner_+x_out": (46.9, 40, 30),
+                        "inner_-x_out": (-46.9, 40, 30),
+                        "inner_back_out": (0, 76.9, 30),
+                        "inner_floor_out": (0, 40, 3.1),
+                        "inner_top_out": (0, 40, 56.9),
+                    },
+                    # Its 3 mm walls, floor, top and back, each at ±0.1: a line through each,
+                    # 1.5 mm past both its faces, half of it in the material.
+                    samples=tuple(
+                        line(name, start, end, n=301, share=(2.9 / 6, 3.1 / 6))
+                        for name, start, end in (
+                            ("wall_+x", (45.5, 40, 30), (51.5, 40, 30)),
+                            ("wall_-x", (-45.5, 40, 30), (-51.5, 40, 30)),
+                            ("back_wall", (0, 75.5, 30), (0, 81.5, 30)),
+                            ("floor_wall", (0, 40, -1.5), (0, 40, 4.5)),
+                            ("top_wall", (0, 40, 55.5), (0, 40, 61.5)),
+                        )
+                    ),
                 ),
                 Member(
                     "drawer",
@@ -977,13 +1258,50 @@ CASES: dict[str, Case] = {
                         "front": (0, -2, 10),
                         # The finger hole's 20 mm across, at ±0.1 (#40 V2).
                         "finger_hole_at_most": (0, -2, 48.1),
+                        # The body's faces at ±0.1 (#40 round 2): its sides at X = ±46.5, its
+                        # underside at Z = 3.5, its top edge at 50, and its front wall's inside
+                        # 2 mm behind the plate, at Y = 1.5; and the plate's back, Y = -0.5,
+                        # past the body.
+                        "body_+x": (46.4, 40, 30),
+                        "body_-x": (-46.4, 40, 30),
+                        "underside": (0, 40, 3.6),
+                        "top_edge": (45.5, 40, 49.9),
+                        "front_wall": (30, 1.4, 30),
+                        "plate_back_+x": (48, -0.6, 30),
+                        "plate_back_-x": (-48, -0.6, 30),
                     },
                     outside={
                         "inside": (0, 40, 30),
                         "finger_hole": (0, -2, 38),
                         "finger_hole_at_least": (0, -2, 47.9),
                         "over_body": (0, 0, 52),
+                        "body_+x_out": (46.6, 40, 30),
+                        "body_-x_out": (-46.6, 40, 30),
+                        "under_body": (0, 40, 3.4),
+                        "over_top_edge": (45.5, 40, 50.1),
+                        "front_wall_out": (30, 1.6, 30),
+                        "behind_plate_+x": (48, -0.4, 30),
+                        "behind_plate_-x": (-48, -0.4, 30),
                     },
+                    # Its 2 mm walls and floor and the plate's 3 mm, each at ±0.1: a line
+                    # through each, past both its faces.
+                    samples=(
+                        *(
+                            line(name, start, end, n=201, share=(1.9 / 4, 2.1 / 4))
+                            for name, start, end in (
+                                ("wall_+x", (43.5, 40, 30), (47.5, 40, 30)),
+                                ("wall_-x", (-43.5, 40, 30), (-47.5, 40, 30)),
+                                ("back_wall", (0, 73.5, 30), (0, 77.5, 30)),
+                                ("floor_wall", (0, 40, 2.5), (0, 40, 6.5)),
+                            )
+                        ),
+                        *(
+                            line(name, (x, -5, 30), (x, 1, 30), n=301, share=(2.9 / 6, 3.1 / 6))
+                            for name, x in (("plate_+x", 48), ("plate_-x", -48))
+                        ),
+                    ),
+                    # The finger hole's 20 mm at ±0.1, its axis at X = 0, Z = 38 at ±0.1.
+                    cylinders=(Cylinder("finger_hole", "y", (0, -2, 38), (9.95, 10.05)),),
                     gaps=(Gap("cabinet", distance=(0.4, 0.6)),),
                 ),
             ),
@@ -1003,8 +1321,22 @@ CASES: dict[str, Case] = {
                     bbox=((-12, 58), (-25, 25), (0, 14)),
                     volume=70 * 50 * 4 + 2 * math.pi * 2.5**2 * 10,
                     volume_rel=0.03,  # the 4 mm plate at ±0.1: 2.4% (#40 V2)
-                    inside={"post_a_at_least": (2.47, 0, 10), "post_b_at_least": (30.2, 2.47, 10)},
-                    outside={"post_a_at_most": (2.53, 0, 10), "post_b_at_most": (30.2, -2.53, 10)},
+                    inside={
+                        "post_a_at_least": (2.47, 0, 10),
+                        "post_b_at_least": (30.2, 2.47, 10),
+                        # The plate's top, Z = 4, and each post's own top, Z = 14, at ±0.1: the
+                        # box holds only the taller post's (#40 round 2).
+                        "plate_top": (50, 20, 3.9),
+                        "post_a_top": (0, 0, 13.9),
+                        "post_b_top": (30.2, 0, 13.9),
+                    },
+                    outside={
+                        "post_a_at_most": (2.53, 0, 10),
+                        "post_b_at_most": (30.2, -2.53, 10),
+                        "over_plate": (50, 20, 4.1),
+                    },
+                    # The plate's 4 mm at ±0.1, clear of the posts and the gears.
+                    section_spans=(SectionSpan("plate", "x", 50, "z", (3.9, 4.1)),),
                 ),
                 Member(
                     "gear-a",
@@ -1020,12 +1352,14 @@ CASES: dict[str, Case] = {
                         ring("pitch", (0, 0, 7.5), 9, n=499, share=(0.48, 0.52), changes=(24, 24)),
                         # The involute's share at r = 9.75 is 0.355 (#40 V2: only the pitch
                         # circle was held, so straight flanks passed).
+                        # Its window ±0.0195 of the ring, ±0.0995 mm of the 5.105 mm pitch
+                        # there (#40 round 2: ±0.02 was ±0.102 mm, over the 0.1).
                         ring(
                             "addendum",
                             (0, 0, 7.5),
                             9.75,
                             n=499,
-                            share=(0.335, 0.375),
+                            share=(0.3355, 0.3745),
                             changes=(24, 24),
                         ),
                         ring(
@@ -1044,9 +1378,10 @@ CASES: dict[str, Case] = {
                             share=(0.191, 0.227),
                             changes=(24, 24),
                         ),
-                        ring("root", (0, 0, 7.5), 7.0, n=181, share=(0.99, 1.0)),
-                        # The root's 7.125 radius at ±0.1: gaps at 7.24 (#40 V2).
-                        ring("root_at_most", (0, 0, 7.5), 7.24, n=181, share=(0.0, 0.95)),
+                        # The root's 7.125 radius at ±0.1: solid at 7.025 and gaps at 7.225
+                        # (#40 round 2: at 7.0 and 7.24 it was held to -0.125/+0.115).
+                        ring("root", (0, 0, 7.5), 7.025, n=181, share=(0.99, 1.0)),
+                        ring("root_at_most", (0, 0, 7.5), 7.225, n=181, share=(0.0, 0.95)),
                     ),
                     gaps=(
                         Gap("gear-b", distance=(0.02, 0.3)),
@@ -1080,16 +1415,18 @@ CASES: dict[str, Case] = {
                             share=(0.607, 0.651),
                             changes=(56, 56),
                         ),
+                        # ±0.0195 of the ring: ±0.0978 mm of the 5.015 mm pitch (#40 round 2).
                         ring(
                             "involute_tip",
                             (30.2, 0, 7.5),
                             22.35,
                             n=499,
-                            share=(0.229, 0.269),
+                            share=(0.2295, 0.2685),
                             changes=(56, 56),
                         ),
-                        ring("root", (30.2, 0, 7.5), 19.0, n=181, share=(0.99, 1.0)),
-                        ring("root_at_most", (30.2, 0, 7.5), 19.24, n=181, share=(0.0, 0.95)),
+                        # The root's 19.125 at ±0.1, as gear A's.
+                        ring("root", (30.2, 0, 7.5), 19.025, n=181, share=(0.99, 1.0)),
+                        ring("root_at_most", (30.2, 0, 7.5), 19.225, n=181, share=(0.0, 0.95)),
                     ),
                     gaps=(Gap("plate", distance=(0.15, 0.25)),),
                 ),
@@ -1108,6 +1445,8 @@ CASES: dict[str, Case] = {
                     ),
                     inside={"flat_at_least": (0, 6.4, -2.6)},
                     outside={"flat_at_most": (0, 6.6, -2.6)},
+                    # The head's 5.3 mm, ±0.1, as m8-bolt's (#40 V2).
+                    section_spans=(SectionSpan("head", "x", 5, "z", (5.2, 5.4)),),
                     samples=(
                         line(
                             "flanks",
@@ -1138,8 +1477,17 @@ CASES: dict[str, Case] = {
                             "past_crests", (0, -4.01, 2), (0, -4.01, 28), n=120, share=(0.0, 0.01)
                         ),
                         helix("right_hand", 3.6, 1.25, 3, 27),
+                        # The head's top and the shank's end, Z = 30, each ±0.1, as m8-bolt's.
+                        line("head_top", (0, 6, -0.115), (0, 6, 0.115), n=24, share=(0.083, 0.917)),
+                        line(
+                            "shank_end", (0, 0, 29.885), (0, 0, 30.115), n=24, share=(0.083, 0.917)
+                        ),
                     ),
-                    slopes=(Slope("flank_angle", "flanks_low", "crests", (0.39, 0.44)),),
+                    slopes=(
+                        Slope("flank_angle", "flanks_low", "crests", (0.39, 0.44)),
+                        # The shank's 30 mm, ±0.1, as m8-bolt's 20 (#40 V2).
+                        Slope("shank_length", "shank_end", "head_top", (-0.417, 0.417)),
+                    ),
                 ),
                 Member(
                     "nut",
@@ -1260,8 +1608,59 @@ CASES: dict[str, Case] = {
                     bbox=((-12, 12), (-13.3, 13.3), (-8, 30)),
                     volume=2 * 16 * 4 * 34 + 24 * 26.6 * 4 - 2 * math.pi * 2.65**2 * 4,
                     volume_rel=0.04,  # every stated tolerance at its limit (#40 V2)
-                    inside={"arm": (0, 11, 20), "top": (0, 0, 28), "hole_at_most": (2.68, 11.3, 0)},
-                    outside={"hole_at_least": (0, 11.3, 2.62), "between_arms": (0, 0, 10)},
+                    inside={
+                        "arm": (0, 11, 20),
+                        "top": (0, 0, 28),
+                        "hole_at_most": (2.68, 11.3, 0),
+                        # Each arm's own faces at ±0.1, which the box, the top plate's, doesn't
+                        # hold (#40 round 2): its ends at X = ±8, its faces at Y = ±9.3 and
+                        # ±13.3, its foot at Z = -8; and the plate's underside, Z = 26, and its
+                        # edges at Y = ±13.3 past the arms.
+                        **mirrored({"arm_+y_end": (7.9, 11.3, 10), "arm_-y_end": (7.9, -11.3, 10)}),
+                        "arm_+y_inner": (0, 9.4, 10),
+                        "arm_-y_inner": (0, -9.4, 10),
+                        "arm_+y_outer": (0, 13.2, 10),
+                        "arm_-y_outer": (0, -13.2, 10),
+                        "arm_+y_foot": (0, 11.3, -7.9),
+                        "arm_-y_foot": (0, -11.3, -7.9),
+                        "plate_underside": (0, 0, 26.1),
+                        "plate_+y_edge": (10, 13.2, 28),
+                        "plate_-y_edge": (10, -13.2, 28),
+                    },
+                    outside={
+                        "hole_at_least": (0, 11.3, 2.62),
+                        "between_arms": (0, 0, 10),
+                        **mirrored(
+                            {"past_arm_+y": (8.1, 11.3, 10), "past_arm_-y": (8.1, -11.3, 10)}
+                        ),
+                        "inside_arm_+y": (0, 9.2, 10),
+                        "inside_arm_-y": (0, -9.2, 10),
+                        "under_plate": (0, 0, 25.9),
+                    },
+                    # Each arm's 16 mm along X and its 4 mm along Y, at ±0.1: a line through it
+                    # each way, past both its faces.
+                    samples=(
+                        *(
+                            line(
+                                f"arm_{s}_length",
+                                (-9, y, 10),
+                                (9, y, 10),
+                                n=361,
+                                share=(15.9 / 18, 16.1 / 18),
+                            )
+                            for s, y in (("+y", 11.3), ("-y", -11.3))
+                        ),
+                        *(
+                            line(
+                                f"arm_{s}_thickness",
+                                (0, 8.3 * k, 10),
+                                (0, 14.3 * k, 10),
+                                n=301,
+                                share=(3.9 / 6, 4.1 / 6),
+                            )
+                            for s, k in (("+y", 1), ("-y", -1))
+                        ),
+                    ),
                     gaps=(
                         Gap("spacer-a", distance=(0.25, 0.35)),
                         Gap("spacer-b", distance=(0.25, 0.35)),
@@ -1333,7 +1732,6 @@ CASES: dict[str, Case] = {
                         "round_snug": (0, 3.2, 8),
                     },
                     outside={"bore": (0, 0, 8)},
-                    # Snug: at most 0.15 mm off the shaft, or pressed on by a little.
                     # Snug: at most 0.15 mm off the shaft, or pressed on by up to about 0.07
                     # mm all round, 10 mm³ (#40 V2: 1 mm³ was 0.007 mm, no real press fit).
                     gaps=(Gap("shaft", interference=(0.0, 10.0), distance=(0.0, 0.15)),),
@@ -1357,6 +1755,7 @@ CASES: dict[str, Case] = {
                     # the arm 20 mm out, past any wall plate (the review of #41: at 8 mm a
                     # thick plate could take the section, and a thin arm pass).
                     load=Load("bag", "x", 20, force_n=5 * G),
+                    centred=(("y", 0.0), ("z", 0.0)),  # "centre it on …" (round 2 of the audit)
                 ),
             ),
         ),

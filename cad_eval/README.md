@@ -903,3 +903,23 @@ or not at all, each said where it stands (`unchecked: …`).
 (`JUDGE_TIMEOUT`), and a cut-off there (by time or memory) is an `infra` fault, never
 the model's. The model's own `measure` keeps its 180 s, and each call's event records
 its `seconds` and `limit`, so whether the model is ever cut off can be seen.
+
+**The audit's gaps, closed** (the operator: before the oracle rerun and the baseline).
+Every stated dimension, position and tolerance of a part the model makes is held to
+what the text gives. Each new check is proved in the image: the references pass and
+the wrong solutions fail. New kinds of check:
+- **`Member.centred`:** a part's box centre, where its size is the model's to choose
+  ("centre it on Y = 0").
+- **`SectionSpan.clip`:** a section cut to one side, for one of two cheeks a plane cuts.
+- **`SectionSpan.less`:** a section less another, for a hook's overhang wherever its
+  catch sits.
+- **`RegionGap`:** the closest distance within a box, so one face pair's clearance is
+  held, where a `Gap` holds only the closest of all ("0.3 mm everywhere").
+- **`ring(runs=…)`:** each run of material round a ring, so each tooth's own width, not
+  only the mean.
+
+**Still unchecked, with why** (`audit.json`):
+- **Names and titles**, and the numbers of the parts a case supplies.
+- **The qualitative items**, which are for the Sponsor.
+- **snap-enclosure's ramp foot.** On a 1-in-3 ramp, the arm face's own ±0.05 moves any
+  probe's reading of the foot by ±0.15, so only an edge check would hold it.
