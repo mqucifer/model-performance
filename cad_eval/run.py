@@ -94,7 +94,7 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
             ]
         if m.own_gap is not None:
             request["self"] = True
-        if m.holes:
+        if m.holes or m.cylinders:
             request["cylinders"] = True
         if m.load is not None:
             request["section"] = {"axis": m.load.axis, "at": m.load.at}

@@ -29,21 +29,27 @@ def checks(case: Case) -> list[dict[str, Any]]:
     """Every check of `case`, as `<member>/<check>`, with what it wants."""
     found: list[dict[str, Any]] = []
 
-    def add(member: str, name: str, wants: Any) -> None:
-        found.append({"check": f"{member}/{name}", "wants": wants})
+    def add(member: str, name: str, wants: Any, tol: float | None = None) -> None:
+        # `tol`: how tightly the check holds what it holds, in mm either way, where its
+        # window says so; a probe's is the audit's to state (`held_to`).
+        found.append({"check": f"{member}/{name}", "wants": wants, "tol": tol})
+
+    def half(span: Any) -> float:
+        return round((span[1] - span[0]) / 2, 4)
 
     for m in case.members:
         add(m.name, "solids", m.solids)
         if m.bbox is not None:
             for axis, want in zip("xyz", m.bbox, strict=True):
-                add(m.name, f"bbox.{axis}.min", want[0])
-                add(m.name, f"bbox.{axis}.max", want[1])
+                add(m.name, f"bbox.{axis}.min", want[0], m.tol)
+                add(m.name, f"bbox.{axis}.max", want[1], m.tol)
+                add(m.name, f"size.{axis}", round(want[1] - want[0], 4), m.tol)
         if m.within is not None:
             for axis, want in zip("xyz", m.within, strict=True):
                 add(m.name, f"within.{axis}", list(want))
         for axis, span in zip("xyz", m.spans or (None,) * 3, strict=True):
             if span is not None:
-                add(m.name, f"span.{axis}", list(span))
+                add(m.name, f"span.{axis}", list(span), half(span))
         if m.volume is not None:
             add(m.name, "volume", round(m.volume, 3))
         if m.volume_range is not None:
@@ -59,6 +65,13 @@ def checks(case: Case) -> list[dict[str, Any]]:
                 add(m.name, f"changes.{sample.name}", list(sample.changes))
             if sample.gaps is not None:
                 add(m.name, f"gaps.{sample.name}", list(sample.gaps))
+            if sample.period is not None:
+                add(m.name, f"period.{sample.name}", list(sample.period), half(sample.period))
+        for spec in m.cylinders:
+            # On the diameter: twice the radius's half-width.
+            diameter = round(spec.radius[1] - spec.radius[0], 4)
+            add(m.name, f"cylinder.{spec.name}.radius", list(spec.radius), diameter)
+            add(m.name, f"cylinder.{spec.name}.position", spec.offset, spec.offset)
         for slope in m.slopes:
             add(
                 m.name,
@@ -72,15 +85,16 @@ def checks(case: Case) -> list[dict[str, Any]]:
         for gap in m.gaps:
             add(m.name, f"gap.{gap.other}.interference", list(gap.interference))
             if gap.distance is not None:
-                add(m.name, f"gap.{gap.other}.distance", list(gap.distance))
+                add(m.name, f"gap.{gap.other}.distance", list(gap.distance), half(gap.distance))
         if m.own_gap is not None:
             add(m.name, "own.interference", [0.0, 0.01])
-            add(m.name, "own.distance", list(m.own_gap))
+            add(m.name, "own.distance", list(m.own_gap), half(m.own_gap))
         for spec in m.section_spans:
             add(
                 m.name,
                 f"section.{spec.name}",
                 {"at": f"{spec.axis}={spec.at}", "span": list(spec.span)},
+                half(spec.span),
             )
         if m.vents is not None:
             add(m.name, f"vents.{m.vents.name}", {"area": m.vents.area})
@@ -94,5 +108,8 @@ def never_fails(case: Case) -> list[str]:
         f"{m.name}/{sample.name}"
         for m in case.members
         for sample in m.samples
-        if tuple(sample.share) == (0.0, 1.0) and sample.changes is None and sample.gaps is None
+        if tuple(sample.share) == (0.0, 1.0)
+        and sample.changes is None
+        and sample.gaps is None
+        and sample.period is None
     ]

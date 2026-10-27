@@ -25,6 +25,12 @@ HERE = Path(__file__).parent / "planted"
 PLANTED = [
     ("m8-vee85.py", "m8-bolt", {"part/slope.flank_angle"}),
     ("m8-square.py", "m8-bolt", {"part/slope.flank_angle"}),
+    # The second review of #41's: 55° two ways, and pitches either side of 1.25.
+    ("m8-55-crest.py", "m8-bolt", {"part/slope.flank_angle"}),
+    ("m8-55-halfpitch.py", "m8-bolt", {"part/slope.flank_angle"}),
+    ("m8-pitch-1.15.py", "m8-bolt", {"part/period.flanks"}),
+    ("m8-pitch-1.2.py", "m8-bolt", {"part/period.flanks"}),
+    ("m8-pitch-1.3.py", "m8-bolt", {"part/period.flanks"}),
     ("spur-straight20.py", "spur-gear", {"part/share.involute_base", "part/share.involute_tip"}),
     (
         "gear-straight20.py",

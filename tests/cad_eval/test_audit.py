@@ -48,33 +48,103 @@ def test_every_check_traces_to_the_text(name: str) -> None:
             assert entry["quotes"] or entry["says"], check
 
 
+def occurrences(spec: str) -> list[tuple[int, float, bool]]:
+    """Each number in the spec, in order: where, what, and whether it's a tolerance."""
+    return [
+        (m.start(), float(m.group()), spec[max(0, m.start() - 1) : m.start()] == "±")
+        for m in NUMBER.finditer(spec)
+    ]
+
+
+def referents(spec: str, at: int) -> list[str]:
+    """What an explicit tolerance names: "±0.1 mm on the tips, the face and the bore's
+    position" names three, each to be held on its own."""
+    rest = spec[at:]
+    rest = rest[rest.index(" on ") + 4 :] if " on " in rest[:12] else ""
+    rest = re.split(r", so |, ±|; |\.(?!\d)", rest)[0]
+    return [r.strip() for r in re.split(r", | and ", rest) if r.strip()]
+
+
+def stated(name: str) -> list[dict[str, Any]]:
+    return entries()[name]["stated"]
+
+
 @pytest.mark.parametrize("name", HARD)
-def test_every_value_the_text_states_maps_to_a_check_that_holds_it(name: str) -> None:
-    """Each number the spec states is named, in `values`, by a check that holds it, or
-    is listed as unchecked with why (the review of #41: a number in any quote counted,
-    whether its check held it or not)."""
-    case = CASES[name]
+def test_every_number_the_text_states_has_its_own_entry(name: str) -> None:
+    """One entry per occurrence, in order, each where its `at` says (the second review of
+    #41: values as a set let one check of 0.1 stand for every 0.1 in the text)."""
+    spec = normal(CASES[name].spec())
+    found = occurrences(spec)
+    listed = stated(name)
+    assert len(listed) == len(found), (name, len(listed), len(found))
+    for (at, value, _), entry in zip(found, listed, strict=True):
+        assert float(entry["value"]) == value, (name, entry)
+        text = normal(entry["at"])
+        spans = [m.start() for m in re.finditer(re.escape(text), spec)]
+        assert any(s <= at < s + len(text) for s in spans), (name, entry["at"], value)
+
+
+@pytest.mark.parametrize("name", HARD)
+def test_each_occurrence_is_held_by_named_checks_or_says_why_not(name: str) -> None:
     case_audit = entries()[name]
-    held: set[float] = set()
-    for check, entry in case_audit["checks"].items():
+    spec = normal(CASES[name].spec())
+    listed = {c["check"] for c in audit.checks(CASES[name])}
+    for (at, value, tolerance), entry in zip(occurrences(spec), stated(name), strict=True):
+        assert entry["for"], (name, entry["at"])
+        if tolerance:
+            named = referents(spec, at)
+            if named and named != ["everything else"]:
+                assert sorted(entry["for"]) == sorted(named), (name, entry["at"])
+        for referent, held in entry["for"].items():
+            if isinstance(held, str):
+                assert held.startswith("unchecked: ") and len(held) > 15, (name, referent)
+                continue
+            assert held, (name, entry["at"], referent)
+            for check in held:
+                assert check in listed, (name, check)
+                if not tolerance:
+                    claims = case_audit["checks"][check].get("values", [])
+                    assert value in [float(v) for v in claims], (name, check, value)
+
+
+@pytest.mark.parametrize("name", HARD)
+def test_no_tolerance_is_held_looser_than_the_text_gives(name: str) -> None:
+    """Each check a tolerance names holds its feature at least that tightly: its own
+    window's, or what the audit states for a probe (`held_to`). A size held only by its
+    box's two ends is held to twice its tolerance, so it needs its size check."""
+    case_audit = entries()[name]
+    spec = normal(CASES[name].spec())
+    tols = {c["check"]: c["tol"] for c in audit.checks(CASES[name])}
+    for (_, value, tolerance), entry in zip(occurrences(spec), stated(name), strict=True):
+        if not (tolerance or entry.get("tolerance")):
+            continue
+        for referent, held in entry["for"].items():
+            if isinstance(held, str):
+                continue
+            for check in held:
+                tol = tols[check]
+                if tol is None:
+                    tol = case_audit["checks"][check].get("held_to")
+                assert tol is not None, (name, check, "state how tightly it holds: held_to")
+                assert tol <= value + 1e-9, (name, referent, check, tol, value)
+    members = {m.name for m in CASES[name].members}
+    for entry in stated(name):
+        for referent, held in entry["for"].items():
+            if isinstance(held, str):
+                continue
+            for member in members:
+                for axis in "xyz":
+                    ends = {f"{member}/bbox.{axis}.min", f"{member}/bbox.{axis}.max"}
+                    if ends <= set(held):
+                        assert f"{member}/size.{axis}" in held, (name, referent, axis)
+
+
+@pytest.mark.parametrize("name", HARD)
+def test_a_check_names_only_values_its_own_quotes_state(name: str) -> None:
+    for check, entry in entries()[name]["checks"].items():
         quoted = {float(n) for q in entry.get("quotes", []) for n in NUMBER.findall(normal(q))}
         for value in entry.get("values", []):
-            # A check names only what its own quotes state.
             assert float(value) in quoted, (name, check, value)
-            held.add(float(value))
-    unchecked = {
-        float(n) for q in case_audit.get("unchecked", {}) for n in NUMBER.findall(normal(q))
-    }
-    stated = {float(n) for n in NUMBER.findall(normal(case.spec()))}
-    missing = sorted(stated - held - unchecked)
-    assert missing == [], f"{name}: the spec states {missing}, which no check holds"
-
-
-def test_unchecked_values_say_why() -> None:
-    for name, case_audit in entries().items():
-        for quote, why in case_audit.get("unchecked", {}).items():
-            assert normal(quote) in normal(CASES[name].spec()), (name, quote)
-            assert why.strip(), (name, quote)
 
 
 def test_no_check_can_never_fail() -> None:

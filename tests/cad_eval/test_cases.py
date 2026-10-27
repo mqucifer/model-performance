@@ -34,6 +34,16 @@ def measured(m: Member, **override: Any) -> dict[str, Any]:
         "inside": inside,
         "mesh": {"watertight": True, "winding_consistent": True, "is_volume": True},
     }
+    if m.cylinders:
+        found["cylinders"] = [
+            {
+                "radius": sum(c.radius) / 2,
+                "axis": [1.0 if a == c.axis else 0.0 for a in "xyz"],
+                "origin": list(c.through),
+                "hole": c.kind == "hole",
+            }
+            for c in m.cylinders
+        ]
     return {**found, **override}
 
 
@@ -400,3 +410,63 @@ def test_a_case_is_capped_by_calls_never_by_model_time(tmp_path: Path) -> None:
     finally:
         time.monotonic = original
     assert row["stop"] != "backstop" and row["calls"] == 6
+
+
+def test_a_lines_period_is_its_mean_rise_to_rise() -> None:
+    """A thread's pitch, measured (the second review of #41: 1.15 and 1.3 passed)."""
+    pitch = line("pitch", (0, 0, 0), (0, 0, 10), n=101, period=(1.23, 1.27))
+    # In for 6 points, out for 6.5 on average: rises 12.5 points apart, 0.1 mm each.
+    inside = [(k * 2) % 25 < 12 for k in range(101)]
+    found = checks.sampled(pitch, inside)
+    assert [c.name for c in found] == ["period.pitch"]
+    assert abs(found[0].found - 1.25) < 0.01 and found[0].ok
+    short = [(k % 12) < 6 for k in range(101)]  # 1.2 mm
+    assert not checks.sampled(pitch, short)[0].ok
+
+
+def test_a_cylinder_holds_its_radius_and_its_place_apart() -> None:
+    """The second review of #41: one probe held a bore's size and place together, and
+    failed a correct bore moved 0.04 mm."""
+    from cad_eval.cases import Cylinder  # noqa: PLC0415
+
+    bore = Cylinder("bore", "z", (0, 0, 4), (2.975, 3.025), offset=0.1)
+
+    def face(radius: float, x: float, hole: bool = True) -> dict:
+        return {"radius": radius, "axis": [0, 0, 1], "origin": [x, 0, 0], "hole": hole}
+
+    moved = checks.cylinder(bore, [face(3.0, 0.04)])
+    assert all(c.ok for c in moved)
+    assert [c.name for c in checks.cylinder(bore, [face(3.06, 0.0)]) if not c.ok] == [
+        "cylinder.bore.radius"
+    ]
+    assert [c.name for c in checks.cylinder(bore, [face(3.0, 0.15)]) if not c.ok] == [
+        "cylinder.bore.position"
+    ]
+    # An outer face isn't a hole, and nothing near is a fail, never a pass.
+    assert not checks.cylinder(bore, [face(3.0, 0.0, hole=False)])[0].ok
+    # Of several on the axis (a pin inside a knuckle), the radius nearest the spec's.
+    pin = Cylinder("pin", "z", (0, 0, 0), (1.475, 1.525), kind="outer")
+    both = [face(1.5, 0, hole=False), face(3.0, 0, hole=False)]
+    assert all(c.ok for c in checks.cylinder(pin, both))
+
+
+def test_a_box_holds_each_size_to_its_own_tolerance() -> None:
+    m = Member("m", bbox=((0, 30), (0, 24), (0, 10)))
+    both_ends_off = measured(m, bbox=[[-0.09, 30.09], [0, 24], [0, 10]])
+    failed = [c.name for c in checks.member(m, both_ends_off) if not c.ok]
+    # Each end within its 0.1, but the size 0.18 over.
+    assert failed == ["size.x"]
+
+
+def test_a_cylinder_holds_every_face_near_its_radius() -> None:
+    """Two coaxial holes (a fork's): a wrong one fails though the other is right."""
+    from cad_eval.cases import Cylinder  # noqa: PLC0415
+
+    hole = Cylinder("hole", "y", (0, 0, 0), (2.625, 2.675))
+
+    def face(radius: float, z: float = 0.0) -> dict:
+        return {"radius": radius, "axis": [0, 1, 0], "origin": [0, 0, z], "hole": True}
+
+    assert all(c.ok for c in checks.cylinder(hole, [face(2.65), face(2.66)]))
+    assert not checks.cylinder(hole, [face(2.65), face(2.75)])[0].ok
+    assert not checks.cylinder(hole, [face(2.65), face(2.65, z=0.2)])[1].ok

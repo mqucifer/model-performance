@@ -848,3 +848,53 @@ LiteLLM's version):
   SGLang.
 - **Not yet proved live:** that LiteLLM sends these headers. V5's first call will show
   it.
+
+**The thread holds 60° and the pitch.** A 55° thread passed every m8-bolt check, as
+did pitches of 1.15 and 1.3. The cause was the reference itself: its profile put P/8
+at the crest's half where ISO 68-1 has P/16, so its flanks were about 68°. The windows
+were set around it, wide enough to admit 55°.
+- **The references** (m8-bolt's, bolt-nut's, and their wrong solutions) are true 60°.
+- **The flank angle:** the slope window is now 2 tan 30° × Δr / P ± about 3°, as the swept part reads (bolt
+  0.39–0.44, nut 0.415–0.47). 55° fails, as do 85° and a square thread.
+- **The pitch** is measured by a new `period` check: the mean distance from one rise
+  into the material to the next, along an axial line through the flanks over a dozen
+  pitches. It must be 1.25 ± 0.02.
+- **Planted tests** (`tests/cad_eval/planted/`), each failing in the image: 55° with
+  ISO's crest flat, 55° half a pitch wide at the pitch radius, and pitches of 1.15, 1.2
+  and 1.3.
+- **The skills:** the threads skill's line in the skills list no longer names
+  `makeHelix`, and its file no longer gives the M8 numbers. Both were nudges toward the
+  cases.
+
+**The audit holds each stated number by occurrence.** It treated stated values as a
+set, so one check of 0.1 stood for every 0.1 in the text. Now `audit.json` has a
+`stated` table per case, one entry per number in the spec, in order. Each entry names
+what the number is for and which checks hold it, or says why nothing does
+(`unchecked: …`). `test_audit.py` enforces it:
+- **Every occurrence has its own entry,** in place (`at` is the spec's own words around
+  it).
+- **Every check an entry names** exists, and claims that value from its own quotes.
+- **A tolerance names each thing it covers** ("±0.1 mm on the tips, the face and the
+  bore's position" is three referents). No check under it may hold its feature looser
+  than the tolerance. That's the check's own window, or for a probe, the audit's stated
+  `held_to`. A size held only by its box's two ends is held to twice its tolerance, so
+  it must name its `size` check too.
+
+**New checks:**
+- **`size.<axis>`** on every box, to the member's own tolerance.
+- **`cylinder`** holds a stated cylinder's diameter and its axis's place apart, off the
+  part's own cylindrical faces. Every face within 0.25 mm of the stated radius is held,
+  so both of a fork's coaxial holes count. It's on:
+  - spur-gear's bore, which a single probe once held together with its place (failing
+    a correct bore moved 0.04);
+  - the hinge's ±0.05 pin and bore, which probes held to about ±0.1;
+  - press-fit's pin;
+  - gear-pair's bores and posts;
+  - caster-wheel's axle, bores and holes;
+  - shaft-bushing-collar's shaft, bores and set-screw hole;
+  - pin-clevis's pin and holes.
+
+  The probes these replace held their diameters to ±0.06 or worse, on one side.
+
+**What the table admits:** 21 cases and 500 numbers. Many features are held only loosely
+or not at all, each said where it stands (`unchecked: …`).

@@ -14,7 +14,7 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from cad_eval.cases import ALLOWED_MPA, Holes, Load, Member, Sample, Span
+from cad_eval.cases import ALLOWED_MPA, Cylinder, Holes, Load, Member, Sample, Span
 from cad_eval.parts import Part
 
 
@@ -78,6 +78,10 @@ def member(m: Member, measured: dict[str, Any]) -> list[Check]:
         for axis, want, got in zip("xyz", m.bbox, box, strict=True):
             for end, w, g in (("min", want[0], got[0]), ("max", want[1], got[1])):
                 found.append(Check(f"bbox.{axis}.{end}", abs(g - w) <= m.tol, w, g))
+            # The size itself to its tolerance: each end alone holds it to twice that
+            # (the second review of #41).
+            size, wanted = round(got[1] - got[0], 4), round(want[1] - want[0], 4)
+            found.append(Check(f"size.{axis}", abs(size - wanted) <= m.tol, wanted, size))
     if m.within is not None:
         for axis, (low, high), (got_low, got_high) in zip("xyz", m.within, box, strict=True):
             ok = got_low >= low - m.tol and got_high <= high + m.tol
@@ -110,6 +114,8 @@ def member(m: Member, measured: dict[str, Any]) -> list[Check]:
         value = round(shares.get(slope.high, 0.0) - shares.get(slope.low, 0.0), 4)
         ok = slope.span[0] <= value <= slope.span[1]
         found.append(Check(f"slope.{slope.name}", ok, list(slope.span), value))
+    for spec in m.cylinders:
+        found.extend(cylinder(spec, measured.get("cylinders") or []))
     for holes in m.holes:
         count = holes_found(holes, measured.get("cylinders") or [])
         found.append(Check(f"holes.{holes.name}", count >= holes.count, holes.count, count))
@@ -155,6 +161,13 @@ def sampled(sample: Sample, inside: list[bool]) -> list[Check]:
         low_c, high_c = sample.changes
         ok = low_c <= changes <= high_c
         found.append(Check(f"changes.{sample.name}", ok, list(sample.changes), changes))
+    if sample.period is not None:
+        rises = [k for k in range(1, len(inside)) if inside[k] and not inside[k - 1]]
+        found_period = None
+        if len(rises) >= 2:
+            found_period = round((rises[-1] - rises[0]) / (len(rises) - 1) * sample.spacing, 4)
+        ok = found_period is not None and sample.period[0] <= found_period <= sample.period[1]
+        found.append(Check(f"period.{sample.name}", ok, list(sample.period), found_period))
     if sample.gaps is not None:
         widths = gap_widths(inside, sample.spacing)
         low_g, high_g = sample.gaps
@@ -175,6 +188,40 @@ def gap_widths(inside: list[bool], spacing: float) -> list[float]:
         elif started:
             run += 1
     return widths
+
+
+def cylinder(spec: Cylinder, faces: list[dict[str, Any]]) -> list[Check]:
+    """A stated cylinder's radius and place, off the cylindrical faces of its kind along
+    its axis within a millimetre of where it should be. Every one within 0.25 mm of the
+    stated radius is held, so two coaxial holes (a fork's) and a face OCCT cut in halves
+    are each held; the worst is reported. With none that close, the nearest, to fail."""
+    index = "xyz".index(spec.axis)
+    want = (spec.radius[0] + spec.radius[1]) / 2
+    near = []
+    for face in faces:
+        if bool(face.get("hole")) != (spec.kind == "hole"):
+            continue
+        if abs(abs(face["axis"][index]) - 1) > 1e-3:
+            continue
+        across = [v for k, v in enumerate(face["origin"]) if k != index]
+        should = [v for k, v in enumerate(spec.through) if k != index]
+        offset = math.dist(across, should)
+        if offset <= spec.offset + 1.0:
+            near.append((abs(face["radius"] - want), face["radius"], round(offset, 4)))
+    if not near:
+        return [Check(f"cylinder.{spec.name}", False, f"a {spec.kind} along {spec.axis}", None)]
+    held = [f for f in near if f[0] <= 0.25] or [min(near)]
+    radius = max(held)[1]
+    offset = max(f[2] for f in held)
+    return [
+        Check(
+            f"cylinder.{spec.name}.radius",
+            spec.radius[0] <= radius <= spec.radius[1],
+            list(spec.radius),
+            radius,
+        ),
+        Check(f"cylinder.{spec.name}.position", offset <= spec.offset, f"<= {spec.offset}", offset),
+    ]
 
 
 def holes_found(holes: Holes, cylinders: list[dict[str, Any]]) -> int:

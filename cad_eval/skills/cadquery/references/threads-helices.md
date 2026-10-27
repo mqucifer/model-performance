@@ -1,6 +1,6 @@
 ---
 name: cadquery-threads-helices
-description: helices, threads and springs in CadQuery 2.8: cq.Wire.makeHelix, sweeping a profile along it, and joining a thread to a core so the result is valid
+description: helices, threads and springs in CadQuery 2.8: a helix, sweeping a profile along it, and joining a thread to a core so the result is valid
 ---
 
 # Helices, threads and sweeps
@@ -67,9 +67,8 @@ assert abs(part.val().BoundingBox().zlen - length) < 1e-3
 
 ## An ISO metric thread's numbers
 For a pitch P, ISO 68-1's basic profile has 60° flanks, a height H = 0.866 P, a flat
-of P/8 at the crest and P/4 at the root, and a minor diameter of d - 1.0825 P.
-M8 × 1.25: crests 8 mm across, roots 6.647 mm. A nut's thread is the same profile
-grown by the clearance it needs.
+of P/8 at the crest and P/4 at the root, and a minor diameter of d - 1.0825 P. A nut's
+thread is the same profile grown by the clearance it needs.
 
 ## Springs and coils
 The same sweep with a circle for the profile: a circle on a plane square to the

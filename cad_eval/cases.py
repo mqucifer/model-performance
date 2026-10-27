@@ -81,6 +81,9 @@ class Sample:
     closed: bool = False
     gaps: Span | None = None
     spacing: float = 0.0  # between points along a line, mm
+    # For a line, the range of the mean distance in mm between one rise into the
+    # material and the next: a thread's pitch, measured (the second review of #41).
+    period: Span | None = None
 
 
 def ring(
@@ -114,6 +117,7 @@ def line(
     share: Span = (0.0, 1.0),
     changes: tuple[int, int] | None = None,
     gaps: Span | None = None,
+    period: Span | None = None,
 ) -> Sample:
     """`n` points from `start` to `end`, both included."""
     points = tuple(
@@ -121,7 +125,7 @@ def line(
         for k in range(n)
     )
     spacing = math.dist(start, end) / (n - 1)
-    return Sample(name, points, share, changes, gaps=gaps, spacing=spacing)  # type: ignore[arg-type]
+    return Sample(name, points, share, changes, gaps=gaps, spacing=spacing, period=period)  # type: ignore[arg-type]
 
 
 def grid(
@@ -202,6 +206,22 @@ class Vents:
 
 
 @dataclass(frozen=True)
+class Cylinder:
+    """A cylindrical face the spec states, measured off the part's own faces: a hole's
+    or an outer one's (`kind`), along `axis`, through `through`. Its radius within
+    `radius`, and its axis within `offset` of where it should be: a diameter held to its
+    own tolerance and its place to its own (the second review of #41: one probe held
+    both, and failed a correct bore shifted 0.04 mm)."""
+
+    name: str
+    axis: str
+    through: Point
+    radius: Span
+    kind: str = "hole"
+    offset: float = 0.1
+
+
+@dataclass(frozen=True)
 class Slope:
     """How fast the material's share falls between two of a member's samples: `high`'s
     share less `low`'s, within `span`. A thread's flank angle, which no single radius
@@ -271,6 +291,7 @@ class Member:
     vents: Vents | None = None
     section_spans: tuple[SectionSpan, ...] = ()
     slopes: tuple[Slope, ...] = ()
+    cylinders: tuple[Cylinder, ...] = ()
 
     def probes(self) -> list[Point]:
         found = [*self.inside.values(), *self.outside.values()]
@@ -521,9 +542,10 @@ CASES: dict[str, Case] = {
                     bbox=((-2.55, 2.55), (-2.55, 2.55), (0, 16)),
                     volume=math.pi * 2.55**2 * 16
                     - 2 * math.pi * 0.5 * (2.55**2 - (2.55**2 + 2.55 * 2.05 + 2.05**2) / 3),
-                    inside={"pin_at_least": (2.53, 0, 8), "top": (0, 0, 15.9), **CHAMFER_IN},
+                    inside={"top": (0, 0, 15.9), **CHAMFER_IN},
+                    # Its 5.10 mm at ±0.02, on the Z axis at ±0.1.
+                    cylinders=(Cylinder("pin", "z", (0, 0, 8), (2.54, 2.56), kind="outer"),),
                     outside={
-                        "pin_at_most": (2.57, 0, 8),
                         "chamfer_bottom": (2.4, 0, 0.05),
                         "chamfer_top": (0, 2.4, 15.95),
                         **CHAMFER_OUT,
@@ -609,22 +631,24 @@ CASES: dict[str, Case] = {
                     # every stated tolerance at its limit is about 4.3% more (#40 V2).
                     volume_rel=0.065,
                     inside={
-                        "pin_at_least": (1.45, 0, 0),
                         "pin_end": (0, -14.9, 0),
-                        "bore_at_most": (0, 0, 1.85),
                         "knuckle_b": (0, 4.79, 2.5),
                         "knuckle_a": (0, 5.21, 2.5),
                         "plate_b": (3.36, 10, 0),
                         "plate_a": (-3.36, 0, 0),
                     },
                     outside={
-                        "pin_at_most": (1.55, 0, 0),
-                        "bore_at_least": (0, 0, 1.75),
                         "knuckle_ends": (0, 5.0, 2.5),
                         "knuckle_a_to_plate_b": (3.15, 10, 0),
                         "knuckle_b_to_plate_a": (-3.15, 0, 0),
                     },
                     own_gap=(0.25, 0.35),
+                    # The 3 mm pin and the 3.6 mm bore, each ±0.05, on the Y axis at ±0.1
+                    # (the second review of #41: probes held them to about ±0.1).
+                    cylinders=(
+                        Cylinder("pin", "y", (0, 0, 0), (1.475, 1.525), kind="outer"),
+                        Cylinder("bore", "y", (0, 0, 0), (1.775, 1.825)),
+                    ),
                 ),
             ),
         ),
@@ -639,9 +663,11 @@ CASES: dict[str, Case] = {
                     # Below the base circle the tooth isn't stated: ISO 53's rack, generated,
                     # is +0.9%, and the face at its stated +0.1 another 1.25% (#40 V2).
                     volume_rel=0.04,
-                    inside={"bore_at_most": (0, 3.03, 4), "tooth_+x": (16.4, 0, 4)},
+                    inside={"tooth_+x": (16.4, 0, 4)},
+                    # The bore: 6 mm ±0.05 across, its place ±0.1 (the second review of
+                    # #41: one probe held both, and failed a correct bore moved 0.04).
+                    cylinders=(Cylinder("bore", "z", (0, 0, 4), (2.975, 3.025), offset=0.1),),
                     outside={
-                        "bore_at_least": (0, 2.97, 4),
                         "gap_+x": (15, 15 * math.tan(math.pi / 20), 4),
                     },
                     # A tooth's share of a circle, the involute's within about 0.1 mm of
@@ -699,25 +725,56 @@ CASES: dict[str, Case] = {
                     samples=(
                         # Along the flanks: in and out at each half pitch, 12.8 pitches.
                         line(
-                            "flanks", (3.6, 0, 2), (3.6, 0, 18), share=(0.3, 0.7), changes=(24, 28)
+                            "flanks",
+                            (3.6, 0, 2),
+                            (3.6, 0, 18),
+                            n=401,
+                            share=(0.3, 0.7),
+                            changes=(24, 28),
+                            # "the pitch exact": the mean rise to rise over 12.8 pitches, 1.25
+                            # within 0.02 (a pitch of 1.15 or 1.3 passed the counts). Points
+                            # 0.04 apart read it within 2 x 0.04 / 12 = 0.007.
+                            period=(1.23, 1.27),
                         ),
-                        line("roots", (0, 3.2, 2), (0, 3.2, 18), share=(0.99, 1.0)),
+                        # The roots at least 6.45 and at most 6.85 across, "within 0.2 mm of the
+                        # profile's" 6.65 (the second review of #41: 6.40 and 6.88 passed).
+                        line("roots", (0, 3.225, 2), (0, 3.225, 18), n=120, share=(0.99, 1.0)),
                         # And at most 6.85 across ("within 0.2 mm of the profile's"): gaps at
                         # r = 3.44, over whole pitches (#40 V2: roots were held from below only).
-                        line("roots_at_most", (0, 3.44, 2), (0, 3.44, 17), share=(0.0, 0.95)),
+                        line(
+                            "roots_at_most", (0, 3.425, 2), (0, 3.425, 17), n=120, share=(0.0, 0.95)
+                        ),
                         # ISO 68-1's 60° flanks, over whole pitches so the thread's phase can't
                         # skew a share. Drawn flat, 0.63 of a line is material at r = 3.45 (a
                         # profile swept along the helix reads about 0.09 more) and
                         # 0.24 at r = 3.88, where a square thread is 0.5 at both; each window
                         # takes the profile 0.1 mm smaller or larger, as stated (#40 V2).
-                        line("flanks_low", (0, -3.45, 2), (0, -3.45, 17), share=(0.52, 0.86)),
-                        line("crests", (-3.88, 0, 2), (-3.88, 0, 18), share=(0.12, 0.36)),
-                        line("past_crests", (0, -4.02, 2), (0, -4.02, 18), share=(0.0, 0.01)),
+                        line(
+                            "flanks_low", (0, -3.45, 2), (0, -3.45, 17), n=400, share=(0.52, 0.86)
+                        ),
+                        line("crests", (-3.88, 0, 2), (-3.88, 0, 18), n=400, share=(0.12, 0.36)),
+                        # The crests "between 7.8 and 8.0 mm across": some material at r =
+                        # 3.895 (the reference: 0.22), none at 4.01 (the second review of
+                        # #41: 7.76 passed).
+                        line(
+                            "crests_at_least",
+                            (0, 3.895, 2),
+                            (0, 3.895, 17),
+                            n=120,
+                            share=(0.02, 0.5),
+                        ),
+                        line(
+                            "past_crests", (0, -4.01, 2), (0, -4.01, 18), n=120, share=(0.0, 0.01)
+                        ),
                         helix("right_hand", 3.6, 1.25, 3, 17),
                     ),
-                    # 60°: the share falls about 0.4 to 0.47 from r = 3.45 to 3.88 (a flat
-                    # profile, and the reference's swept one); 85°: about 0.59; square: 0.
-                    slopes=(Slope("flank_angle", "flanks_low", "crests", (0.33, 0.52)),),
+                    # 60°: the share falls 2 tan 30° x 0.43 / 1.25 = 0.397 from r = 3.45 to
+                    # 3.88 drawn flat; swept, the lines read about 0.018 more (the
+                    # reference: 0.415). The window takes about 57° to 63° as read, so 55°
+                    # (read 0.365 and 0.37) fails, as do 85° and a square thread (the second
+                    # review of #41: the reference was 68°, P/8 where P/16 belongs, and 55°
+                    # passed). 400 points a line, as 200 read the share only to 0.01.
+                    slopes=(Slope("flank_angle", "flanks_low", "crests", (0.39, 0.44)),),
                 ),
             ),
         ),
@@ -728,6 +785,8 @@ CASES: dict[str, Case] = {
             (
                 Member(
                     "clevis",
+                    # Both cheeks' holes: each is held (`checks.cylinder`).
+                    cylinders=(Cylinder("holes", "y", (0, 0, 18), (3.125, 3.175)),),
                     bbox=((-8, 8), (-9, 9), (0, 26)),
                     volume=16 * 18 * 6 + 2 * 16 * 4 * 20 - 2 * math.pi * 3.15**2 * 4,
                     volume_rel=0.04,  # every stated tolerance at its limit (#40 V2)
@@ -741,6 +800,7 @@ CASES: dict[str, Case] = {
                 ),
                 Member(
                     "tongue",
+                    cylinders=(Cylinder("hole", "y", (0, 0, 18), (3.125, 3.175)),),
                     bbox=((-6, 6), (-4.6, 4.6), (10, 40)),
                     volume=12 * 9.2 * 30 - math.pi * 3.15**2 * 9.2,
                     volume_rel=0.03,  # every stated tolerance at its limit (#40 V2)
@@ -750,6 +810,9 @@ CASES: dict[str, Case] = {
                 ),
                 Member(
                     "pin",
+                    # ±0.05 on the pin's and the holes' diameters, each on its axis at ±0.1
+                    # (the second review of #41: probes held them to ±0.06 or ±0.08).
+                    cylinders=(Cylinder("pin", "y", (0, 0, 18), (2.975, 3.025), kind="outer"),),
                     bbox=((-5, 5), (-12, 10), (13, 23)),
                     volume=math.pi * 3**2 * 20 + math.pi * 5**2 * 2,
                     volume_rel=0.04,  # every stated tolerance at its limit (#40 V2)
@@ -768,6 +831,9 @@ CASES: dict[str, Case] = {
             (
                 Member(
                     "shaft",
+                    # ±0.05 on the shaft and the bores, each on the Z axis at ±0.1 (the
+                    # second review of #41: probes held them to ±0.06, on one side).
+                    cylinders=(Cylinder("shaft", "z", (0, 0, 20), (3.975, 4.025), kind="outer"),),
                     bbox=((-4, 4), (-4, 4), (-10, 50)),
                     volume=math.pi * 4**2 * 60,
                     inside={"shaft_at_least": (3.97, 0, 20)},
@@ -779,6 +845,7 @@ CASES: dict[str, Case] = {
                 ),
                 Member(
                     "bushing",
+                    cylinders=(Cylinder("bore", "z", (0, 0, 6), (4.125, 4.175)),),
                     bbox=((-9, 9), (-9, 9), (0, 12)),
                     volume=math.pi * (9**2 * 2 + 6**2 * 10 - 4.15**2 * 12),
                     volume_rel=0.06,  # every stated tolerance at its limit: 5.3% (#40 V2)
@@ -791,6 +858,11 @@ CASES: dict[str, Case] = {
                 ),
                 Member(
                     "collar",
+                    cylinders=(
+                        Cylinder("bore", "z", (0, 0, 16.3), (4.125, 4.175)),
+                        # The set screw's 2.5 mm, ±0.1, along +X at Z = 16.3.
+                        Cylinder("set_screw", "x", (6.5, 0, 16.3), (1.2, 1.3)),
+                    ),
                     bbox=((-9, 9), (-9, 9), (12.3, 20.3)),
                     volume=math.pi * (9**2 - 4.15**2) * 8 - math.pi * 1.25**2 * (9 - 4.15),
                     volume_rel=0.035,  # every stated tolerance at its limit (#40 V2)
@@ -854,6 +926,12 @@ CASES: dict[str, Case] = {
             (
                 Member(
                     "plate",
+                    # The posts' 5 mm at ±0.05, each on its axis at ±0.1 (the second
+                    # review of #41: probes held them to ±0.06).
+                    cylinders=(
+                        Cylinder("post_a", "z", (0, 0, 10), (2.475, 2.525), kind="outer"),
+                        Cylinder("post_b", "z", (30.2, 0, 10), (2.475, 2.525), kind="outer"),
+                    ),
                     bbox=((-12, 58), (-25, 25), (0, 14)),
                     volume=70 * 50 * 4 + 2 * math.pi * 2.5**2 * 10,
                     volume_rel=0.03,  # the 4 mm plate at ±0.1: 2.4% (#40 V2)
@@ -867,8 +945,9 @@ CASES: dict[str, Case] = {
                     # Every stated tolerance at its limit, the tooth's "about 0.1 mm" and
                     # ISO 53's rack below the base circle included: about 5.9% (#40 V2).
                     volume_rel=0.06,
-                    inside={"bore_at_most": (0, 2.73, 7.5), "tooth_+x": (10.4, 0, 7.5)},
-                    outside={"bore_at_least": (0, 2.67, 7.5)},
+                    inside={"tooth_+x": (10.4, 0, 7.5)},
+                    # The 5.4 mm bore at ±0.05, on the Z axis at ±0.1.
+                    cylinders=(Cylinder("bore", "z", (0, 0, 7.5), (2.675, 2.725), offset=0.1),),
                     samples=(
                         ring("pitch", (0, 0, 7.5), 9, n=499, share=(0.48, 0.52), changes=(24, 24)),
                         # The involute's share at r = 9.75 is 0.355 (#40 V2: only the pitch
@@ -911,8 +990,8 @@ CASES: dict[str, Case] = {
                     bbox=BOXES["gear-b"],
                     volume=VOLUMES["gear-b"],
                     volume_rel=0.04,  # as gear A's: +0.5% for the rack, 1.7% for the face
-                    inside={"bore_at_most": (30.2, 2.73, 7.5)},
-                    outside={"bore_at_least": (30.2, 2.67, 7.5), "gap_-x": (30.2 - 22.4, 0, 7.5)},
+                    outside={"gap_-x": (30.2 - 22.4, 0, 7.5)},
+                    cylinders=(Cylinder("bore", "z", (30.2, 0, 7.5), (2.675, 2.725), offset=0.1),),
                     samples=(
                         ring(
                             "pitch", (30.2, 0, 7.5), 21, n=499, share=(0.48, 0.52), changes=(56, 56)
@@ -963,16 +1042,36 @@ CASES: dict[str, Case] = {
                     outside={"flat_at_most": (0, 6.6, -2.6)},
                     samples=(
                         line(
-                            "flanks", (3.6, 0, 2), (3.6, 0, 28), share=(0.3, 0.7), changes=(39, 44)
+                            "flanks",
+                            (3.6, 0, 2),
+                            (3.6, 0, 28),
+                            n=301,
+                            share=(0.3, 0.7),
+                            changes=(39, 44),
+                            period=(1.23, 1.27),
                         ),
-                        line("roots", (0, 3.2, 2), (0, 3.2, 28), share=(0.99, 1.0)),
+                        line("roots", (0, 3.225, 2), (0, 3.225, 28), n=120, share=(0.99, 1.0)),
+                        line(
+                            "roots_at_most", (0, 3.425, 2), (0, 3.425, 27), n=120, share=(0.0, 0.95)
+                        ),
                         # The 60° profile, as m8-bolt's (#40 V2).
-                        line("flanks_low", (0, -3.45, 2), (0, -3.45, 27), share=(0.52, 0.86)),
-                        line("crests", (-3.88, 0, 2), (-3.88, 0, 27), share=(0.12, 0.36)),
-                        line("past_crests", (0, -4.02, 2), (0, -4.02, 28), share=(0.0, 0.01)),
+                        line(
+                            "flanks_low", (0, -3.45, 2), (0, -3.45, 27), n=300, share=(0.52, 0.86)
+                        ),
+                        line("crests", (-3.88, 0, 2), (-3.88, 0, 27), n=300, share=(0.12, 0.36)),
+                        line(
+                            "crests_at_least",
+                            (0, 3.895, 2),
+                            (0, 3.895, 27),
+                            n=120,
+                            share=(0.02, 0.5),
+                        ),
+                        line(
+                            "past_crests", (0, -4.01, 2), (0, -4.01, 28), n=120, share=(0.0, 0.01)
+                        ),
                         helix("right_hand", 3.6, 1.25, 3, 27),
                     ),
-                    slopes=(Slope("flank_angle", "flanks_low", "crests", (0.33, 0.52)),),
+                    slopes=(Slope("flank_angle", "flanks_low", "crests", (0.39, 0.44)),),
                 ),
                 Member(
                     "nut",
@@ -989,8 +1088,11 @@ CASES: dict[str, Case] = {
                             "flanks",
                             (3.6, 0, 10.5),
                             (3.6, 0, 16),
+                            n=301,
                             share=(0.3, 0.7),
                             changes=(7, 11),
+                            # The pitch over 4.4 pitches, read within 2 x 0.018 / 4.4 = 0.008.
+                            period=(1.23, 1.27),
                         ),
                         line("bore", (0, 3.4, 10.5), (0, 3.4, 16), share=(0.0, 0.01)),
                         # The bolt's profile grown 0.15 mm, as stated: 0.32 at r = 3.55 and
@@ -1002,9 +1104,9 @@ CASES: dict[str, Case] = {
                         line("past_roots", (0, -4.25, 10.5), (0, -4.25, 16), share=(0.99, 1.0)),
                         helix("right_hand", 3.8, 1.25, 11, 15.5, n=120),
                     ),
-                    # The nut's material rises from r = 3.55 to 4.03: about 0.44 flat at
-                    # 60°, 0.515 on the reference, about 0.7 at 85°, 0 square.
-                    slopes=(Slope("flank_angle", "flanks_high", "flanks_low", (0.36, 0.6)),),
+                    # The nut's material rises 2 tan 30° x 0.48 / 1.25 = 0.443 from r = 3.55
+                    # to 4.03 at 60°; the window takes about 57° to 63°.
+                    slopes=(Slope("flank_angle", "flanks_high", "flanks_low", (0.415, 0.47)),),
                     gaps=(Gap("bolt", distance=(0.05, 0.2)),),
                 ),
             ),
@@ -1039,6 +1141,9 @@ CASES: dict[str, Case] = {
             (
                 Member(
                     "axle",
+                    # ±0.05 on the axle and the bores and holes, each on the Y axis at ±0.1
+                    # (the second review of #41: probes held them to ±0.06, on one side).
+                    cylinders=(Cylinder("axle", "y", (0, 0, 0), (2.475, 2.525), kind="outer"),),
                     bbox=((-2.5, 2.5), (-14, 14), (-2.5, 2.5)),
                     volume=math.pi * 2.5**2 * 28,
                     volume_rel=0.03,  # every stated tolerance at its limit (#40 V2)
@@ -1051,6 +1156,7 @@ CASES: dict[str, Case] = {
                 ),
                 Member(
                     "wheel",
+                    cylinders=(Cylinder("bore", "y", (0, 0, 0), (2.625, 2.675)),),
                     bbox=((-20, 20), (-6, 6), (-20, 20)),
                     volume=math.pi * (20**2 - 2.65**2) * 12,
                     inside={"rim": (0, 0, 19.9), "bore_at_most": (2.68, 0, 0)},
@@ -1063,6 +1169,7 @@ CASES: dict[str, Case] = {
                 *(
                     Member(
                         name,
+                        cylinders=(Cylinder("bore", "y", (0, 0, 0), (2.625, 2.675)),),
                         bbox=((-4.5, 4.5), (y0, y1), (-4.5, 4.5)),
                         volume=math.pi * (4.5**2 - 2.65**2) * 2.7,
                         volume_rel=0.09,  # every stated tolerance at its limit: 8.3% (#40 V2)
@@ -1076,6 +1183,8 @@ CASES: dict[str, Case] = {
                 ),
                 Member(
                     "fork",
+                    # Both arms' holes: each is held (`checks.cylinder`).
+                    cylinders=(Cylinder("holes", "y", (0, 0, 0), (2.625, 2.675)),),
                     bbox=((-12, 12), (-13.3, 13.3), (-8, 30)),
                     volume=2 * 16 * 4 * 34 + 24 * 26.6 * 4 - 2 * math.pi * 2.65**2 * 4,
                     volume_rel=0.04,  # every stated tolerance at its limit (#40 V2)
