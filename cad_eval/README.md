@@ -764,3 +764,53 @@ the `write`'s text was compacted, and no copy of the script was left):
   the conversation.
 - **A view's base64 isn't counted as text.** A picture counts as 600 tokens (V5's
   was 576) until a response reports its tokens.
+
+**Profiles proven by planted parts** (the review of #41: an 85° V thread passed every
+m8-bolt check, and straight 20° flanks passed the gears' rings). Each planted part is
+right everywhere but its profile, kept in `tests/cad_eval/planted/`, and must fail
+(`test_planted_in_image.py`):
+- **A thread's flank angle is a slope:** how far the share of material falls between
+  two radii (`Slope`, `slope.flank_angle`). A profile 0.1 mm bigger or smaller shifts
+  both shares alike; another angle changes the difference.
+  - **60°:** 0.4 drawn flat, 0.47 on the reference's swept profile;
+  - **85° V:** 0.59; **square:** 0.
+  - **Windows:** bolts 0.33–0.52 (r 3.45 to 3.88), the nut 0.36–0.60 (r 3.55 to 4.03).
+- **An involute is checked near its base circle and near its tip,** where straight
+  flanks part from it, each ring ±0.1 mm of tooth width:
+  - spur-gear at r 14.2 and 16.4, gear A at 8.55 and 10.35, gear B at 19.85 and 22.35;
+  - straight 20° flanks miss them (0.599 against 0.531–0.575 for gear A), and radial
+    flanks (0.5 everywhere) miss them too.
+
+**The audit maps each stated value to a check that holds it.**
+- **Each entry's `values`** names the spec's numbers its check holds. A check holds a
+  value only if it fails a part wrong by more than the stated tolerance, with 0.025 for
+  where a probe sits. A volume window holds no feature's size. Each value must be among
+  the numbers in that entry's own quotes.
+- **The test:** every number the spec states is held by some check, or is quoted under
+  `unchecked` with why. Before, a number in any quote counted.
+- **The hand audit's gaps:**
+  - press-fit-pin's chamfer is now held (0.5 ± 0.1), but its 45° only loosely, and
+    says so;
+  - snap-enclosure's arms, hooks, window, walls and floor are held to their stated
+    tolerances on both ends;
+  - press-fit-pin's length went back to the stated ±0.1;
+  - probes set too loose by the audit's own count were moved: the chamfers, snap
+    hooks, the ramp's foot, gear-pair's roots, snap-hook's tip and the hinge's pin and
+    bore.
+- **Still unchecked, each listed with why:** 44 numbers, among them the mates the case
+  supplies, faces nothing probes, and dimensions held only through a mating part's gap.
+- **`never_fails`** finds a sample that emits no check at all. The test plants one it
+  must catch, then holds every case to none.
+- **wall-hook's load section** moved from X = 8 to X = 20, past any wall plate (a plate
+  8 mm or thicker took the section, and a thin arm passed).
+
+**Smaller, from the review:**
+- **The lookup index** rebuilds byte for byte: no memory address (`object at 0x…`)
+  reaches it.
+- **The v2 image is built from the verified id.** `build.sh` tags it by its own digest
+  (`cadquery:base-1f29a53a3ca6`) and passes that tag to `Dockerfile.v2`, which has no
+  default and fails without it. The label is the id actually verified.
+- **The `lookup` and `docs` examples** no longer suggest helices.
+- **The smoke test** also covers a keep-out, `hole`, `diameter`, `distance`,
+  `clearance`, `read`, the exact edit refusal, `docs`' content, and a session ending
+  `blocked`.

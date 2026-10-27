@@ -202,6 +202,19 @@ class Vents:
 
 
 @dataclass(frozen=True)
+class Slope:
+    """How fast the material's share falls between two of a member's samples: `high`'s
+    share less `low`'s, within `span`. A thread's flank angle, which no single radius
+    can hold: a profile 0.1 mm bigger or smaller shifts both shares alike, and a
+    different angle changes their difference (the review of #41: an 85° V passed)."""
+
+    name: str
+    high: str
+    low: str
+    span: Span
+
+
+@dataclass(frozen=True)
 class SectionSpan:
     """The material's extent across the plane `axis` = `at`: in `across`, within `span`.
     A feature's own width, where a part's overall box would count a wall plate too."""
@@ -257,6 +270,7 @@ class Member:
     own_gap: Span | None = None
     vents: Vents | None = None
     section_spans: tuple[SectionSpan, ...] = ()
+    slopes: tuple[Slope, ...] = ()
 
     def probes(self) -> list[Point]:
         found = [*self.inside.values(), *self.outside.values()]
@@ -370,6 +384,100 @@ PI5_SUPPORTS = tuple(
     ring(f"boss_{x}_{y}", (x, y, -17.2), 2.5, n=36, share=(0.5, 1.0)) for x, y in PI5_HOLES
 )
 
+
+def mirrored(points: dict[str, Point]) -> dict[str, Point]:
+    """Probes on the +X side, and the same on the -X side, by name."""
+    found: dict[str, Point] = {}
+    for name, (x, y, z) in points.items():
+        found[f"{name}_+x"] = (x, y, z)
+        found[f"{name}_-x"] = (-x, y, z)
+    return found
+
+
+# press-fit-pin's 0.5 mm by 45° chamfers, at their stated ±0.1 (#40: only a chamfer's
+# existence was held): at a height h over an end the chamfer's face is at r = 2.55 - c
+# + h, so at h = 0.1 and 0.3, between 2.05 and 2.25, and between 2.25 and 2.45; each probe
+# 0.02 past that band.
+CHAMFER_IN = {
+    "chamfer_bottom_low": (2.03, 0, 0.1),
+    "chamfer_bottom_high": (2.23, 0, 0.3),
+    "chamfer_top_low": (0, 2.03, 15.9),
+    "chamfer_top_high": (0, 2.23, 15.7),
+}
+CHAMFER_OUT = {
+    "chamfer_bottom_low_out": (2.27, 0, 0.1),
+    "chamfer_bottom_high_out": (2.47, 0, 0.3),
+    "chamfer_top_low_out": (0, 2.27, 15.9),
+    "chamfer_top_high_out": (0, 2.47, 15.7),
+}
+# snap-enclosure, held on both ends to its stated ±0.05 (arms, hooks) and ±0.1 (the rest)
+# (#40: most were held to 0.6-1.1 mm, and only on +X). Each probe sits about 0.07 inside
+# or outside its face, which is at its nominal place.
+SNAP_BOX_IN = {
+    **mirrored(
+        {
+            "over_window": (29, 0, 25.12),
+            "under_window": (29, 0, 20.88),
+            "past_window_+y": (29, 6.1, 23),
+            "past_window_-y": (29, -6.1, 23),
+            "end_wall": (28.12, 10, 15),
+        }
+    ),
+    "side_+y": (0, 18.12, 15),
+    "side_-y": (0, -18.12, 15),
+    "floor": (0, 0, 1.88),
+}
+SNAP_BOX_OUT = {
+    **mirrored(
+        {
+            "window": (29, 0, 23),
+            "window_top": (29, 0, 24.88),
+            "window_bottom": (29, 0, 21.12),
+            "window_+y_edge": (29, 5.9, 23),
+            "window_-y_edge": (29, -5.9, 23),
+            "end_wall_inside": (27.88, 10, 15),
+        }
+    ),
+    "side_+y_inside": (0, 17.88, 15),
+    "side_-y_inside": (0, -17.88, 15),
+    "over_floor": (0, 0, 2.12),
+    "inside": (0, 0, 15),
+}
+SNAP_LID_IN = {
+    **mirrored(
+        {
+            "arm": (31, 0, 25),
+            "arm_inner_face": (30.27, 0, 27),
+            "arm_outer_face": (31.73, 0, 27),
+            "arm_+y": (31, 4.93, 27),
+            "arm_-y": (31, -4.93, 27),
+            "arm_bottom": (31, 0, 20.07),
+            "hook_holds": (29.6, 0, 24.75),
+            # At Z = 24.7 the ramp's face is at 29.233; ±0.05 is 29.183 to 29.283.
+            "hook_tip": (29.3, 0, 24.7),
+            "hook_ramp": (29.76, 0, 23.3),
+            # Near the ramp's foot, Z = 22.3: its face at 30.033, ±0.05.
+            "ramp_foot": (30.1, 0, 22.3),
+        }
+    ),
+    "plate": (0, 0, 31),
+}
+SNAP_LID_OUT = {
+    **mirrored(
+        {
+            "arm_clear": (30.13, 0, 27),
+            "past_arm": (31.87, 0, 27),
+            "past_arm_+y": (31, 5.07, 27),
+            "past_arm_-y": (31, -5.07, 27),
+            "under_arm": (31, 0, 19.93),
+            "over_hook": (29.6, 0, 24.85),
+            "past_hook": (29.163, 0, 24.7),
+            "past_ramp": (29.64, 0, 23.3),
+            "past_ramp_foot": (29.96, 0, 22.3),
+        }
+    ),
+}
+
 CASES: dict[str, Case] = {
     c.name: c
     for c in (
@@ -408,15 +516,17 @@ CASES: dict[str, Case] = {
             (
                 Member(
                     "part",
+                    # The length at its stated ±0.1; the diameter's ±0.02 is the probes' and
+                    # the press's (#40: a 0.05 box tolerance failed a 15.92 mm pin).
                     bbox=((-2.55, 2.55), (-2.55, 2.55), (0, 16)),
-                    tol=0.05,
                     volume=math.pi * 2.55**2 * 16
                     - 2 * math.pi * 0.5 * (2.55**2 - (2.55**2 + 2.55 * 2.05 + 2.05**2) / 3),
-                    inside={"pin_at_least": (2.53, 0, 8), "top": (0, 0, 15.9)},
+                    inside={"pin_at_least": (2.53, 0, 8), "top": (0, 0, 15.9), **CHAMFER_IN},
                     outside={
                         "pin_at_most": (2.57, 0, 8),
                         "chamfer_bottom": (2.4, 0, 0.05),
                         "chamfer_top": (0, 2.4, 15.95),
+                        **CHAMFER_OUT,
                     },
                     # A diametral interference of 0.08 to 0.12 mm over the block's
                     # depth, less the chamfer: about 6.0 to 9.1 mm³ of overlap.
@@ -439,7 +549,9 @@ CASES: dict[str, Case] = {
                         "beam": (4.2, 0, 10),
                         "beam_at_least_-x": (3.45, 0, 10),
                         "beam_at_least_+x": (4.95, 0, 10),
-                        "hook_tip": (5.9, 0, 17.05),
+                        # The overhang's 1.0 ± 0.05, just over the catch, where the ramp
+                        # hasn't yet turned in (#40: at Z = 17.05 it passed 0.915).
+                        "hook_tip": (5.93, 0, 17.01),
                         "ramp": (5.3, 0, 19),
                     },
                     outside={
@@ -497,17 +609,17 @@ CASES: dict[str, Case] = {
                     # every stated tolerance at its limit is about 4.3% more (#40 V2).
                     volume_rel=0.065,
                     inside={
-                        "pin_at_least": (1.44, 0, 0),
+                        "pin_at_least": (1.45, 0, 0),
                         "pin_end": (0, -14.9, 0),
-                        "bore_at_most": (0, 0, 1.86),
+                        "bore_at_most": (0, 0, 1.85),
                         "knuckle_b": (0, 4.79, 2.5),
                         "knuckle_a": (0, 5.21, 2.5),
                         "plate_b": (3.36, 10, 0),
                         "plate_a": (-3.36, 0, 0),
                     },
                     outside={
-                        "pin_at_most": (1.56, 0, 0),
-                        "bore_at_least": (0, 0, 1.74),
+                        "pin_at_most": (1.55, 0, 0),
+                        "bore_at_least": (0, 0, 1.75),
                         "knuckle_ends": (0, 5.0, 2.5),
                         "knuckle_a_to_plate_b": (3.15, 10, 0),
                         "knuckle_b_to_plate_a": (-3.15, 0, 0),
@@ -543,6 +655,25 @@ CASES: dict[str, Case] = {
                             15.5,
                             n=499,
                             share=(0.394, 0.434),
+                            changes=(40, 40),
+                        ),
+                        # The involute near the base circle and near the tip, where straight
+                        # flanks part from it, each ±0.1 mm of tooth width (the review of
+                        # #41: straight 20° flanks passed the pitch and addendum rings).
+                        ring(
+                            "involute_base",
+                            (0, 0, 4),
+                            14.2,
+                            n=499,
+                            share=(0.569, 0.613),
+                            changes=(40, 40),
+                        ),
+                        ring(
+                            "involute_tip",
+                            (0, 0, 4),
+                            16.4,
+                            n=499,
+                            share=(0.205, 0.243),
                             changes=(40, 40),
                         ),
                         ring("root", (0, 0, 4), 13.0, n=181, share=(0.99, 1.0)),
@@ -584,6 +715,9 @@ CASES: dict[str, Case] = {
                         line("past_crests", (0, -4.02, 2), (0, -4.02, 18), share=(0.0, 0.01)),
                         helix("right_hand", 3.6, 1.25, 3, 17),
                     ),
+                    # 60°: the share falls about 0.4 to 0.47 from r = 3.45 to 3.88 (a flat
+                    # profile, and the reference's swept one); 85°: about 0.59; square: 0.
+                    slopes=(Slope("flank_angle", "flanks_low", "crests", (0.33, 0.52)),),
                 ),
             ),
         ),
@@ -747,9 +881,25 @@ CASES: dict[str, Case] = {
                             share=(0.335, 0.375),
                             changes=(24, 24),
                         ),
+                        ring(
+                            "involute_base",
+                            (0, 0, 7.5),
+                            8.55,
+                            n=499,
+                            share=(0.531, 0.575),
+                            changes=(24, 24),
+                        ),
+                        ring(
+                            "involute_tip",
+                            (0, 0, 7.5),
+                            10.35,
+                            n=499,
+                            share=(0.191, 0.227),
+                            changes=(24, 24),
+                        ),
                         ring("root", (0, 0, 7.5), 7.0, n=181, share=(0.99, 1.0)),
-                        # The root's 7.125 radius at ±0.1: gaps at 7.3 (#40 V2).
-                        ring("root_at_most", (0, 0, 7.5), 7.3, n=181, share=(0.0, 0.95)),
+                        # The root's 7.125 radius at ±0.1: gaps at 7.24 (#40 V2).
+                        ring("root_at_most", (0, 0, 7.5), 7.24, n=181, share=(0.0, 0.95)),
                     ),
                     gaps=(
                         Gap("gear-b", distance=(0.02, 0.3)),
@@ -775,8 +925,24 @@ CASES: dict[str, Case] = {
                             share=(0.35, 0.39),
                             changes=(56, 56),
                         ),
+                        ring(
+                            "involute_base",
+                            (30.2, 0, 7.5),
+                            19.85,
+                            n=499,
+                            share=(0.607, 0.651),
+                            changes=(56, 56),
+                        ),
+                        ring(
+                            "involute_tip",
+                            (30.2, 0, 7.5),
+                            22.35,
+                            n=499,
+                            share=(0.229, 0.269),
+                            changes=(56, 56),
+                        ),
                         ring("root", (30.2, 0, 7.5), 19.0, n=181, share=(0.99, 1.0)),
-                        ring("root_at_most", (30.2, 0, 7.5), 19.3, n=181, share=(0.0, 0.95)),
+                        ring("root_at_most", (30.2, 0, 7.5), 19.24, n=181, share=(0.0, 0.95)),
                     ),
                     gaps=(Gap("plate", distance=(0.15, 0.25)),),
                 ),
@@ -806,6 +972,7 @@ CASES: dict[str, Case] = {
                         line("past_crests", (0, -4.02, 2), (0, -4.02, 28), share=(0.0, 0.01)),
                         helix("right_hand", 3.6, 1.25, 3, 27),
                     ),
+                    slopes=(Slope("flank_angle", "flanks_low", "crests", (0.33, 0.52)),),
                 ),
                 Member(
                     "nut",
@@ -835,6 +1002,9 @@ CASES: dict[str, Case] = {
                         line("past_roots", (0, -4.25, 10.5), (0, -4.25, 16), share=(0.99, 1.0)),
                         helix("right_hand", 3.8, 1.25, 11, 15.5, n=120),
                     ),
+                    # The nut's material rises from r = 3.55 to 4.03: about 0.44 flat at
+                    # 60°, 0.515 on the reference, about 0.7 at 85°, 0 square.
+                    slopes=(Slope("flank_angle", "flanks_high", "flanks_low", (0.36, 0.6)),),
                     gaps=(Gap("bolt", distance=(0.05, 0.2)),),
                 ),
             ),
@@ -848,22 +1018,8 @@ CASES: dict[str, Case] = {
                     bbox=((-30, 30), (-20, 20), (0, 30)),
                     volume=60 * 40 * 30 - 56 * 36 * 28 - 2 * 2 * 12 * 4,
                     volume_rel=0.06,  # its 2 mm walls at ±0.1: about 5.5% (#40 V2)
-                    inside={
-                        "over_window": (29, 0, 26),
-                        "under_window": (29, 0, 20),
-                        "side": (0, 19, 15),
-                        "floor": (0, 0, 1),
-                        "past_window_+y": (29, 6.1, 23),
-                        "past_window_-y": (29, -6.1, 23),
-                    },
-                    outside={
-                        "window_+x": (29, 0, 23),
-                        "window_-x": (-29, 0, 23),
-                        # Its 12 mm along Y, at ±0.1 (#40 V2: any window wider passed).
-                        "window_+y_edge": (29, 5.9, 23),
-                        "window_-y_edge": (29, -5.9, 23),
-                        "inside": (0, 0, 15),
-                    },
+                    inside=SNAP_BOX_IN,
+                    outside=SNAP_BOX_OUT,
                 ),
                 Member(
                     "lid",
@@ -871,19 +1027,8 @@ CASES: dict[str, Case] = {
                     volume=63.6 * 40 * 2 + 2 * 1.6 * 10 * 10 + 2 * 0.5 * 1 * 3 * 10,
                     volume_rel=0.055,  # its 2 mm plate at ±0.1: 4.7% (#40 V2)
                     # Each hook in its window's wall, under the window's top: it holds.
-                    inside={
-                        "hook_+x_holds": (29.6, 0, 24.75),
-                        "hook_-x_holds": (-29.6, 0, 24.75),
-                        "arm": (31, 0, 25),
-                        "plate": (0, 0, 31),
-                    },
-                    outside={
-                        # The hook 0.8 mm into the wall, not past 0.9 (#40 V2).
-                        "past_hook": (29.1, 0, 24.75),
-                        "over_hook": (29.6, 0, 24.85),
-                        "arm_clear": (30.1, 0, 27),
-                        "ramp": (29.9, 0, 22.2),
-                    },
+                    inside=SNAP_LID_IN,
+                    outside=SNAP_LID_OUT,
                     gaps=(Gap("box"),),
                 ),
             ),
@@ -1025,8 +1170,10 @@ CASES: dict[str, Case] = {
                     # part's Y extent passed a wide wall plate with a narrow arm).
                     section_spans=(SectionSpan("strap_seat", "x", 20, "y", (35, 80)),),
                     holes=(Holes("screws", "x", (2.1, 2.6), 2),),
-                    # 5 kg hung at the hook's far end, the worst place it could hang.
-                    load=Load("bag", "x", 8, force_n=5 * G),
+                    # 5 kg hung at the hook's far end, the worst place it could hang, on
+                    # the arm 20 mm out, past any wall plate (the review of #41: at 8 mm a
+                    # thick plate could take the section, and a thin arm pass).
+                    load=Load("bag", "x", 20, force_n=5 * G),
                 ),
             ),
         ),

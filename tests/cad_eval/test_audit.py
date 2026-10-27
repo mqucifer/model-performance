@@ -49,17 +49,25 @@ def test_every_check_traces_to_the_text(name: str) -> None:
 
 
 @pytest.mark.parametrize("name", HARD)
-def test_every_value_the_text_states_has_a_check_or_says_why_not(name: str) -> None:
+def test_every_value_the_text_states_maps_to_a_check_that_holds_it(name: str) -> None:
+    """Each number the spec states is named, in `values`, by a check that holds it, or
+    is listed as unchecked with why (the review of #41: a number in any quote counted,
+    whether its check held it or not)."""
     case = CASES[name]
     case_audit = entries()[name]
-    covered = " ".join(
-        normal(q) for e in case_audit["checks"].values() for q in e.get("quotes", [])
-    )
-    covered += " " + " ".join(normal(q) for q in case_audit.get("unchecked", {}))
-    numbers_covered = {float(n) for n in NUMBER.findall(covered)}
+    held: set[float] = set()
+    for check, entry in case_audit["checks"].items():
+        quoted = {float(n) for q in entry.get("quotes", []) for n in NUMBER.findall(normal(q))}
+        for value in entry.get("values", []):
+            # A check names only what its own quotes state.
+            assert float(value) in quoted, (name, check, value)
+            held.add(float(value))
+    unchecked = {
+        float(n) for q in case_audit.get("unchecked", {}) for n in NUMBER.findall(normal(q))
+    }
     stated = {float(n) for n in NUMBER.findall(normal(case.spec()))}
-    missing = sorted(stated - numbers_covered)
-    assert missing == [], f"{name}: the spec states {missing}, which no check or note covers"
+    missing = sorted(stated - held - unchecked)
+    assert missing == [], f"{name}: the spec states {missing}, which no check holds"
 
 
 def test_unchecked_values_say_why() -> None:
@@ -70,8 +78,12 @@ def test_unchecked_values_say_why() -> None:
 
 
 def test_no_check_can_never_fail() -> None:
-    """A share whose window is 0 to 1 passes whatever it measures: none is listed."""
+    """A sample that emits no check is caught, and no case has one (the review of #41:
+    this test couldn't fail, since the 0-1 shares were dropped before it looked)."""
+    from cad_eval.cases import Case, Member, Sample  # noqa: PLC0415
+
+    idle = Sample("idle", ((0.0, 0.0, 0.0),), (0.0, 1.0))
+    planted = Case("planted", 6, (Member("part", samples=(idle,)),))
+    assert audit.never_fails(planted) == ["part/idle"]
     for name in HARD:
-        for check in audit.checks(CASES[name]):
-            if check["check"].split("/", 1)[1].startswith("share."):
-                assert check["wants"] != [0.0, 1.0], (name, check)
+        assert audit.never_fails(CASES[name]) == [], name

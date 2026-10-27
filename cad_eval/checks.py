@@ -100,10 +100,16 @@ def member(m: Member, measured: dict[str, Any]) -> list[Check]:
     for (name, want), got in zip(expected, answers, strict=False):
         found.append(Check(f"{'in' if want else 'out'}.{name}", got == want, want, got))
     at = len(expected)
+    shares: dict[str, float] = {}
     for sample in m.samples:
         got = answers[at : at + len(sample.points)]
         at += len(sample.points)
+        shares[sample.name] = sum(got) / len(got) if got else 0.0
         found.extend(sampled(sample, got))
+    for slope in m.slopes:
+        value = round(shares.get(slope.high, 0.0) - shares.get(slope.low, 0.0), 4)
+        ok = slope.span[0] <= value <= slope.span[1]
+        found.append(Check(f"slope.{slope.name}", ok, list(slope.span), value))
     for holes in m.holes:
         count = holes_found(holes, measured.get("cylinders") or [])
         found.append(Check(f"holes.{holes.name}", count >= holes.count, holes.count, count))

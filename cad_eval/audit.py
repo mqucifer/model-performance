@@ -59,6 +59,12 @@ def checks(case: Case) -> list[dict[str, Any]]:
                 add(m.name, f"changes.{sample.name}", list(sample.changes))
             if sample.gaps is not None:
                 add(m.name, f"gaps.{sample.name}", list(sample.gaps))
+        for slope in m.slopes:
+            add(
+                m.name,
+                f"slope.{slope.name}",
+                {"high": slope.high, "low": slope.low, "span": list(slope.span)},
+            )
         for holes in m.holes:
             add(m.name, f"holes.{holes.name}", {"count": holes.count, "radius": list(holes.radius)})
         if m.load is not None:
@@ -79,3 +85,14 @@ def checks(case: Case) -> list[dict[str, Any]]:
         if m.vents is not None:
             add(m.name, f"vents.{m.vents.name}", {"area": m.vents.area})
     return found
+
+
+def never_fails(case: Case) -> list[str]:
+    """A member's samples that emit no check at all: a share window of 0 to 1 (which
+    `checks.sampled` drops, since it can't fail) with no changes or gaps to count."""
+    return [
+        f"{m.name}/{sample.name}"
+        for m in case.members
+        for sample in m.samples
+        if tuple(sample.share) == (0.0, 1.0) and sample.changes is None and sample.gaps is None
+    ]
