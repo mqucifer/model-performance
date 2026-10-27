@@ -44,6 +44,11 @@ class FakeWorkspace:
 
     def exec(self, command: list[str], timeout: int = 0, stdin: str | None = None) -> Ran:
         self.commands.append(command)
+        if command[:3] == ["python", "-I", "-c"] and "CAD_EVAL_VERSIONS" in command[3]:
+            import json  # noqa: PLC0415
+
+            found = {"cadquery": "2.8.0", "ocp": "7.9.3.1.1"}
+            return Ran("versions", 0, "CAD_EVAL_VERSIONS " + json.dumps(found))
         if command[:3] == ["python", "-I", "-"] and stdin and "CAD_EVAL_LOOKUP" in stdin:
             import json  # noqa: PLC0415
 

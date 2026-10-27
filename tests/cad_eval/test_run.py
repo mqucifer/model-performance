@@ -76,6 +76,8 @@ class Run:
         kw.setdefault("image_id", lambda: "sha256:abc")
         # LiteLLM's spend log, read in a test as empty: never the proxy's database.
         kw.setdefault("read_spend", lambda _sql: "")
+        # infra's record of production's serving, as a test reads it: never infra's repo.
+        kw.setdefault("serving_record", lambda: {"serving_image": "lmsysorg/sglang:test"})
         return cad.evaluate(
             PARTS[name],
             self.settings,

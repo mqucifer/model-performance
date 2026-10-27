@@ -112,3 +112,14 @@ def test_a_case_without_a_runaway_says_none(tmp_path: Path) -> None:
     r.send = sender(tmp_path, [stream] * 3, r.bodies)
     row = go(r, "living-hinge")
     assert row["runaways"] == 0 and row["runaway_reasoning_tokens"] is None
+
+
+def test_a_streamed_answer_names_the_model_that_served_it(tmp_path: Path) -> None:
+    seen: list[dict[str, Any]] = []
+    served = {**delta(content="ok"), "model": "RadixArk/Qwen3.8-27B"}
+    send = sender(tmp_path, [sse(served, delta("stop"))], seen)
+    body = {"model": "crew-code-think", "messages": [], "tools": []}
+    got = send(body)
+    assert got["model"] == "RadixArk/Qwen3.8-27B"
+    # What the session records as the request is what went over the wire.
+    assert send.wire(body) == seen[0]

@@ -98,7 +98,25 @@ SUITES: dict[str, set[str]] = {
         "runaway_reasoning_tokens",
         "runaway_content_tokens",
         "sample",  # which of a `--repeat` run's samples, 1 to N, or null for a single run
-        "serving",  # the Spark's serving engine and version, as given: sglang-0.5.22
+        "serving",  # production's serving image tag, from infra's record (was as typed)
+        # What the run ran on, read rather than typed (mqucifer/model-performance#40, V4).
+        "harness_commit",  # this repository's commit
+        "harness_dirty",  # whether its tracked files differed (refused to run, so false)
+        "skills_sha",  # sha256 over every skill and reference file the session could read
+        "image_id",  # the CadQuery image's digest
+        "cadquery_version",  # read in the run's own container
+        "ocp_version",
+        # infra's record of production's serving (`inventory/services/sglang.yaml`), as
+        # the batch started, and whether it differed as the run ended.
+        "serving_infra_commit",
+        "serving_image",
+        "serving_digest",
+        "serving_model",
+        "serving_record_changed",
+        # The model each call's response named: the first, how many, and whether it changed.
+        "served_model",
+        "served_models",
+        "served_changed",
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed

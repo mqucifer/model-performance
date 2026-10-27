@@ -38,7 +38,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from cad_eval import cases, checks, container, skills
+from cad_eval import cases, checks, container, identity, skills
 from cad_eval.cases import CASES, Case
 from cad_eval.parts import FIRST, PARTS, Part, UnknownPart, part
 from cad_eval.send import StreamingSender
@@ -218,19 +218,40 @@ def evaluate(
     arm: str | None = None,
     concurrency: int = 1,
     sample: int | None = None,
-    serving: str | None = None,
+    serving_record: Callable[[], dict[str, Any]] = identity.serving,
+    batch_serving: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """One part end to end: its row, written to the results once the run has ended."""
+    """One part end to end: its row, written to the results once the run has ended.
+
+    `batch_serving` is infra's record of production's serving as the batch started;
+    it's read again as the run ends, and a difference is flagged.
+    """
     started_at = datetime.now(UTC)
     run, out = fresh_run(settings, p.name)
+    harness = identity.harness()
+    serving_start = batch_serving if batch_serving is not None else serving_record()
     row: dict[str, Any] = {
         "case": p.name,
         "tier": p.tier,
         "run": run,
         "at": started_at.isoformat(timespec="seconds"),
         "crew_commit": crew.commit(),
+        # This checkout and what the session read (`identity.py`, #40 V4).
+        "harness_commit": harness["commit"],
+        "harness_dirty": harness["dirty"],
+        "skills_sha": identity.texts_sha(skills.files(skills.SETS)),
         "model_alias": alias,
         "image": container.IMAGE,
+        "image_id": None,
+        "cadquery_version": None,
+        "ocp_version": None,
+        **serving_start,
+        # The serving's image tag, as infra records it: read, never typed.
+        "serving": serving_start.get("serving_image"),
+        "serving_record_changed": None,
+        "served_model": None,
+        "served_models": None,
+        "served_changed": None,
         "ending": None,
         "stop": None,
         "compiles": None,
@@ -249,9 +270,6 @@ def evaluate(
         row.update(arm=arm, concurrency=concurrency, calls_to_first_compile=None)
         # Which of a `--repeat` run's samples this is (mqucifer/model-performance#27).
         row["sample"] = sample
-        # The Spark's serving engine and version, as the operator states it: nothing
-        # here may probe SGLang directly (null on rows from before 2026-10-26).
-        row["serving"] = serving
         row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
     kept: dict[str, Any] = {}
     send.ticking()
@@ -261,8 +279,8 @@ def evaluate(
     tools: PartTools | None = None
     session: Session | None = None
     try:
-        kept["image_id"] = image_id()
-        if kept["image_id"] is None:
+        row["image_id"] = image_id()
+        if row["image_id"] is None:
             raise Refused("no_image", f"{container.IMAGE} isn't built: cad_eval/image/build.sh")
         root = directory(settings, p, run)
         workspace = workspace_for(root, f"cad-{p.name}-{run}")
@@ -270,6 +288,8 @@ def evaluate(
         if not started.ok:
             raise Refused("container_start", started.output[-3000:])
         tools = PartTools(root, workspace, case.outputs() if case else None, arm=arm)
+        found = tools.versions()
+        row["cadquery_version"], row["ocp_version"] = found["cadquery"], found["ocp"]
         session = Session(
             p.spec(),
             tools,
@@ -325,6 +345,16 @@ def evaluate(
             keep(root, out)
             shutil.rmtree(root, ignore_errors=True)
         row.update(counts(session))
+        served = list(dict.fromkeys(session.served)) if session else []
+        kept["served"] = served
+        row["served_model"] = served[0] if served else None
+        row["served_models"] = len(served)
+        row["served_changed"] = len(served) > 1
+        serving_end = serving_record()
+        kept["serving_end"] = serving_end
+        row["serving_record_changed"] = any(
+            serving_end.get(k) != v for k, v in serving_start.items()
+        )
         # Every other call through the proxy while this one ran (`common/spend.py`).
         overlapped = spend.others(
             started_at, datetime.now(UTC), own_calls(out / "events.jsonl"), read_spend
@@ -453,10 +483,6 @@ def main(argv: list[str] | None = None) -> int:
         "--arm", choices=ARMS, help="what the session is given besides the baseline's tools"
     )
     parser.add_argument(
-        "--serving",
-        help="the Spark's serving engine and version, as the operator gives it: sglang-0.5.22",
-    )
-    parser.add_argument(
         "--repeat",
         type=int,
         default=1,
@@ -475,6 +501,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if bool(args.parts) == (args.first or args.all or args.hard or args.hard_first):
         parser.error("name the parts, or --first, --all, --hard or --hard-first")
+    harness = identity.harness()
+    if harness["dirty"]:
+        # A row names the harness commit it ran: refused, so that commit is the code.
+        print("refused: the harness has uncommitted changes: commit them first", file=sys.stderr)
+        return 2
     try:
         names = (
             list(PARTS)
@@ -543,6 +574,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    # What production serves as the batch starts, from infra's record (`identity.py`).
+    batch_serving = identity.serving()
     settings.work_dir.mkdir(parents=True, exist_ok=True)
     stop = settings.work_dir / STOP_FILE
     stop.unlink(missing_ok=True)
@@ -572,7 +605,7 @@ def main(argv: list[str] | None = None) -> int:
                 arm=args.arm,
                 concurrency=args.parallel,
                 sample=sample,
-                serving=args.serving,
+                batch_serving=batch_serving,
             )
         finally:
             with lock:

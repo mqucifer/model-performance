@@ -48,3 +48,4 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = ["real_harness: reads this checkout's own commit and changes, not a clean stand-in"]

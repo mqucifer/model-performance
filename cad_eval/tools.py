@@ -42,6 +42,13 @@ OUTPUT = "part.step"
 MEASURE_SOURCE = Path(measure.__file__).read_text(encoding="utf-8")
 LOOKUP_SOURCE = Path(lookup_module.__file__).read_text(encoding="utf-8")
 LOOKUP_TIMEOUT = 60
+# The library a run's scripts ran against, read in its own container.
+VERSIONS_MARK = "CAD_EVAL_VERSIONS "
+VERSIONS = (
+    "import json, cadquery, OCP; from importlib.metadata import version; "
+    f"print({VERSIONS_MARK!r} + json.dumps({{'cadquery': cadquery.__version__, "
+    "'ocp': version('cadquery-ocp')}))"
+)
 # The arms (mqucifer/model-performance#21): what each adds to the session's tools.
 ARMS = tuple(skills.ARMS)
 
@@ -296,6 +303,19 @@ class PartTools:
         return self._failed(
             "lookup", "unfinished", f"The lookup didn't finish (exit {done.code}).", args
         )
+
+    def versions(self) -> dict[str, str | None]:
+        """CadQuery's and OCP's versions in this container, or none if it can't say. A
+        container already gone is the session's to end, as `workspace_gone`."""
+        try:
+            done = self.execute(["python", "-I", "-c", VERSIONS], LOOKUP_TIMEOUT)
+        except Gone:
+            return {"cadquery": None, "ocp": None}
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(VERSIONS_MARK):
+                found = json.loads(line[len(VERSIONS_MARK) :])
+                return {"cadquery": found.get("cadquery"), "ocp": found.get("ocp")}
+        return {"cadquery": None, "ocp": None}
 
     def _ending(self, name: str, args: dict[str, Any]) -> Judged:
         if name == "done":

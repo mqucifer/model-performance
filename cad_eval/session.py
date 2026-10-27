@@ -18,13 +18,18 @@ Its events, prompts and answers included, go only to the run's records on the Ma
 
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 import time
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+import httpx
 
 from cad_eval.tools import OUTPUT, Gone, PartTools
 from common.litellm import CallCapReached
@@ -99,6 +104,13 @@ class Session:
     outcomes: Counter[str] = field(default_factory=Counter)
     by_tool: Counter[str] = field(default_factory=Counter)
     messages: list[dict[str, Any]] = field(default_factory=list)
+    # The model each call's response named, in order (`identity.py`: read, not typed).
+    served: list[str] = field(default_factory=list)
+    # How many messages the records already hold, and the last tools and parameters
+    # they hold: each `request` event keeps only what's new (`transcript.py`).
+    logged: int = 0
+    logged_tools: str = ""
+    logged_params: dict[str, Any] = field(default_factory=dict)
 
     def run(self) -> Ending:
         self.messages = [
@@ -137,6 +149,32 @@ class Session:
             if ending is not None:
                 return self._ended(ending)
 
+    def rewrite(self, index: int, content: Any) -> None:
+        """Change an earlier message's content, and keep the change in the records."""
+        self.messages[index] = {**self.messages[index], "content": content}
+        self._record("rewrite", index=index, message=self.messages[index])
+
+    def _request(self, body: dict[str, Any]) -> None:
+        """What's new in this call's request, as `transcript.rebuild` replays it."""
+        wire = getattr(self.send, "wire", None)
+        sent = wire(body) if callable(wire) else body
+        params = {k: v for k, v in sent.items() if k not in ("messages", "tools")}
+        tools = json.dumps(sent["tools"], sort_keys=True)
+        event: dict[str, Any] = {
+            "n": self.calls + 1,
+            "from": self.logged,
+            "append": copy.deepcopy(self.messages[self.logged :]),
+        }
+        if tools != self.logged_tools:
+            event["tools"] = sent["tools"]
+            event["tools_sha"] = hashlib.sha256(tools.encode()).hexdigest()
+            self.logged_tools = tools
+        if params != self.logged_params:
+            event["params"] = params
+            self.logged_params = params
+        self._record("request", **event)
+        self.logged = len(self.messages)
+
     def _call(self) -> tuple[dict[str, Any], Ending | None]:
         body = {
             "model": self.alias,
@@ -145,16 +183,26 @@ class Session:
             "tool_choice": "auto",
             "max_tokens": self.max_tokens,
         }
+        self._request(body)
+        at = datetime.now(UTC)
         began = time.monotonic()
         try:
             answer = self.send(body)
         except CallCapReached as capped:
             return {}, Ending("interrupted", "call_cap", {"error": str(capped)})
         except Exception as exc:  # noqa: BLE001 - any failed call ends it as interrupted
-            return {}, Ending("interrupted", "call_failed", {"error": f"{type(exc).__name__}"})
+            said: dict[str, Any] = {"error": f"{type(exc).__name__}"}
+            if isinstance(exc, httpx.HTTPStatusError):
+                # The status only: the body can echo the request.
+                said["status"] = exc.response.status_code
+            return {}, Ending("interrupted", "call_failed", said)
         finally:
-            self.model_s += time.monotonic() - began
+            took = time.monotonic() - began
+            self.model_s += took
         self.calls += 1
+        served = answer.get("model") if isinstance(answer, dict) else None
+        if isinstance(served, str) and served:
+            self.served.append(served)
         self.usage.update(usage(answer))
         choices = answer.get("choices") if isinstance(answer, dict) else None
         if not choices:
@@ -170,6 +218,9 @@ class Session:
             n=self.calls,
             # The proxy's request id, which its spend log keeps (`common/spend.py`).
             response_id=answer.get("id"),
+            at=at.isoformat(timespec="seconds"),
+            seconds=round(took, 1),
+            served_model=served,
             finish=choices[0].get("finish_reason"),
             message=choices[0].get("message"),
             usage=usage(answer),

@@ -381,3 +381,33 @@ screen, not a measurement.**
 - **A noisy case** gets two more runs only where they could change its verdict:
   - a cell at 2 of 3;
   - or a cell at 1 of 3, when every other cell fails or is at 1 of 3.
+
+## What a run keeps (mqucifer/model-performance#40, V4)
+
+**Every request, exactly.** Before each call the session keeps a `request` event in
+`events.jsonl` with what's new since the last one: the messages added, and the tools
+and parameters when they change (the body as it went over the wire, streaming flags
+and alias included). When it changes an earlier message, it keeps a `rewrite` event.
+`transcript.rebuild(events, n)` replays them into call `n`'s body, and a test holds
+every call of a run to it. Full requests aren't stored: they repeat their prefix.
+
+**Each call** records when it started, how long it took, and the model its response
+named (`served_model`).
+
+**Each row names what it ran on, read rather than typed** (`identity.py`):
+- **The harness:** `harness_commit`. `cad-eval` refuses to run with uncommitted
+  changes to tracked files, so `harness_dirty` is false on every row it writes.
+- **The texts:** `skills_sha`, one sha256 over every skill and reference file.
+- **The image and library:** `image_id` (the image's digest), and `cadquery_version`
+  and `ocp_version`, read in the run's own container.
+- **The serving:** infra's record of what production runs
+  (`inventory/services/sglang.yaml` at infra's main): `serving_infra_commit`,
+  `serving_image` (also `serving`), `serving_digest` and `serving_model`. It's read as
+  the batch starts and again as each run ends, and `serving_record_changed` flags a
+  difference. Each call's response model gives `served_model` (the first),
+  `served_models` (how many there were) and `served_changed`. The full list is in
+  `result.json`.
+- **A failed call** keeps its HTTP status in `result.json` (`said.status`), never the
+  body, which can echo the request.
+
+The typed `--serving` flag is gone.

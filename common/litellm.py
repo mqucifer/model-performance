@@ -60,8 +60,7 @@ class Sender:
     def __call__(self, body: dict[str, Any]) -> dict[str, Any]:
         if self.calls >= self.cap:
             raise CallCapReached(f"the run's cap of {self.cap} calls is reached")
-        if self.alias:
-            body = {**body, "model": self.alias}
+        body = self.wire(body)
         self.models.add(str(body.get("model")))
         self.calls += 1
         if self.ticking():
@@ -76,6 +75,10 @@ class Sender:
             )
         result: dict[str, Any] = response.json()
         return result
+
+    def wire(self, body: dict[str, Any]) -> dict[str, Any]:
+        """The body as it's sent: the candidate's alias in place of the role's."""
+        return {**body, "model": self.alias} if self.alias else body
 
     def ticking(self) -> bool:
         """Whether a `crew tick` runs now; remembered once seen."""
