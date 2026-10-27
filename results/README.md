@@ -643,5 +643,6 @@ on some arm at least once, and the passes ran long: a median of 15 calls, with 4
 - **No arm makes gears and threads reliable at 20 calls.** The skill and references
   don't move a cell to a pass.
 - **The model can build every one of these parts.** Most runs run out of calls first.
-- **So the next question is the budget,** not training: a measurement at a larger cap
-  on the two gap cases, with the best arm. Not made here.
+- **So the next question is the budget,** not training. Recommended to the Sponsor,
+  not run yet: gear-pair and bolt-nut with skill-refs at cap 40, n = 3, under the
+  same rule.
