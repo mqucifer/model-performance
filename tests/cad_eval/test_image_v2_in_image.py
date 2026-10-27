@@ -181,3 +181,21 @@ def test_docs_finds_cadquerys_own_pages_and_says_what_wont_run_here() -> None:
     assert any("elix" in f["title"] or "elix" in f["text"] for f in found["found"])
     notes = " ".join(f["note"] for p in (1, 2, 3) for f in search("docs", "box", p)["found"])
     assert "show_object" in notes
+
+
+def test_the_lookup_index_rebuilds_byte_for_byte() -> None:
+    """No memory address reaches it, so the image's index is what its builder makes
+    again (the review of #41: three builds gave three hashes)."""
+    from cad_eval.image import lookup_index  # noqa: PLC0415
+
+    rebuilt = subprocess.run(
+        ["docker", "run", "--rm", "-i", "--network", "none", container.IMAGE_V2]
+        + ["sh", "-c", "cd /tmp && python -I - /tmp/l.json >/dev/null && sha256sum /tmp/l.json"],
+        input=Path(lookup_index.__file__).read_text(),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=600,
+    ).stdout.split()[0]
+    baked = inside(container.IMAGE_V2, "sha256sum", container.LOOKUP_INDEX).split()[0]
+    assert rebuilt == baked

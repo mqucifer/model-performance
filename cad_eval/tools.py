@@ -280,12 +280,12 @@ LOOKUP = _spec(
     "(inherited members included). Nearest names when nothing matches; an OCP class "
     "named exactly lists its members.",
     PAGE,
-    query="A name or a fragment of one, such as `Solid.fuse`, `makeHelix` or `OCP.BRepExtrema`.",
+    query="A name or a fragment of one, such as `Solid.fuse`, `polarArray` or `OCP.BRepExtrema`.",
 )
 DOCS = _spec(
     "docs",
     "Search CadQuery's own 2.8.0 documentation and examples by words, such as "
-    "`sweep helix` or `workplane on a face`: the best sections, with their code.",
+    "`fillet edges` or `workplane on a face`: the best sections, with their code.",
     PAGE,
     query="What to find, in words.",
 )

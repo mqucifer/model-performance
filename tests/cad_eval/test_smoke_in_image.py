@@ -29,6 +29,12 @@ BROKEN = GOOD.replace(
     'cq.exporters.export(pin, "part.step")',
     "pin.isValid()\n" + 'cq.exporters.export(pin, "part.step")',
 )
+# The model's own block, the one the pin presses into, as its spec describes it.
+BLOCK = """import cadquery as cq
+block = cq.Workplane("XY").box(20, 20, 10, centered=(True, True, False))
+block = block.faces(">Z").workplane().hole(5.0)
+cq.exporters.export(block, "block.step")
+"""
 PLAN_BAD = {
     "parts": [{"name": "pin", "file": "part.step"}],
     "interfaces": [],
@@ -51,7 +57,7 @@ STEPS: list[tuple[str, Any, str, str]] = [
     ("plan", {"plan": json.dumps(PLAN_GOOD)}, "ok", "The plan holds"),
     ("lookup", {"query": "Solid.fuse"}, "ok", "cq.Shape.fuse"),
     ("lookup", {"query": "fuse", "page": 0}, "failed", "not_a_page"),
-    ("docs", {"query": "chamfer edges"}, "ok", '"matches"'),
+    ("docs", {"query": "chamfer edges"}, "ok", "chamfer("),
     ("skill", {"name": "cadquery-selectors"}, "ok", "Selectors"),
     ("skill", {"name": "gears"}, "failed", "unknown"),
     ("write", {"path": "make.py", "content": BROKEN, "run": True}, "ok", "isn't on Workplane"),
@@ -66,12 +72,29 @@ STEPS: list[tuple[str, Any, str, str]] = [
         "ok",
         "exit 0",
     ),
-    ("edit", {"path": "make.py", "old": "x", "new": "y"}, "failed", "edit."),
+    ("edit", {"path": "make.py", "old": "x", "new": "y"}, "failed", "edit.part_of_a_line"),
+    ("write", {"path": "block.py", "content": BLOCK, "run": True}, "ok", "Ran block.py: exit 0"),
+    ("read", {"path": "make.py"}, "ok", "lines 1-"),
     ("run", {"path": "nothing.py"}, "failed", "no_file"),
     ("inspect", {"path": "part.step"}, "ok", '"valid": true'),
     ("measure", {"path": "part.step", "query": "position >Z"}, "ok", "faces"),
+    ("measure", {"path": "block.step", "query": "hole 0,0,5"}, "ok", '"diameter": 5.0'),
+    ("measure", {"path": "part.step", "query": "diameter 0,0,8"}, "ok", '"kind": "outer"'),
+    (
+        "measure",
+        {"path": "block.step", "query": "distance >Z <Z"},
+        "ok",
+        '"gap_along_normal": 10.0',
+    ),
+    ("measure", {"path": "part.step", "query": "clearance block.step"}, "ok", '"clearance"'),
     ("measure", {"path": "part.step", "query": "spin it"}, "failed", "not_a_query"),
     ("view", {"files": "part.step", "view": "section x=0"}, "ok", "picture of its own"),
+    (
+        "view",
+        {"files": "part.step", "view": "iso", "keepouts": "block.step"},
+        "ok",
+        "your keep-outs (block.step)",
+    ),
     ("view", {"files": "part.step", "view": "sideways"}, "failed", "not_a_query"),
     ("frobnicate", {}, "malformed", "session.arguments"),
     ("run", {"path": 3}, "ill_typed", "type"),
@@ -157,3 +180,23 @@ def test_every_tool_and_its_error_paths_through_a_real_session(
     # The part the session made passes every check of the case.
     row, found = judge(CASE, final)
     assert row["within_tolerance"], [c for c in found if not c["ok"]]
+
+
+def test_a_session_can_end_blocked_saying_why(tmp_path_factory: pytest.TempPathFactory) -> None:
+    directory = tmp_path_factory.mktemp("blocked")
+    replies = iter([answer(1, "blocked", {"reason": "the spec gives no bore"})])
+    with contextlib.chdir(tmp_path_factory.mktemp("work")):
+        held = container.held(directory, f"smoke-b-{os.getpid()}", image=container.IMAGE_V2)
+        assert held.start().ok
+        try:
+            tools = PartTools(directory, held, CASE.outputs(), arm="base", spec=CASE.spec())
+            events = directory.parent / "blocked.jsonl"
+            session = Session(CASE.spec(), tools, lambda _: next(replies), "scripted", events)
+            ending = session.run()
+        finally:
+            held.stop()
+    assert (ending.how, ending.stop, ending.said) == (
+        "blocked",
+        "said",
+        {"reason": "the spec gives no bore"},
+    )

@@ -17,7 +17,12 @@ if [ "${1:-}" = "v2" ]; then
         echo "refused: $BASE is ${found:-not built}, not the pinned $BASE_ID" >&2
         exit 2
     fi
-    docker build --build-arg BASE_ID="$BASE_ID" -f "$here/Dockerfile.v2" -t "$V2" "$here"
+    # The pinned id, by a tag named for it, so FROM is that image and no other.
+    base_tag="model-performance/cadquery:base-${BASE_ID#sha256:}"
+    base_tag=${base_tag%"${base_tag#*:base-????????????}"}
+    docker tag "$BASE_ID" "$base_tag"
+    docker build --build-arg BASE="$base_tag" --build-arg BASE_ID="$found" \
+        -f "$here/Dockerfile.v2" -t "$V2" "$here"
     docker image inspect --format '{{.Id}}' "$V2"
     exit 0
 fi

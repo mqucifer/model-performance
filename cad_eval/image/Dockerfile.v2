@@ -1,10 +1,12 @@
 # syntax=docker/dockerfile:1
 # The CAD evaluation's v2 image (mqucifer/model-performance#40): the CadQuery image,
 # unchanged, plus OSMesa so VTK renders offscreen for `view`, and the indexes the
-# `lookup` and `docs` tools search. Built by `build.sh v2`, which refuses unless the
-# local `2.8.0` tag is the image pinned there (BuildKit can't take a local image by
-# digest in FROM), and records that image's id as a label.
-FROM model-performance/cadquery:2.8.0 AS cadquery
+# `lookup` and `docs` tools search. Built by `build.sh v2` only: BuildKit can't take a
+# local image by digest in FROM, so the script checks the CadQuery image's id against the
+# pin, tags that id by its own digest (`cadquery:base-<id>`), and passes that tag here.
+# There's no default: built without the script, FROM has nothing and the build fails.
+ARG BASE
+FROM ${BASE} AS cadquery
 
 # CadQuery's own documentation and examples at its v2.8.0 tag, fetched by commit
 # (Apache-2.0: the index's builder checks the licence and refuses without it). Each

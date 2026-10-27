@@ -82,3 +82,11 @@ def test_a_signature_from_a_docstrings_overloads() -> None:
     ]
     two = "1. f(x: int) -> None\n\n2. f(x: float) -> None\n\nDoes f."
     assert lookup_index.overloads(two) == ["f(x: int) -> None", "f(x: float) -> None"]
+
+
+def test_a_memory_address_never_reaches_the_index() -> None:
+    """Two builds of the index are byte for byte the same (the review of #41: 68 OCP
+    signatures named `object at 0xffff...`)."""
+    doc = "f(self, x: object = <OCP.gp.gp_Pnt object at 0xffff8a2b3c40>) -> None"
+    assert lookup_index.overloads(doc) == ["f(self, x: object = <OCP.gp.gp_Pnt object>) -> None"]
+    assert lookup_index.stable("<a object at 0xDEAD> and <b at 0x1f>") == "<a object> and <b>"

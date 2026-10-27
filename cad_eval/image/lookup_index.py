@@ -44,24 +44,33 @@ CADQUERY = (
 # `cq.CQ` is `cq.Workplane`: listed once, by its own name.
 ALIASES = {"CQ"}
 DOC_CHARS = 400
+# A default's repr can name where it sits in memory (`<... object at 0xffff...>`): never
+# in the index, so two builds of it are byte for byte the same (the review of #41).
+ADDRESS = re.compile(r" at 0x[0-9a-fA-F]+")
+
+
+def stable(text: str) -> str:
+    return ADDRESS.sub("", text)
 
 
 def first_paragraph(doc: str | None) -> str:
-    return inspect.cleandoc(doc or "").split("\n\n", 1)[0].strip()[:DOC_CHARS]
+    return stable(inspect.cleandoc(doc or "").split("\n\n", 1)[0].strip()[:DOC_CHARS])
 
 
 def overloads(doc: str | None) -> list[str]:
     """pybind11's signatures, from the head of its docstring: one, or numbered."""
     lines = inspect.cleandoc(doc or "").splitlines()
     found = [
-        re.sub(r"^\d+\.\s+", "", line) for line in lines if re.match(r"^(\d+\.\s+)?\w+\(", line)
+        stable(re.sub(r"^\d+\.\s+", "", line))
+        for line in lines
+        if re.match(r"^(\d+\.\s+)?\w+\(", line)
     ]
     return found
 
 
 def _signature(obj: Any) -> str:
     try:
-        return str(inspect.signature(obj))
+        return stable(str(inspect.signature(obj)))
     except (TypeError, ValueError):
         return ""
 
