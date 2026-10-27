@@ -10,6 +10,15 @@ call its tools while it does? North Star D2, as mqucifer/model-performance#3.
     uv run cad-eval --hard-first --cap 20       # the harder cases' first five
     uv run cad-eval --hard                      # all 21 harder cases, at a time the operator gives
 
+**A run's code is a clean checkout that nothing edits until the run ends** (the
+operator, 2026-10-27, after an edit under a running batch). `cad-eval` refuses a tree
+with uncommitted changes, but a change made after it starts isn't seen, and another
+session's run in the same tree would load it. Run from a checkout of the commit that
+no one works in:
+
+    git worktree add --detach ../run-<commit> <commit>
+    cd ../run-<commit> && uv run cad-eval ...
+
 It needs Docker, the image, and LiteLLM on :4000 with the builders' key. It refuses
 to start while a `crew tick` runs. A part may make `--cap` calls (40), and the run
 `--total` (by default, the cap for each part it runs). The numbers are in [`results/`](../results/README.md), and the
@@ -577,8 +586,10 @@ ran.
 
 **Compaction at crew's 125k.**
 - **The estimate:** before each call, the next prompt's size, from the last call's
-  measured `prompt_tokens` plus what's come since (at 3 characters a token,
-  calibrated on v1).
+  measured `prompt_tokens` (as each response reports it) plus what's come since, at
+  2.7 characters a token. That rate was measured on the served model by
+  `cad_eval.probe` (about 2,160 characters, about 800 tokens), where v1's estimate of 3
+  read a 125k estimate as about 139k real.
 - **At 125k it's compacted, crew's way:**
   - every turn before the newest loses its reasoning;
   - every tool reply shrinks to one line, but the latest `run`'s and the newest turn's;
@@ -601,7 +612,10 @@ silently drop everything before it. `python -m cad_eval.probe --go` asks:
   a tool reply then an inserted user message. A prompt that grows by about the
   reasoning's tokens kept it.
 - **Tested offline** against stand-ins of both kinds of template.
-- **Not yet run:** it waits for the operator's go, before any batch.
+- **Run on 2026-10-27, at 14:19Z:** the template keeps past reasoning in all three
+  shapes, across an inserted user message too. The prompt grew about 800 tokens in
+  each: 308 to 1,109 after a user message, 325 to 1,126 after a tool reply, and 340 to
+  1,141 after a tool reply then a user message.
 
 **The cap is 50 in the base arm** (`CAP_BASE`). The model isn't told it, so a run
 says what a lower cap would have done. It's lowered from the calls each run took to
@@ -682,3 +696,13 @@ list to the names the real checks produce, so the audit can't fall behind.
 - gear and thread roots bounded from below only;
 - a few probes looser than the stated tolerance (the hinge's pin and bore).
 pi5's stated "2.7 mm across" holes have no check, and are listed under `unchecked`.
+
+**Open-items follow-up (2026-10-27):**
+- **No check that can't fail:** a share check whose window is 0 to 1 isn't emitted.
+  That removed five: the helices' `right_hand` share, and cable-comb's `cables` and
+  `open_top` shares. Their changes counts still run.
+- **Roots bounded above where the text states it:** m8-bolt's "within 0.2 mm of the
+  profile's" (`roots_at_most`, gaps at r = 3.44), and gear-pair's "±0.1 mm on
+  everything else" (`root_at_most`, gaps just past each root).
+- **Unchanged:** spur-gear and bolt-nut state no tolerance on their roots, so they stay
+  a judgment in the audit.

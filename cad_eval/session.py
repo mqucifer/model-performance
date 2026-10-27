@@ -40,9 +40,9 @@ BACKSTOP_S = 60 * 60
 # `crew_org/session/conversation.py`), in a 262,144-token window that keeps 65,536 for
 # the answer. One still this size after compacting ends the run, as the budget's.
 COMPACT_AT = 125_000
-# Characters a token, to estimate the next prompt from the last one's measured size:
-# calibrated on v1's first calls (the context review, 2026-10-27).
-CHARS_PER_TOKEN = 3
+# Characters a token, for what's come since the last measured prompt: 2.7, measured on
+# the served model by `cad_eval.probe` (2026-10-27: ~2,160 characters, ~800 tokens).
+CHARS_PER_TOKEN = 2.7
 COMPACTED = "(compacted: {what})"
 QUIET = "Call a tool to go on, or `done` or `blocked`."
 SHOWN_BEFORE = "(An earlier view was here: only the latest view is kept.)"
@@ -230,8 +230,8 @@ class Session:
     def estimate(self) -> int:
         """The next prompt's tokens: the last one's, measured, plus what's come since."""
         if not self.last_prompt:
-            return (self._chars() + len(json.dumps(self.tools.specs))) // CHARS_PER_TOKEN
-        return self.last_prompt + (self._chars() - self.last_chars) // CHARS_PER_TOKEN
+            return int((self._chars() + len(json.dumps(self.tools.specs))) / CHARS_PER_TOKEN)
+        return self.last_prompt + int((self._chars() - self.last_chars) / CHARS_PER_TOKEN)
 
     def compact(self) -> None:
         """crew's compaction, on this conversation, each change a recorded rewrite.

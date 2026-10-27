@@ -53,7 +53,8 @@ def checks(case: Case) -> list[dict[str, Any]]:
         for name, point in m.outside.items():
             add(m.name, f"out.{name}", list(point))
         for sample in m.samples:
-            add(m.name, f"share.{sample.name}", list(sample.share))
+            if tuple(sample.share) != (0.0, 1.0):
+                add(m.name, f"share.{sample.name}", list(sample.share))
             if sample.changes is not None:
                 add(m.name, f"changes.{sample.name}", list(sample.changes))
             if sample.gaps is not None:

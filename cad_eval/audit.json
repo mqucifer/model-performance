@@ -1067,13 +1067,6 @@
     ],
     "says": "Crests at most 8.0: nothing at r = 4.02."
    },
-   "part/share.right_hand": {
-    "class": "derived",
-    "quotes": [
-     "20 mm long, threaded along its whole length: M8 × 1.25, right-hand, ISO's 60° metric profile. So 8 mm across the crests, a 1.25 mm pitch, and 6.65 mm across the roots (the basic profile's minor diameter)"
-    ],
-    "says": "The helix's share window is 0 to 1, which every part passes: a check by name only; the hand is the changes check."
-   },
    "part/changes.right_hand": {
     "class": "stated",
     "quotes": [
@@ -1088,6 +1081,14 @@
      "±0.1 mm on the head and the length; the crests between 7.8 and 8.0 mm across, the roots within 0.2 mm of the profile's, and the pitch exact"
     ],
     "says": "At r = 3.45: ISO 68-1's basic profile (external): the material's share of a line along the shank falls linearly from 0.75 at the minor diameter to 0.125 at the crests. 0.63; 0.52 to 0.76 takes the profile 0.1 smaller (0.54, crests 7.8 and roots 6.45, both allowed) and roots up to the allowed 6.85 (still under r = 3.45). A square thread's 0.5 fails. Window 0.52–0.86. The windows take a profile swept along the helix, which reads about 0.09 off the flat profile's share (the reference: bolt 0.725 at r = 3.45, nut 0.225 at r = 3.55 and 0.74 at r = 4.03); a square thread's 0.5 still fails."
+   },
+   "part/share.roots_at_most": {
+    "class": "stated",
+    "quotes": [
+     "6.65 mm across the roots",
+     "the roots within 0.2 mm of the profile's"
+    ],
+    "says": "The roots at most 6.65 + 0.2 = 6.85 across, r 3.425: at r = 3.44 the line must meet gaps (share at most 0.95), over 12 whole pitches."
    }
   },
   "unchecked": {}
@@ -2381,6 +2382,26 @@
      "module 1.5, a 20° pressure angle, the standard full-depth involute profile (an addendum of one module, a dedendum of 1.25), 6 mm thick. Gear A has 12 teeth, gear B 28. Each has a 5.4 mm bore"
     ],
     "says": "28 teeth at r = 21.75: 56 changes."
+   },
+   "gear-a/share.root_at_most": {
+    "class": "derived",
+    "quotes": [
+     "module 1.5",
+     "an addendum of one module, a dedendum of 1.25",
+     "Gear A has 12 teeth",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Arithmetic: the root radius 1.5·12/2 − 1.25·1.5 = 7.125, at most 7.225 with ±0.1: a ring at 7.3 must meet the gaps (share at most 0.95)."
+   },
+   "gear-b/share.root_at_most": {
+    "class": "derived",
+    "quotes": [
+     "module 1.5",
+     "an addendum of one module, a dedendum of 1.25",
+     "gear B 28",
+     "±0.1 mm on everything else"
+    ],
+    "says": "Arithmetic: the root radius 1.5·28/2 − 1.25·1.5 = 19.125, at most 19.225 with ±0.1: a ring at 19.3 must meet the gaps (share at most 0.95)."
    }
   },
   "unchecked": {}
@@ -2489,13 +2510,6 @@
      "a hex head 13 mm across the flats and 5.3 mm tall, from Z = -5.3 to 0, and a shank threaded along its whole length from Z = 0 to 30: M8 × 1.25, right-hand, ISO's 60° metric profile, 8 mm across the crests and 6.65 mm across the roots (the basic profile's minor diameter)"
     ],
     "says": "Crests 8 across, no tolerance in this text: nothing at r = 4.02. Nothing holds the crests from below here."
-   },
-   "bolt/share.right_hand": {
-    "class": "derived",
-    "quotes": [
-     "a hex head 13 mm across the flats and 5.3 mm tall, from Z = -5.3 to 0, and a shank threaded along its whole length from Z = 0 to 30: M8 × 1.25, right-hand, ISO's 60° metric profile, 8 mm across the crests and 6.65 mm across the roots (the basic profile's minor diameter)"
-    ],
-    "says": "Share 0 to 1: always passes; a check by name only."
    },
    "bolt/changes.right_hand": {
     "class": "stated",
@@ -2606,13 +2620,6 @@
      "a hexagon 13 mm across the flats and 6.5 mm thick, from Z = 10 to 16.5, threaded inside to match: the same profile, 0.15 mm bigger everywhere across its radius, so it runs on with a clearance"
     ],
     "says": "The nut's major 8 + 0.3 = 8.3 (r = 4.15): solid at r = 4.25."
-   },
-   "nut/share.right_hand": {
-    "class": "derived",
-    "quotes": [
-     "a hexagon 13 mm across the flats and 6.5 mm thick, from Z = 10 to 16.5, threaded inside to match: the same profile, 0.15 mm bigger everywhere across its radius, so it runs on with a clearance"
-    ],
-    "says": "Share 0 to 1: always passes; a check by name only."
    },
    "nut/changes.right_hand": {
     "class": "stated",
@@ -3599,13 +3606,6 @@
     ],
     "says": "At least 12 tall: the cables' tops at 10 + 2.5 = 12.5. Moot: open_top needs fingers at Z = 14 anyway."
    },
-   "part/share.cables": {
-    "class": "derived",
-    "quotes": [
-     "the desk is the plane Z = 0, and the comb stands on it. The cables run along X, side by side along Y, with their centres at Z = 10. Centre the comb on X = 0 and Y = 0"
-    ],
-    "says": "Share 0 to 1: always passes; the line's checks are its changes and gaps."
-   },
    "part/changes.cables": {
     "class": "derived",
     "quotes": [
@@ -3622,13 +3622,6 @@
      "The cables shouldn't be squashed, or flop about either"
     ],
     "says": "Each slot 5.0 to 6.0 wide at the cables' centre: not squashed (at least the 5 mm), not flopping (at most 1 mm over). The 0.2 mm point spacing makes the measured width ±0.2, so a 5.9 slot can read 6.1; 5.2 to 5.8 is safe."
-   },
-   "part/share.open_top": {
-    "class": "derived",
-    "quotes": [
-     "the desk is the plane Z = 0, and the comb stands on it. The cables run along X, side by side along Y, with their centres at Z = 10. Centre the comb on X = 0 and Y = 0"
-    ],
-    "says": "Share 0 to 1: always passes."
    },
    "part/changes.open_top": {
     "class": "judgment",

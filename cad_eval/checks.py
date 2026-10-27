@@ -131,7 +131,10 @@ def member(m: Member, measured: dict[str, Any]) -> list[Check]:
 def sampled(sample: Sample, inside: list[bool]) -> list[Check]:
     share = round(sum(inside) / len(inside), 4) if inside else 0.0
     low, high = sample.share
-    found = [Check(f"share.{sample.name}", low <= share <= high, list(sample.share), share)]
+    # A share whose window is 0 to 1 can't fail: no check (#40 V2), only its changes'.
+    found = []
+    if (low, high) != (0.0, 1.0):
+        found.append(Check(f"share.{sample.name}", low <= share <= high, list(sample.share), share))
     if sample.changes is not None:
         pairs = zip(inside, inside[1:] + inside[:1] if sample.closed else inside[1:], strict=False)
         changes = sum(a != b for a, b in pairs)

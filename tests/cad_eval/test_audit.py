@@ -67,3 +67,11 @@ def test_unchecked_values_say_why() -> None:
         for quote, why in case_audit.get("unchecked", {}).items():
             assert normal(quote) in normal(CASES[name].spec()), (name, quote)
             assert why.strip(), (name, quote)
+
+
+def test_no_check_can_never_fail() -> None:
+    """A share whose window is 0 to 1 passes whatever it measures: none is listed."""
+    for name in HARD:
+        for check in audit.checks(CASES[name]):
+            if check["check"].split("/", 1)[1].startswith("share."):
+                assert check["wants"] != [0.0, 1.0], (name, check)

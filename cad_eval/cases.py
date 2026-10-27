@@ -558,6 +558,9 @@ CASES: dict[str, Case] = {
                             "flanks", (3.6, 0, 2), (3.6, 0, 18), share=(0.3, 0.7), changes=(24, 28)
                         ),
                         line("roots", (0, 3.2, 2), (0, 3.2, 18), share=(0.99, 1.0)),
+                        # And at most 6.85 across ("within 0.2 mm of the profile's"): gaps at
+                        # r = 3.44, over whole pitches (#40 V2: roots were held from below only).
+                        line("roots_at_most", (0, 3.44, 2), (0, 3.44, 17), share=(0.0, 0.95)),
                         # ISO 68-1's 60° flanks, over whole pitches so the thread's phase can't
                         # skew a share. Drawn flat, 0.63 of a line is material at r = 3.45 (a
                         # profile swept along the helix reads about 0.09 more) and
@@ -732,6 +735,8 @@ CASES: dict[str, Case] = {
                             changes=(24, 24),
                         ),
                         ring("root", (0, 0, 7.5), 7.0, n=181, share=(0.99, 1.0)),
+                        # The root's 7.125 radius at ±0.1: gaps at 7.3 (#40 V2).
+                        ring("root_at_most", (0, 0, 7.5), 7.3, n=181, share=(0.0, 0.95)),
                     ),
                     gaps=(
                         Gap("gear-b", distance=(0.02, 0.3)),
@@ -758,6 +763,7 @@ CASES: dict[str, Case] = {
                             changes=(56, 56),
                         ),
                         ring("root", (30.2, 0, 7.5), 19.0, n=181, share=(0.99, 1.0)),
+                        ring("root_at_most", (30.2, 0, 7.5), 19.3, n=181, share=(0.0, 0.95)),
                     ),
                     gaps=(Gap("plate", distance=(0.15, 0.25)),),
                 ),
