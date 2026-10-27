@@ -7,6 +7,14 @@ from typing import Any
 
 from cad_eval import measure
 
+# A few of the lookup index's entries, as `hint.py` reads them in the image.
+HINT_INDEX = [
+    {"name": "cq.Shape.isValid", "on": ["cq.Compound", "cq.Shape", "cq.Solid"]},
+    {"name": "cq.Workplane.union", "on": ["cq.Workplane"]},
+    {"name": "cq.Face.makeFromWires", "on": ["cq.Face"]},
+    {"name": "cq.Face.makeNSidedSurface", "on": ["cq.Face"]},
+]
+
 
 @dataclass
 class Ran:
@@ -49,6 +57,13 @@ class FakeWorkspace:
 
             found = {"cadquery": "2.8.0", "ocp": "7.9.3.1.1"}
             return Ran("versions", 0, "CAD_EVAL_VERSIONS " + json.dumps(found))
+        if command[:3] == ["python", "-I", "-"] and stdin and "CAD_EVAL_HINT" in stdin:
+            import json  # noqa: PLC0415
+
+            from cad_eval import hint  # noqa: PLC0415
+
+            found = hint.find(HINT_INDEX, command[3], command[4])
+            return Ran("hint", 0, hint.MARK + json.dumps(found))
         if command[:3] == ["python", "-I", "-"] and stdin and "CAD_EVAL_LOOKUP" in stdin:
             import json  # noqa: PLC0415
 

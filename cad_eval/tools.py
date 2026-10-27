@@ -24,11 +24,15 @@ Everything else is `ok`. The reliability of a run is its `ok` calls over all of 
 
 from __future__ import annotations
 
+import ast
+import difflib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from cad_eval import hint as hint_module
 from cad_eval import lookup as lookup_module
 from cad_eval import measure, skills
 
@@ -42,6 +46,17 @@ OUTPUT = "part.step"
 MEASURE_SOURCE = Path(measure.__file__).read_text(encoding="utf-8")
 LOOKUP_SOURCE = Path(lookup_module.__file__).read_text(encoding="utf-8")
 LOOKUP_TIMEOUT = 60
+HINT_SOURCE = Path(hint_module.__file__).read_text(encoding="utf-8")
+# v2's base arm (mqucifer/model-performance#40): the full toolset.
+BASE = "base"
+# An AttributeError's owner and name, as Python 3.12 says them.
+NO_ATTRIBUTE = re.compile(
+    r"AttributeError: (?:'(\w+)' object|type object '(\w+)'|module '([\w.]+)') "
+    r"has no attribute '(\w+)'"
+)
+# What `edit` shows around a closest block, and how close it must be: crew's.
+NEAR_CONTEXT = 5
+NEAR_RATIO = 0.6
 # The library a run's scripts ran against, read in its own container.
 VERSIONS_MARK = "CAD_EVAL_VERSIONS "
 VERSIONS = (
@@ -53,7 +68,10 @@ VERSIONS = (
 ARMS = tuple(skills.ARMS)
 
 
-def _spec(name: str, description: str, **properties: str) -> dict[str, Any]:
+def _spec(
+    name: str, description: str, optional: dict[str, Any] | None = None, **properties: str
+) -> dict[str, Any]:
+    """A tool's spec: its string arguments, all required, and any `optional` ones."""
     return {
         "type": "function",
         "function": {
@@ -62,7 +80,8 @@ def _spec(name: str, description: str, **properties: str) -> dict[str, Any]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    k: {"type": "string", "description": v} for k, v in properties.items()
+                    **{k: {"type": "string", "description": v} for k, v in properties.items()},
+                    **(optional or {}),
                 },
                 "required": list(properties),
             },
@@ -102,6 +121,34 @@ SPECS = [
     ),
 ]
 ACCEPTED = {s["function"]["name"]: s["function"]["parameters"] for s in SPECS}
+# `run` on `write` and `edit` (#40, A1): one call to change a file and run a script.
+RUN_AFTER = {
+    "run": {
+        "anyOf": [{"type": "boolean"}, {"type": "string"}],
+        "description": "`true` to run this file after, or the path of the script to run "
+        "after (such as `make.py`, when this file is one it imports). Optional.",
+    }
+}
+WRITE_BASE = _spec(
+    "write",
+    "Write a text file in the part's directory, replacing it if it exists. With `run`, "
+    "a script is run after, as `run` does.",
+    RUN_AFTER,
+    path="The file's path, relative to the part's directory, such as `make.py`.",
+    content="The whole file.",
+)
+# crew's `replace_text`, behaviour and all (crew_org/session/tools.py, crew#778).
+EDIT = _spec(
+    "edit",
+    "Replace one or more whole lines that occur exactly once in a file, quoted as the "
+    "file has them, with enough lines to be unique. Applied at once, unless it would stop "
+    "a Python file parsing; the reply shows the edited lines, numbered. With `run`, a "
+    "script is run after, as `run` does.",
+    RUN_AFTER,
+    path="The file's path, relative to the part's directory.",
+    old="The whole lines to replace, exactly as the file has them.",
+    new="The lines to put in their place (empty to delete them).",
+)
 
 
 def specs_for(outputs: list[str]) -> list[dict[str, Any]]:
@@ -162,6 +209,81 @@ def arm_specs(arm: str) -> list[dict[str, Any]]:
     return [SKILL_SPEC, found] if skills.ARMS[arm][1] else [SKILL_SPEC]
 
 
+def base_specs(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The base arm's tools: `write` that may run, and `edit` after it."""
+    found = []
+    for spec in specs:
+        if spec["function"]["name"] == "write":
+            found += [WRITE_BASE, EDIT]
+        else:
+            found.append(spec)
+    return found
+
+
+def _trim(text: str) -> str:
+    """One leading and one trailing newline off, so quoting whole lines is forgiving."""
+    text = text[1:] if text.startswith("\n") else text
+    return text[:-1] if text.endswith("\n") else text
+
+
+def _parse_error(source: str) -> tuple[str, int | None] | None:
+    try:
+        ast.parse(source)
+    except SyntaxError as exc:
+        return exc.msg, exc.lineno
+    return None
+
+
+def _refusal(path: str, text: str, old: str, new: str) -> tuple[str, str] | None:
+    """Why `old` can't be replaced in `text`, as crew's `replace_text` says it, or None."""
+    from crew_org.session.tools import numbered  # noqa: PLC0415
+
+    if not old.strip():
+        return "edit.empty", "Quote the lines to replace."
+    if old == new:
+        return "edit.same", "`old` and `new` are the same: nothing to change."
+    lines = text.splitlines()
+    want = old.split("\n")
+    at = [i for i in range(len(lines) - len(want) + 1) if lines[i : i + len(want)] == want]
+    if len(at) > 1:
+        where = ", ".join(str(i + 1) for i in at)
+        return "edit.twice", (
+            f"Those lines occur {len(at)} times in `{path}`, at lines {where}: quote more "
+            "lines around the one you mean."
+        )
+    if at:
+        return None
+    if old in text:
+        first = old.split("\n")[0]
+        where = [n for n, line in enumerate(lines) if first in line]
+        shown = "; ".join(f"line {n + 1}: `{lines[n].strip()}`" for n in where[:3])
+        return "edit.part_of_a_line", (
+            f"`old` matches only part of a line, not whole lines: {shown}. Quote whole lines."
+        )
+    if new and new in text:
+        return (
+            "edit.already",
+            f"`old` isn't in `{path}`, and `new` already is: the change may be made.",
+        )
+    size = len(want)
+    best, best_at = 0.0, -1
+    for i in range(max(1, len(lines) - size + 1)):
+        ratio = difflib.SequenceMatcher(
+            a=old, b="\n".join(lines[i : i + size]), autojunk=False
+        ).ratio()
+        if ratio > best:
+            best, best_at = ratio, i
+    if best < NEAR_RATIO:
+        return (
+            "edit.not_found",
+            f"Those lines aren't in `{path}`, and nothing close is: read it with a run first.",
+        )
+    shown = "\n".join(numbered(lines, best_at - NEAR_CONTEXT, best_at + size + NEAR_CONTEXT))
+    return "edit.closest", (
+        f"Those lines aren't in `{path}`. The closest block starts at line {best_at + 1}:\n{shown}"
+    )
+
+
 def well_formed(name: str, args: Any, accepted: dict[str, Any] = ACCEPTED) -> Judged | None:
     """The AST category: a `Judged` for a call that isn't well formed, or None."""
     from crew_org.rulebook import Refusal  # noqa: PLC0415
@@ -212,6 +334,8 @@ class PartTools:
         self.outputs = outputs or [OUTPUT]
         self.arm = arm
         self.specs = specs_for(self.outputs) + (arm_specs(arm) if arm else [])
+        if arm == BASE:
+            self.specs = base_specs(self.specs)
         self.accepted = {s["function"]["name"]: s["function"]["parameters"] for s in self.specs}
         # Whether a `run` has exited 0 with every output written: a first compiling part.
         self.compiled = False
@@ -242,12 +366,80 @@ class PartTools:
             return self._failed(
                 "write", "too_large", f"A file is at most {MAX_CONTENT} characters.", args
             )
+        script, wrong = self._run_after("write", args)
+        if wrong is not None:
+            return wrong
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(args["content"], encoding="utf-8")
         except OSError as exc:
             return self._failed("write", "not_written", f"It couldn't be written: {exc}", args)
-        return Judged("write", "ok", f"Wrote {args['path']} ({len(args['content'])} characters).")
+        said = f"Wrote {args['path']} ({len(args['content'])} characters)."
+        return self._then_run("write", said, script)
+
+    def _run_after(self, name: str, args: dict[str, Any]) -> tuple[str | None, Judged | None]:
+        """The script a `write` or `edit` runs after (`run`): the file itself for `true`,
+        a path as given, none for `false` or none; or why `run` can't be done."""
+        run = args.get("run")
+        if run is None or run is False:
+            return None, None
+        if run is True:
+            return args["path"], None
+        if not isinstance(run, str):
+            reply = "`run` is `true`, or the path of a script to run after."
+            return None, self._failed(name, "not_a_run", reply, args)
+        if run != args["path"]:
+            missing = self._existing(name, {**args, "run": run}, "run")
+            if missing is not None:
+                return None, missing
+        return run, None
+
+    def _then_run(self, name: str, said: str, script: str | None) -> Judged:
+        """A change's reply, and the run after it when one was asked for."""
+        if script is None:
+            return Judged(name, "ok", said)
+        ran = self._run({"path": script})
+        return Judged(name, "ok", f"{said}\n\nRan {script}: {ran.reply}")
+
+    def _edit(self, args: dict[str, Any]) -> Judged:
+        """crew's `replace_text`, as `edit`: each refusal its own rule, and nothing run."""
+        if not a_path(args["path"]):
+            return self._not_a_path("edit", args, "path")
+        target = inside(self.directory, args["path"])
+        if target is None or not target.is_file():
+            reply = f"There's no file `{args['path']}`: `write` makes a new one."
+            return self._failed("edit", "edit.no_file", reply, args)
+        script, wrong = self._run_after("edit", args)
+        if wrong is not None:
+            return wrong
+        text = target.read_text(encoding="utf-8")
+        old, new = _trim(args["old"]), _trim(args["new"])
+        refused = _refusal(args["path"], text, old, new)
+        if refused is not None:
+            return self._failed("edit", refused[0], refused[1], args)
+        lines = text.splitlines()
+        want = old.split("\n")
+        i = next(k for k in range(len(lines)) if lines[k : k + len(want)] == want)
+        changed = lines[:i] + (new.split("\n") if new else []) + lines[i + len(want) :]
+        after = "\n".join(changed) + ("\n" if text.endswith("\n") else "")
+        from crew_org.session.tools import changed_lines  # noqa: PLC0415
+
+        broken = ""
+        if args["path"].endswith(".py"):
+            error = _parse_error(after)
+            if error is not None and _parse_error(text) is None:
+                reply = (
+                    f"Your changes have NOT been applied: `{args['path']}` would stop parsing "
+                    f"({error[0]}, line {error[1]}).\n\nThe lines as they would have been:\n"
+                    f"{changed_lines(text, after)}\n\nThe lines as they are:\n"
+                    f"{changed_lines(text, after, side='old')}"
+                )
+                return self._failed("edit", "edit.parse_guard", reply, args)
+            if error is not None:
+                broken = f" It doesn't parse: {error[0]} on line {error[1]}."
+        target.write_text(after, encoding="utf-8")
+        said = f"Replaced lines in `{args['path']}`.{broken}\nIt now reads:\n"
+        return self._then_run("edit", said + changed_lines(text, after), script)
 
     def _not_a_path(self, name: str, args: dict[str, Any], key: str) -> Judged:
         said = f"`{key}` is a file's path, of at most {MAX_PATH} characters on one line."
@@ -271,7 +463,27 @@ class PartTools:
         self.runs.append({"path": args["path"], "code": done.code, "seconds": done.seconds})
         if done.code == 0 and all((self.directory / o).is_file() for o in self.outputs):
             self.compiled = True
-        return Judged("run", "ok", f"exit {done.code} after {done.seconds}s\n{done.output[-TAIL:]}")
+        reply = f"exit {done.code} after {done.seconds}s\n{done.output[-TAIL:]}"
+        if done.code != 0 and self.arm == BASE:
+            hinted = self.hint(done.output)
+            reply += f"\n\n{hinted}" if hinted else ""
+        return Judged("run", "ok", reply)
+
+    def hint(self, output: str) -> str:
+        """For a run's last AttributeError, where the name is (`hint.py`), or nothing."""
+        found = list(NO_ATTRIBUTE.finditer(output))
+        if not found:
+            return ""
+        last = found[-1]
+        owner = last.group(1) or last.group(2) or last.group(3)
+        done = self.execute(
+            ["python", "-I", "-", owner, last.group(4)], LOOKUP_TIMEOUT, stdin=HINT_SOURCE
+        )
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(hint_module.MARK):
+                said = json.loads(line[len(hint_module.MARK) :])
+                return "" if "error" in said else hint_module.said(said)
+        return ""
 
     def _inspect(self, args: dict[str, Any]) -> Judged:
         missing = self._existing("inspect", args)

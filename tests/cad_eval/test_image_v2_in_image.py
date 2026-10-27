@@ -96,3 +96,28 @@ def test_the_docs_index_is_cadquerys_v2_8_0_under_its_licence() -> None:
     assert all(isinstance(b["runs"], bool) for b in blocks)
     assert any(b["show_object"] for b in blocks)
     assert not any(b["runs"] for b in blocks if b["show_object"])
+
+
+def hint(owner: str, name: str) -> dict:
+    from cad_eval import hint as hint_module  # noqa: PLC0415
+
+    done = subprocess.run(
+        ["docker", "run", "--rm", "-i", "--network", "none", container.IMAGE_V2]
+        + ["python", "-I", "-", owner, name],
+        input=Path(hint_module.__file__).read_text(),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=120,
+    )
+    line = next(x for x in done.stdout.splitlines() if x.startswith(hint_module.MARK))
+    return json.loads(line[len(hint_module.MARK) :])
+
+
+def test_a_hint_names_where_a_real_name_is_and_what_is_near_a_made_up_one() -> None:
+    """v1's commonest errors, answered from the installed library."""
+    found = hint("Workplane", "isValid")
+    assert found["on"][0] == "cq.Shape" and "cq.Solid" in found["on"]
+    assert "cq.Workplane" not in found["on"]
+    assert "cq.Shape" in hint("Workplane", "fuse")["on"]
+    assert "makeFromWires" in hint("Face", "makeFace")["near"]

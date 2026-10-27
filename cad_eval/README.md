@@ -439,3 +439,39 @@ The typed `--serving` flag is gone.
     sandbox has none.
   - **At v2.8.0:** 263 chunks and 230 code blocks, of which 91 run alone and 40
     call `show_object`.
+
+## The base arm's tools (mqucifer/model-performance#40, A1)
+
+`--arm base` is v2's base: the full toolset. v1's arms and the 30 parts keep their
+tools word for word.
+
+**`edit`** is crew's `replace_text`, behaviour and all:
+- **What it quotes:** one or more whole lines, exactly once. One leading and one
+  trailing newline are forgiven.
+- **A refusal says why, under its own rule id:**
+  - `edit.twice`: the lines occur more than once, at the line numbers given;
+  - `edit.part_of_a_line`: `old` is only part of a line;
+  - `edit.closest`: the lines aren't there; the closest block is shown, numbered;
+  - `edit.already`: the change may be made already;
+  - `edit.not_found`, `edit.same`, `edit.empty`, `edit.no_file`.
+- **The parse guard:** an edit that would stop a Python file parsing isn't applied
+  (`edit.parse_guard`); the lines are shown as they would have been and as they are.
+  A file that already doesn't parse can still be edited, and the reply says so.
+- **The reply:** the edited lines, numbered.
+
+**`run` on `write` and `edit`:** `true` runs the file just written; a path runs that
+script, for a file it imports, such as `params.py`. One call then changes and runs.
+- **What's refused:** a refused edit runs nothing, and a `run` that's neither true nor
+  an existing script is refused before anything is written (`not_a_run`, `no_file`).
+- **The first compiling part:** a write's or edit's run sets it as `run` does, so
+  `calls_to_first_compile` counts it.
+- **Several calls in one turn:** carried out in order. An edit's run follows that
+  edit, before the turn's next call.
+
+**A failed run's AttributeError** adds where the name is (`hint.py`, from the image's
+lookup index):
+- **A real name on another class**, v1's commonest error: "`isValid` isn't on
+  Workplane. It's on: cq.Shape, cq.Compound, cq.Solid…".
+- **A name no class has:** the nearest names, first the class's own, then all of
+  CadQuery's: "No CadQuery class has `makeFace`. Names near it: `makeFromWires`…".
+- **Where it comes from:** what's installed, not a list anyone wrote.

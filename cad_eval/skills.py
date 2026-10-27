@@ -27,6 +27,8 @@ SKILLS = Path(__file__).parent / "skills"
 SETS = ("cadquery", "references")
 # What each arm offers: its sets, and whether it has `lookup` (CadQuery's names).
 ARMS: dict[str, tuple[tuple[str, ...], bool]] = {
+    # v2's base (mqucifer/model-performance#40): every set and every tool.
+    "base": (("cadquery", "references"), True),
     "skill": (("cadquery",), True),
     "refs": (("references",), False),
     "skill-refs": (("cadquery", "references"), True),

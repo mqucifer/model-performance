@@ -79,8 +79,10 @@ def tools(tmp_path: Path, arm: str) -> PartTools:
 
 
 def test_each_arm_offers_its_own_skills_and_lookup_only_with_cadquery(tmp_path: Path) -> None:
-    assert ARMS == ("skill", "refs", "skill-refs")
-    names = {arm: [s["function"]["name"] for s in tools(tmp_path, arm).specs][5:] for arm in ARMS}
+    # v1's arms, as they ran; v2's base (#40) is its own (`test_edit.py`, `test_base.py`).
+    assert ARMS == ("base", "skill", "refs", "skill-refs")
+    v1 = ("skill", "refs", "skill-refs")
+    names = {arm: [s["function"]["name"] for s in tools(tmp_path, arm).specs][5:] for arm in v1}
     assert names == {
         "skill": ["skill", "lookup"],
         "refs": ["skill"],
