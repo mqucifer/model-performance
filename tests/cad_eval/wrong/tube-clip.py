@@ -1,6 +1,6 @@
 import cadquery as cq
 
-BORE = 9.8  # the tube's 10 mm radius and a little
+BORE = 9.0  # 18 mm across: 2 mm under the 20 mm tube, which can't go in
 pad = cq.Workplane("XY").box(12, 30, 8, centered=(True, True, False)).translate((0, 0, -8))
 ring = cq.Workplane("YZ").center(0, -20).circle(13).circle(BORE).extrude(6, both=True)
 # The opening, 100° wide, facing down: narrower than the tube, so it snaps in.

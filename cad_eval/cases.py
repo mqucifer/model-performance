@@ -124,6 +124,26 @@ def line(
     return Sample(name, points, share, changes, gaps=gaps, spacing=spacing)  # type: ignore[arg-type]
 
 
+def grid(
+    name: str,
+    x: float,
+    ys: tuple[float, float],
+    zs: tuple[float, float],
+    *,
+    step: float = 1.0,
+    share: Span = (0.0, 1.0),
+) -> Sample:
+    """Points over a rectangle in the plane X = `x`, `step` apart: an area's share of
+    material, where a line would be cut by any hole on it."""
+    ny, nz = int((ys[1] - ys[0]) / step) + 1, int((zs[1] - zs[0]) / step) + 1
+    points = tuple(
+        (x, round(ys[0] + i * step, 3), round(zs[0] + j * step, 3))
+        for i in range(ny)
+        for j in range(nz)
+    )
+    return Sample(name, points, share)
+
+
 @dataclass(frozen=True)
 class Holes:
     """Round holes the part must have, wherever the model puts them: at least `count`
@@ -330,10 +350,11 @@ PI5_PORTS = (
     line("flex_room", (-1.1, 29.89, -6), (-3.6, 29.89, -6), n=30, share=(0.0, 0.0)),
     line("flex_cable", (-2.5, 29.89, -14), (-2.5, 29.89, 1), n=60, share=(0.0, 0.0)),
 )
-# A boss under each hole, under the Base: material round each hole's axis, 2 mm out,
+# A boss under each hole, under the Base: material round each hole's axis, 2.5 mm out
+# (#40 V2: at 2 mm a heat-set insert's hole, up to 4.5 mm across, failed it),
 # 2 mm under the lowest the Base's top could be with a 1.6 mm board under it.
 PI5_SUPPORTS = tuple(
-    ring(f"boss_{x}_{y}", (x, y, -17.2), 2.0, n=36, share=(0.5, 1.0)) for x, y in PI5_HOLES
+    ring(f"boss_{x}_{y}", (x, y, -17.2), 2.5, n=36, share=(0.5, 1.0)) for x, y in PI5_HOLES
 )
 
 CASES: dict[str, Case] = {
@@ -348,6 +369,8 @@ CASES: dict[str, Case] = {
                     "part",
                     bbox=((-32, 32), (-10, 10), (0, 3)),
                     volume=2 * 30 * 20 * 3 + 4 * 20 * 0.4,
+                    # Every stated tolerance at its limit at once moves it 4.2% (#40 V2).
+                    volume_rel=0.045,
                     # The web's top at 0.4 ± 0.05: in below, out above.
                     inside={
                         "web_at_least": (0, 0, 0.34),
@@ -397,6 +420,7 @@ CASES: dict[str, Case] = {
                     "part",
                     bbox=((-5, 6), (-4, 4), (0, 20)),
                     volume=10 * 8 * 4 + 1.6 * 8 * 16 + 0.5 * 1 * 3 * 8,
+                    volume_rel=0.055,  # every stated tolerance at its limit (#40 V2)
                     inside={
                         "base": (0, 0, 2),
                         "beam": (4.2, 0, 10),
@@ -427,6 +451,7 @@ CASES: dict[str, Case] = {
                     bbox=((-15, 15), (-12, 12), (5.2, 15)),
                     # The groove: the tongue's flanks offset 0.2 mm square to themselves.
                     volume=30 * (24 * 9.8 - (2 * 5.2954 + 2 * 7.2954) / 2 * 5),
+                    volume_rel=0.035,  # every stated tolerance at its limit (#40 V2)
                     # 0.05 mm square to a flank is 0.054 mm across it.
                     inside={
                         "flank_+y": (0, 6.355, 7.7),
@@ -455,6 +480,9 @@ CASES: dict[str, Case] = {
                     solids=2,
                     bbox=((-25, 25), (-15, 15), (-3, 3)),
                     volume=VOLUMES["print-in-place-hinge"],
+                    # The bridges' height isn't stated (knuckle-tall ones add 2.1%), and
+                    # every stated tolerance at its limit is about 4.3% more (#40 V2).
+                    volume_rel=0.065,
                     inside={
                         "pin_at_least": (1.44, 0, 0),
                         "pin_end": (0, -14.9, 0),
@@ -483,6 +511,9 @@ CASES: dict[str, Case] = {
                     "part",
                     bbox=((-16.5, 16.5), (-16.5, 16.5), (0, 8)),
                     volume=VOLUMES["spur-gear"],
+                    # Below the base circle the tooth isn't stated: ISO 53's rack, generated,
+                    # is +0.9%, and the face at its stated +0.1 another 1.25% (#40 V2).
+                    volume_rel=0.04,
                     inside={"bore_at_most": (0, 3.03, 4), "tooth_+x": (16.4, 0, 4)},
                     outside={
                         "bore_at_least": (0, 2.97, 4),
@@ -527,7 +558,13 @@ CASES: dict[str, Case] = {
                             "flanks", (3.6, 0, 2), (3.6, 0, 18), share=(0.3, 0.7), changes=(24, 28)
                         ),
                         line("roots", (0, 3.2, 2), (0, 3.2, 18), share=(0.99, 1.0)),
-                        line("crests", (-3.88, 0, 2), (-3.88, 0, 18), share=(0.05, 0.5)),
+                        # ISO 68-1's 60° flanks, over whole pitches so the thread's phase can't
+                        # skew a share. Drawn flat, 0.63 of a line is material at r = 3.45 (a
+                        # profile swept along the helix reads about 0.09 more) and
+                        # 0.24 at r = 3.88, where a square thread is 0.5 at both; each window
+                        # takes the profile 0.1 mm smaller or larger, as stated (#40 V2).
+                        line("flanks_low", (0, -3.45, 2), (0, -3.45, 17), share=(0.52, 0.86)),
+                        line("crests", (-3.88, 0, 2), (-3.88, 0, 18), share=(0.12, 0.36)),
                         line("past_crests", (0, -4.02, 2), (0, -4.02, 18), share=(0.0, 0.01)),
                         helix("right_hand", 3.6, 1.25, 3, 17),
                     ),
@@ -543,6 +580,7 @@ CASES: dict[str, Case] = {
                     "clevis",
                     bbox=((-8, 8), (-9, 9), (0, 26)),
                     volume=16 * 18 * 6 + 2 * 16 * 4 * 20 - 2 * math.pi * 3.15**2 * 4,
+                    volume_rel=0.04,  # every stated tolerance at its limit (#40 V2)
                     # The holes' radius 3.15 ± 0.025: in past it, out short of it.
                     inside={"base": (0, 0, 3), "cheek": (0, 7, 10), "hole_at_most": (3.19, -7, 18)},
                     outside={
@@ -555,6 +593,7 @@ CASES: dict[str, Case] = {
                     "tongue",
                     bbox=((-6, 6), (-4.6, 4.6), (10, 40)),
                     volume=12 * 9.2 * 30 - math.pi * 3.15**2 * 9.2,
+                    volume_rel=0.03,  # every stated tolerance at its limit (#40 V2)
                     inside={"bar": (0, 0, 30), "hole_at_most": (3.19, 0, 18)},
                     outside={"hole": (0, 0, 18), "hole_at_least": (0, 0, 21.11)},
                     gaps=(Gap("clevis", distance=(0.3, 0.5)),),
@@ -563,6 +602,7 @@ CASES: dict[str, Case] = {
                     "pin",
                     bbox=((-5, 5), (-12, 10), (13, 23)),
                     volume=math.pi * 3**2 * 20 + math.pi * 5**2 * 2,
+                    volume_rel=0.04,  # every stated tolerance at its limit (#40 V2)
                     inside={"pin_at_least": (2.97, 0, 18), "head": (4.9, -11, 18)},
                     outside={"pin_at_most": (0, 0, 21.03), "past_head": (0, -12.1, 18)},
                     gaps=(
@@ -591,6 +631,7 @@ CASES: dict[str, Case] = {
                     "bushing",
                     bbox=((-9, 9), (-9, 9), (0, 12)),
                     volume=math.pi * (9**2 * 2 + 6**2 * 10 - 4.15**2 * 12),
+                    volume_rel=0.06,  # every stated tolerance at its limit: 5.3% (#40 V2)
                     inside={
                         "flange": (0, 8.9, 1),
                         "sleeve": (5.9, 0, 10),
@@ -602,8 +643,18 @@ CASES: dict[str, Case] = {
                     "collar",
                     bbox=((-9, 9), (-9, 9), (12.3, 20.3)),
                     volume=math.pi * (9**2 - 4.15**2) * 8 - math.pi * 1.25**2 * (9 - 4.15),
-                    inside={"ring": (0, 8.5, 16.3), "bore_at_most": (0, 4.18, 16.3)},
-                    outside={"set_screw": (6.5, 0, 16.3), "bore_at_least": (0, -4.12, 16.3)},
+                    volume_rel=0.035,  # every stated tolerance at its limit (#40 V2)
+                    inside={
+                        "ring": (0, 8.5, 16.3),
+                        "bore_at_most": (0, 4.18, 16.3),
+                        "set_screw_at_most": (6.5, 0, 17.65),
+                    },
+                    outside={
+                        "set_screw": (6.5, 0, 16.3),
+                        # Its 2.5 mm across, at ±0.1 (#40 V2: only its centre was held).
+                        "set_screw_at_least": (6.5, 0, 17.45),
+                        "bore_at_least": (0, -4.12, 16.3),
+                    },
                     gaps=(Gap("bushing", distance=(0.25, 0.35)),),
                 ),
             ),
@@ -616,6 +667,7 @@ CASES: dict[str, Case] = {
                     "cabinet",
                     bbox=((-50, 50), (0, 80), (0, 60)),
                     volume=100 * 80 * 60 - 94 * 77 * 54,
+                    volume_rel=0.045,  # its 3 mm walls at ±0.1: about 3.5% (#40 V2)
                     inside={
                         "side": (48.5, 40, 30),
                         "back": (0, 78.5, 30),
@@ -628,10 +680,18 @@ CASES: dict[str, Case] = {
                     "drawer",
                     bbox=((-50, 50), (-3.5, 76.5), (0.5, 59.5)),
                     volume=93 * 77 * 46.5 - 89 * 73 * 44.5 + 100 * 3 * 59 - math.pi * 10**2 * 5,
-                    inside={"side": (45.5, 40, 30), "floor": (0, 40, 4.5), "front": (0, -2, 10)},
+                    volume_rel=0.05,  # every stated tolerance at its limit: 4.7% (#40 V2)
+                    inside={
+                        "side": (45.5, 40, 30),
+                        "floor": (0, 40, 4.5),
+                        "front": (0, -2, 10),
+                        # The finger hole's 20 mm across, at ±0.1 (#40 V2).
+                        "finger_hole_at_most": (0, -2, 48.1),
+                    },
                     outside={
                         "inside": (0, 40, 30),
                         "finger_hole": (0, -2, 38),
+                        "finger_hole_at_least": (0, -2, 47.9),
                         "over_body": (0, 0, 52),
                     },
                     gaps=(Gap("cabinet", distance=(0.4, 0.6)),),
@@ -646,6 +706,7 @@ CASES: dict[str, Case] = {
                     "plate",
                     bbox=((-12, 58), (-25, 25), (0, 14)),
                     volume=70 * 50 * 4 + 2 * math.pi * 2.5**2 * 10,
+                    volume_rel=0.03,  # the 4 mm plate at ±0.1: 2.4% (#40 V2)
                     inside={"post_a_at_least": (2.47, 0, 10), "post_b_at_least": (30.2, 2.47, 10)},
                     outside={"post_a_at_most": (2.53, 0, 10), "post_b_at_most": (30.2, -2.53, 10)},
                 ),
@@ -653,10 +714,23 @@ CASES: dict[str, Case] = {
                     "gear-a",
                     bbox=((-10.5, 10.5), (-10.5, 10.5), (4.5, 10.5)),
                     volume=VOLUMES["gear-a"],
+                    # Every stated tolerance at its limit, the tooth's "about 0.1 mm" and
+                    # ISO 53's rack below the base circle included: about 5.9% (#40 V2).
+                    volume_rel=0.06,
                     inside={"bore_at_most": (0, 2.73, 7.5), "tooth_+x": (10.4, 0, 7.5)},
                     outside={"bore_at_least": (0, 2.67, 7.5)},
                     samples=(
                         ring("pitch", (0, 0, 7.5), 9, n=499, share=(0.48, 0.52), changes=(24, 24)),
+                        # The involute's share at r = 9.75 is 0.355 (#40 V2: only the pitch
+                        # circle was held, so straight flanks passed).
+                        ring(
+                            "addendum",
+                            (0, 0, 7.5),
+                            9.75,
+                            n=499,
+                            share=(0.335, 0.375),
+                            changes=(24, 24),
+                        ),
                         ring("root", (0, 0, 7.5), 7.0, n=181, share=(0.99, 1.0)),
                     ),
                     gaps=(
@@ -668,11 +742,20 @@ CASES: dict[str, Case] = {
                     "gear-b",
                     bbox=BOXES["gear-b"],
                     volume=VOLUMES["gear-b"],
+                    volume_rel=0.04,  # as gear A's: +0.5% for the rack, 1.7% for the face
                     inside={"bore_at_most": (30.2, 2.73, 7.5)},
                     outside={"bore_at_least": (30.2, 2.67, 7.5), "gap_-x": (30.2 - 22.4, 0, 7.5)},
                     samples=(
                         ring(
                             "pitch", (30.2, 0, 7.5), 21, n=499, share=(0.48, 0.52), changes=(56, 56)
+                        ),
+                        ring(
+                            "addendum",
+                            (30.2, 0, 7.5),
+                            21.75,
+                            n=499,
+                            share=(0.35, 0.39),
+                            changes=(56, 56),
                         ),
                         ring("root", (30.2, 0, 7.5), 19.0, n=181, share=(0.99, 1.0)),
                     ),
@@ -698,6 +781,9 @@ CASES: dict[str, Case] = {
                             "flanks", (3.6, 0, 2), (3.6, 0, 28), share=(0.3, 0.7), changes=(39, 44)
                         ),
                         line("roots", (0, 3.2, 2), (0, 3.2, 28), share=(0.99, 1.0)),
+                        # The 60° profile, as m8-bolt's (#40 V2).
+                        line("flanks_low", (0, -3.45, 2), (0, -3.45, 27), share=(0.52, 0.86)),
+                        line("crests", (-3.88, 0, 2), (-3.88, 0, 27), share=(0.12, 0.36)),
                         line("past_crests", (0, -4.02, 2), (0, -4.02, 28), share=(0.0, 0.01)),
                         helix("right_hand", 3.6, 1.25, 3, 27),
                     ),
@@ -721,6 +807,12 @@ CASES: dict[str, Case] = {
                             changes=(7, 11),
                         ),
                         line("bore", (0, 3.4, 10.5), (0, 3.4, 16), share=(0.0, 0.01)),
+                        # The bolt's profile grown 0.15 mm, as stated: 0.32 at r = 3.55 and
+                        # 0.76 at r = 4.03 drawn flat, about 0.1 less swept along the helix (the
+                        # reference: 0.225, 0.74), where a square thread is 0.5 at both. Four
+                        # whole pitches, so the thread's phase can't skew the share.
+                        line("flanks_low", (0, -3.55, 10.5), (0, -3.55, 15.5), share=(0.12, 0.44)),
+                        line("flanks_high", (-4.03, 0, 10.5), (-4.03, 0, 15.5), share=(0.56, 0.9)),
                         line("past_roots", (0, -4.25, 10.5), (0, -4.25, 16), share=(0.99, 1.0)),
                         helix("right_hand", 3.8, 1.25, 11, 15.5, n=120),
                     ),
@@ -736,15 +828,21 @@ CASES: dict[str, Case] = {
                     "box",
                     bbox=((-30, 30), (-20, 20), (0, 30)),
                     volume=60 * 40 * 30 - 56 * 36 * 28 - 2 * 2 * 12 * 4,
+                    volume_rel=0.06,  # its 2 mm walls at ±0.1: about 5.5% (#40 V2)
                     inside={
                         "over_window": (29, 0, 26),
                         "under_window": (29, 0, 20),
                         "side": (0, 19, 15),
                         "floor": (0, 0, 1),
+                        "past_window_+y": (29, 6.1, 23),
+                        "past_window_-y": (29, -6.1, 23),
                     },
                     outside={
                         "window_+x": (29, 0, 23),
                         "window_-x": (-29, 0, 23),
+                        # Its 12 mm along Y, at ±0.1 (#40 V2: any window wider passed).
+                        "window_+y_edge": (29, 5.9, 23),
+                        "window_-y_edge": (29, -5.9, 23),
                         "inside": (0, 0, 15),
                     },
                 ),
@@ -752,6 +850,7 @@ CASES: dict[str, Case] = {
                     "lid",
                     bbox=((-31.8, 31.8), (-20, 20), (20, 32)),
                     volume=63.6 * 40 * 2 + 2 * 1.6 * 10 * 10 + 2 * 0.5 * 1 * 3 * 10,
+                    volume_rel=0.055,  # its 2 mm plate at ±0.1: 4.7% (#40 V2)
                     # Each hook in its window's wall, under the window's top: it holds.
                     inside={
                         "hook_+x_holds": (29.6, 0, 24.75),
@@ -760,6 +859,8 @@ CASES: dict[str, Case] = {
                         "plate": (0, 0, 31),
                     },
                     outside={
+                        # The hook 0.8 mm into the wall, not past 0.9 (#40 V2).
+                        "past_hook": (29.1, 0, 24.75),
                         "over_hook": (29.6, 0, 24.85),
                         "arm_clear": (30.1, 0, 27),
                         "ramp": (29.9, 0, 22.2),
@@ -776,6 +877,7 @@ CASES: dict[str, Case] = {
                     "axle",
                     bbox=((-2.5, 2.5), (-14, 14), (-2.5, 2.5)),
                     volume=math.pi * 2.5**2 * 28,
+                    volume_rel=0.03,  # every stated tolerance at its limit (#40 V2)
                     inside={"axle_at_least": (2.47, 0, 0)},
                     outside={"axle_at_most": (0, 0, 2.53)},
                     gaps=tuple(
@@ -799,6 +901,7 @@ CASES: dict[str, Case] = {
                         name,
                         bbox=((-4.5, 4.5), (y0, y1), (-4.5, 4.5)),
                         volume=math.pi * (4.5**2 - 2.65**2) * 2.7,
+                        volume_rel=0.09,  # every stated tolerance at its limit: 8.3% (#40 V2)
                         inside={
                             "tube": (0, (y0 + y1) / 2, 4.4),
                             "bore_at_most": (0, (y0 + y1) / 2, 2.68),
@@ -811,6 +914,7 @@ CASES: dict[str, Case] = {
                     "fork",
                     bbox=((-12, 12), (-13.3, 13.3), (-8, 30)),
                     volume=2 * 16 * 4 * 34 + 24 * 26.6 * 4 - 2 * math.pi * 2.65**2 * 4,
+                    volume_rel=0.04,  # every stated tolerance at its limit (#40 V2)
                     inside={"arm": (0, 11, 20), "top": (0, 0, 28), "hole_at_most": (2.68, 11.3, 0)},
                     outside={"hole_at_least": (0, 11.3, 2.62), "between_arms": (0, 0, 10)},
                     gaps=(
@@ -831,7 +935,9 @@ CASES: dict[str, Case] = {
                     samples=(
                         # Its top carries the shelf from the wall to 100 mm out.
                         line("carries_shelf", (2, 0, -0.3), (100, 0, -0.3), share=(0.99, 1.0)),
-                        line("on_the_wall", (0.3, 0, -1), (0.3, 0, -40), share=(0.8, 1.0)),
+                        # Flat on the wall: an area of its back, so its screw holes don't
+                        # count against it (#40 V2: a line through two centred holes failed).
+                        grid("on_the_wall", 0.3, (-5, 5), (-40, -1), share=(0.6, 1.0)),
                     ),
                     holes=(Holes("screws", "x", (2.1, 2.6), 2),),
                     # 2 kg on two brackets: 9.81 N on each, at the shelf's middle, 75 mm out.
@@ -850,7 +956,10 @@ CASES: dict[str, Case] = {
                         # It wraps more than half the tube, so it snaps on, and leaves an
                         # opening; its bore takes the tube and grips it.
                         ring("wraps", (0, 0, -20), 10.6, axis="x", n=181, share=(0.55, 0.95)),
-                        ring("takes_tube", (0, 0, -20), 9.95, axis="x", n=181, share=(0.0, 0.01)),
+                        # The tube goes in: a bore of 19.5 mm or more, so it may grip the 20
+                        # mm tube by up to 0.5 mm and still come out by hand (the blind
+                        # oracle, #40: 19.9 refused a press grip the text allows).
+                        ring("takes_tube", (0, 0, -20), 9.75, axis="x", n=181, share=(0.0, 0.01)),
                         ring("grips", (0, 0, -20), 10.4, axis="x", n=181, share=(0.5, 1.0)),
                         line("on_desk", (0, -15, -0.3), (0, 15, -0.3), share=(0.5, 1.0)),
                     ),
@@ -864,18 +973,23 @@ CASES: dict[str, Case] = {
             (
                 Member(
                     "part",
-                    within=((-25, 25), (-25, 25), (0.5, 40)),
+                    # Off the panel by any gap, so it doesn't rub: 0.1 mm or more with the
+                    # tolerance (the blind oracle, #40: 0.4 refused gaps the text allows).
+                    within=((-25, 25), (-25, 25), (0.2, 40)),
                     spans=((20, 50), (20, 50), (10, 40)),
                     # The bore keys on the flat (X = 1.5), from Z = 4 to the shaft's tip.
                     inside={
                         "keys_flat": (1.75, 0, 8),
-                        "keys_flat_low": (1.75, 0, 4.5),
+                        # At least 8 mm down the 12 mm shaft: to Z = 4, at ±0.1 (#40 V2).
+                        "keys_flat_low": (1.75, 0, 4.1),
                         "keys_flat_high": (1.75, 0, 11.5),
                         "round_snug": (0, 3.2, 8),
                     },
                     outside={"bore": (0, 0, 8)},
                     # Snug: at most 0.15 mm off the shaft, or pressed on by a little.
-                    gaps=(Gap("shaft", interference=(0.0, 1.0), distance=(0.0, 0.15)),),
+                    # Snug: at most 0.15 mm off the shaft, or pressed on by up to about 0.07
+                    # mm all round, 10 mm³ (#40 V2: 1 mm³ was 0.007 mm, no real press fit).
+                    gaps=(Gap("shaft", interference=(0.0, 10.0), distance=(0.0, 0.15)),),
                 ),
             ),
             mates={"shaft": D_SHAFT},
@@ -887,7 +1001,8 @@ CASES: dict[str, Case] = {
                 Member(
                     "part",
                     within=((0, 100), (-40, 40), (-60, 60)),
-                    spans=(None, (40, 80), None),
+                    # Room for a strap "about 40 mm wide": 35 mm or more (#40 V2).
+                    spans=(None, (35, 80), None),
                     holes=(Holes("screws", "x", (2.1, 2.6), 2),),
                     # 5 kg hung at the hook's far end, the worst place it could hang.
                     load=Load("bag", "x", 8, force_n=5 * G),
@@ -925,11 +1040,19 @@ CASES: dict[str, Case] = {
                 Member(
                     "part",
                     within=((0, 150), (-60, 60), (-60, 60)),
+                    # The spool's 65 mm width fits on it: it reaches that far from the
+                    # wall, solid or hollow (the blind oracle, #40: a line through the
+                    # axis, 99% solid, failed a hollow tube the text allows).
+                    spans=((65, 150), None, None),
                     samples=(
                         # Clear of the 53 mm hole by 0.2 mm at least, under the spool's
                         # whole width.
                         ring("clears_hub", (40, 0, 0), 26.3, axis="x", n=181, share=(0.0, 0.01)),
-                        line("carries_width", (8, 0, 0), (75, 0, 0), share=(0.99, 1.0)),
+                        # Its axis is the X axis, so the 53 mm hole rests on the holder
+                        # near its top: material at R 24 (a spindle 48 mm across or more,
+                        # loose enough to turn) along the width past any wall plate (#40
+                        # V2: a thin rod on the axis would hang the spool 14 mm low).
+                        line("carries_hub", (15, 0, 24), (70, 0, 24), share=(0.99, 1.0)),
                     ),
                     holes=(Holes("screws", "x", (2.1, 2.6), 2),),
                     load=Load("spool", "x", 8, force_n=1 * G),

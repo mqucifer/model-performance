@@ -630,3 +630,55 @@ in a real v2 container, through every tool of the base arm, error paths included
 - **The part:** press-fit-pin's reference solution, which passes every check of the
   case.
 - **No model is called.**
+
+## The case audit, both ways (mqucifer/model-performance#40, V2)
+
+`audit.json` traces every hidden check of the 21 harder cases (539 of them) to its
+spec's text. Each is classed:
+- **`stated`** (295): the spec's own words, quoted, state the value;
+- **`derived`** (116): it follows by a named standard or by arithmetic, both shown;
+- **`judgment`** (69): a choice the text leaves open, with why the window takes every
+  defensible answer;
+- **`frame`** (59): placement the spec gives.
+
+`audit.py` lists the checks from the case data alone, and an image test holds that
+list to the names the real checks produce, so the audit can't fall behind.
+
+**Both ways, tested** (`test_audit.py`):
+- every check has an entry, and every quote is in the spec;
+- every number the spec states is quoted by a check's entry, or listed under
+  `unchecked` with why.
+
+**What the audit and the blind oracle found, and fixed:**
+- **Correct parts the checks failed:**
+  - spool-holder's axis line failed a hollow spindle;
+  - tube-clip refused a grip;
+  - d-shaft-knob refused small gaps to the panel and real press fits;
+  - shelf-bracket's wall line failed two centred screw holes;
+  - pi5's bosses failed heat-set insert holes, and its vents had to be in the lid, which
+    the text didn't say;
+  - the ±2% volume windows were narrower than the specs' own tolerances. Each window is
+    now the volume with every stated tolerance at its limit at once.
+- **Text that left a check open,** now stated: wall-hook's strap lies along Y, pi5's
+  boards are held by their holes from below, and its venting is in the lid.
+- **Stated values with no real check,** now checked:
+  - the thread's 60° profile at two more radii, over whole pitches (a square thread
+    passed before);
+  - gear-pair's involute at an addendum ring per gear;
+  - snap-enclosure's 12 mm window and 0.8 mm hook depth;
+  - the set-screw's 2.5 mm and the finger hole's 20 mm diameters.
+- **Inconsistent:** spool-holder's frame puts the spool's axis on X, but its reference
+  hung the spool on a Ø24 rod, 14 mm low. Its hole now rests near the holder's top
+  (`carries_hub`), and the reference spindle is Ø52.
+- **Planted wrong solutions:** tube-clip's was a 0.4 mm grip, which the text allows.
+  It's now an 18 mm bore the tube can't enter.
+
+**Still open,** recorded for a decision, none of them a stated number:
+- wall-hook's "shouldn't slide off" lip, and that it and the spool holder touch the
+  wall;
+- cable-comb's "clicks in" and "stands on the desk";
+- pi5's ports, each held by one line, so a pinhole passes;
+- five share checks whose 0-to-1 window always passes;
+- gear and thread roots bounded from below only;
+- a few probes looser than the stated tolerance (the hinge's pin and bore).
+pi5's stated "2.7 mm across" holes have no check, and are listed under `unchecked`.

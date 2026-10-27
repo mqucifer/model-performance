@@ -1,6 +1,6 @@
 # Raspberry Pi 5 case with an NVMe Base Duo
 
-Can you make me a case I can print for my Raspberry Pi 5? It has a Pimoroni NVMe Base Duo mounted under it, with two 2280 SSDs. I want every port the Pi uses reachable, the boards not touching the walls, enough venting to keep them cool, and a lid that comes off without tools.
+Can you make me a case I can print for my Raspberry Pi 5? It has a Pimoroni NVMe Base Duo mounted under it, with two 2280 SSDs. I want the boards held by their mounting holes, from below, every port the Pi uses reachable, the boards not touching the walls, enough venting in the lid to keep them cool, and a lid that comes off without tools.
 
 **The files:** the case's body as `base.step` and its lid as `lid.step`, placed as assembled with the boards in it.
 
