@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+# The CAD evaluation's v2 image (mqucifer/model-performance#40): the CadQuery image,
+# unchanged, plus OSMesa so VTK renders offscreen for `view`, and the indexes the
+# `lookup` and `docs` tools search. Built by `build.sh v2`, which refuses unless the
+# local `2.8.0` tag is the image pinned there (BuildKit can't take a local image by
+# digest in FROM), and records that image's id as a label.
+FROM model-performance/cadquery:2.8.0 AS cadquery
+
+# CadQuery's own documentation and examples at its v2.8.0 tag, fetched by commit
+# (Apache-2.0: the index's builder checks the licence and refuses without it). Each
+# code block is run here, in this image, and marked as it ran.
+FROM cadquery AS docs
+ARG CADQUERY_COMMIT=fb4c6d41863aee270c46ab64397f0d2675e74be0
+ADD --keep-git-dir=false https://github.com/CadQuery/cadquery.git#${CADQUERY_COMMIT} /src/cadquery
+COPY docs_index.py /build/docs_index.py
+RUN cd /tmp && python /build/docs_index.py /src/cadquery ${CADQUERY_COMMIT} v2.8.0 /build/docs.json
+
+FROM cadquery
+ARG BASE_ID
+LABEL org.opencontainers.image.base.id=${BASE_ID} \
+      org.opencontainers.image.description="CadQuery 2.8.0, OSMesa, and the lookup and docs indexes (model-performance#40)"
+# OSMesa, the one package added, at its pinned version, from Debian's archive as it
+# stood on a fixed date, so a rebuild installs the same bytes. Its dependencies are
+# already in the CadQuery image; the image test holds the package list to exactly
+# the base's plus this one.
+ARG SNAPSHOT=20261027T000000Z
+RUN rm -f /etc/apt/sources.list.d/debian.sources \
+    && printf '%s\n' \
+       "deb http://snapshot.debian.org/archive/debian/${SNAPSHOT} bookworm main" \
+       "deb http://snapshot.debian.org/archive/debian/${SNAPSHOT} bookworm-updates main" \
+       "deb http://snapshot.debian.org/archive/debian-security/${SNAPSHOT} bookworm-security main" \
+       > /etc/apt/sources.list.d/snapshot.list \
+    && apt-get -o Acquire::Check-Valid-Until=false update \
+    && apt-get install -y --no-install-recommends libosmesa6=22.3.6-1+deb12u2 \
+    && rm -rf /var/lib/apt/lists/*
+COPY lookup_index.py /build/lookup_index.py
+RUN mkdir -p /opt/cad-eval \
+    && cd /tmp && python /build/lookup_index.py /opt/cad-eval/lookup.json \
+    && rm -rf /build
+COPY --from=docs /build/docs.json /opt/cad-eval/docs.json

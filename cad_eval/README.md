@@ -411,3 +411,31 @@ named (`served_model`).
   body, which can echo the request.
 
 The typed `--serving` flag is gone.
+
+## The v2 image (mqucifer/model-performance#40)
+
+`model-performance/cadquery:2.8.0-v2`, from `image/Dockerfile.v2` by `image/build.sh v2`:
+- **The base:** the CadQuery image, `model-performance/cadquery:2.8.0`. `build.sh`
+  refuses unless that tag is the pinned id (`1f29a53a…`, the image v1 ran on).
+  BuildKit can't take a local image by digest in `FROM`, so the script checks it,
+  and the image records it as the label `org.opencontainers.image.base.id`.
+- **One package added:** `libosmesa6=22.3.6-1+deb12u2`, so VTK renders offscreen for
+  `view`. It comes from `snapshot.debian.org` as Debian's archive stood on 2026-10-27,
+  so a rebuild installs the same bytes. A test holds the image's packages to the
+  base's plus exactly this one, and its Python packages to the base's exactly.
+- **The lookup index** (`/opt/cad-eval/lookup.json`, from `image/lookup_index.py` at
+  the build): every public CadQuery name, members through the method resolution order,
+  each function once with every class it's on, `cadquery.func` included. Also every
+  name in all of OCP's modules, with their pybind11 overloads.
+- **The docs index** (`/opt/cad-eval/docs.json`, from `image/docs_index.py`):
+  CadQuery's own `doc/*.rst` and `examples/*.py` at the `v2.8.0` tag, fetched by its
+  commit, `fb4c6d41863aee270c46ab64397f0d2675e74be0`.
+  - **Licence:** Apache-2.0. The builder checks `LICENSE` and refuses a source without
+    it, and the index records the repository, tag, commit and licence.
+  - **Chunks:** each section by its heading path, code fenced.
+  - **Code blocks:** each one is run in the image at the build and marked `runs`.
+    Blocks that fail are marked, not dropped; most are fragments that continue an
+    earlier block. A block calling CQ-editor's `show_object` is flagged, since the
+    sandbox has none.
+  - **At v2.8.0:** 263 chunks and 230 code blocks, of which 91 run alone and 40
+    call `show_object`.

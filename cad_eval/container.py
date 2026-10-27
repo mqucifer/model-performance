@@ -13,6 +13,12 @@ from pathlib import Path
 from typing import Any
 
 IMAGE = "model-performance/cadquery:2.8.0"
+# The v2 base's image (mqucifer/model-performance#40): the same CadQuery image, with
+# OSMesa for `view` and the `lookup` and `docs` indexes (`image/Dockerfile.v2`).
+IMAGE_V2 = "model-performance/cadquery:2.8.0-v2"
+# Where its indexes are, inside it.
+LOOKUP_INDEX = "/opt/cad-eval/lookup.json"
+DOCS_INDEX = "/opt/cad-eval/docs.json"
 
 
 def held(directory: Path, name: str, image: str = IMAGE) -> Any:
