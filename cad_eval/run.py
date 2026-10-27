@@ -178,13 +178,21 @@ def directory(settings: Settings, p: Part | Case, run: str) -> Path:
 
 
 def keep(source: Path, out: Path) -> None:
-    """The files the session left, into its records: they're the model's answers."""
-    for found in source.rglob("*"):
-        relative = found.relative_to(source)
-        if found.is_file() and relative.parts[0] != ".crew-home":
+    """The files the session left, into its records: they're the model's answers. A link
+    is never followed, to a file or into a folder: it could reach any file on the host."""
+    import os  # noqa: PLC0415
+
+    for root, folders, files in os.walk(source, followlinks=False):
+        here = Path(root)
+        folders[:] = [f for f in folders if not (here / f).is_symlink()]
+        for name in files:
+            found = here / name
+            relative = found.relative_to(source)
+            if found.is_symlink() or relative.parts[0] == ".crew-home":
+                continue
             target = out / "files" / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(found, target)
+            shutil.copy2(found, target, follow_symlinks=False)
 
 
 def own_calls(events: Path) -> set[str]:

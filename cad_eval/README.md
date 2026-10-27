@@ -814,3 +814,16 @@ right everywhere but its profile, kept in `tests/cad_eval/planted/`, and must fa
 - **The smoke test** also covers a keep-out, `hole`, `diameter`, `distance`,
   `clearance`, `read`, the exact edit refusal, `docs`' content, and a session ending
   `blocked`.
+
+## From the second review of #41
+
+**No path through a link** (a sandbox escape, fixed first). A symlink made by a `run`
+in the container resolves on the host, where `read`, `write`, `edit` and the records
+copy work. So `read` could read, and `write` overwrite, a file outside the part's
+directory, such as the harness's own `cases.py`. Now:
+- **Every host-side path** is refused if any part of it is a link, or if it resolves
+  outside the directory (`tools.inside`). That covers `read`, `write`, `edit`, `run`,
+  `run_script` and `done`'s script.
+- **The records copy** (`run.keep`) never follows a link, to a file or into a folder.
+- **Tested both directions** on the host (`test_sandbox_paths.py`), and with links
+  made in the container itself (`test_sandbox_paths_in_image.py`).

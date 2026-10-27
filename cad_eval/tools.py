@@ -372,7 +372,7 @@ def _refusal(path: str, text: str, old: str, new: str) -> tuple[str, str] | None
     if best < NEAR_RATIO:
         return (
             "edit.not_found",
-            f"Those lines aren't in `{path}`, and nothing close is: read it with a run first.",
+            f"Those lines aren't in `{path}`, and nothing close is: read it with `read` first.",
         )
     shown = "\n".join(numbered(lines, best_at - NEAR_CONTEXT, best_at + size + NEAR_CONTEXT))
     return "edit.closest", (
@@ -408,11 +408,26 @@ def a_path(path: str) -> bool:
 
 
 def inside(directory: Path, path: str) -> Path | None:
-    """`path` in the part's directory, or None for one that leads out of it."""
+    """`path` in the part's directory, or None for one that leads out of it, by its
+    name or through a link.
+
+    A symlink the model makes from a `run`, in the container, resolves on the host, where
+    these tools read and write (the second review of #41: `read` and `write` went out
+    through one). So no part of the path may be a link, and what it resolves to must
+    be in the directory.
+    """
     pure = PurePosixPath(path)
     if not path or pure.is_absolute() or ".." in pure.parts or pure.parts[0] == ".crew-home":
         return None
-    return directory / pure
+    step = directory
+    for part in pure.parts:
+        step = step / part
+        if step.is_symlink():
+            return None
+    target = directory / pure
+    if not target.resolve().is_relative_to(directory.resolve()):
+        return None
+    return target
 
 
 class PartTools:
@@ -569,7 +584,8 @@ class PartTools:
             return self._not_a_path("write", args, "path")
         target = inside(self.directory, args["path"])
         if target is None:
-            return self._failed("write", "outside", "Write only inside the part's directory.", args)
+            reply = "Write only inside the part's directory, and never through a link."
+            return self._failed("write", "outside", reply, args)
         if len(args["content"]) > MAX_CONTENT:
             return self._failed(
                 "write", "too_large", f"A file is at most {MAX_CONTENT} characters.", args
@@ -675,7 +691,8 @@ class PartTools:
             return self._not_a_path(name, args, key)
         target = inside(self.directory, args[key])
         if target is None:
-            return self._failed(name, "outside", "Only files inside the part's directory.", args)
+            reply = "Only files inside the part's directory, and never through a link."
+            return self._failed(name, "outside", reply, args)
         if not target.is_file():
             return self._failed(name, "no_file", f"There's no file {args[key]}.", args)
         return None
