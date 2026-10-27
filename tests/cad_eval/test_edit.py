@@ -27,7 +27,9 @@ cq.exporters.export(part, "part.step")
 def tools(tmp_path: Path, script: str = SCRIPT, **fake: Any) -> PartTools:
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / "make.py").write_text(script)
-    return PartTools(tmp_path, FakeWorkspace(directory=tmp_path, **fake), arm="base")
+    tool = PartTools(tmp_path, FakeWorkspace(directory=tmp_path, **fake), arm="base")
+    tool.plan_passed = True  # the plan gate is `test_plan.py`'s
+    return tool
 
 
 def edit(tool: PartTools, **args: Any) -> t.Judged:
@@ -154,6 +156,7 @@ def test_an_attribute_error_says_which_classes_have_the_name(tmp_path: Path) -> 
     workspace = Failing(directory=tmp_path)
     workspace.error = "AttributeError: 'Workplane' object has no attribute 'isValid'"
     tool = PartTools(tmp_path, workspace, arm="base")
+    tool.plan_passed = True
     found = tool.call("run", json.dumps({"path": "make.py"}))
     assert found.outcome == "ok"
     assert "`isValid` isn't on Workplane. It's on: cq.Shape" in found.reply
@@ -164,6 +167,7 @@ def test_a_name_no_class_has_gets_the_nearest_names(tmp_path: Path) -> None:
     workspace = Failing(directory=tmp_path)
     workspace.error = "AttributeError: type object 'Face' has no attribute 'makeFace'"
     tool = PartTools(tmp_path, workspace, arm="base")
+    tool.plan_passed = True
     found = tool.call("run", json.dumps({"path": "make.py"}))
     assert "No CadQuery class has `makeFace`. Names near it:" in found.reply
     assert "makeFromWires" in found.reply

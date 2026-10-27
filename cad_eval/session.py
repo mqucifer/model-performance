@@ -37,6 +37,7 @@ from common.litellm import CallCapReached
 QUIET_LIMIT = 3
 BACKSTOP_S = 60 * 60
 QUIET = "Call a tool to go on, or `done` or `blocked`."
+SHOWN_BEFORE = "(An earlier view was here: only the latest view is kept.)"
 SYSTEM = f"""You make 3D-printable parts in CadQuery 2.8 (Python), from a spec, \
 with tools, in a directory of your own.
 
@@ -95,6 +96,8 @@ class Session:
     calls: int = 0
     # The call after which a `run` first exited 0 with every output written.
     first_compile: int | None = None
+    # The views drawn, each kept in the records (`view`, mqucifer/model-performance#29).
+    views: int = 0
     # Calls that ran to the token limit (`length`) or that crew's cut ended (`runaway`):
     # each one's reasoning and content tokens, as far as it reached.
     runaways: list[dict[str, int]] = field(default_factory=list)
@@ -228,6 +231,7 @@ class Session:
         return answer, None
 
     def _tools(self, tool_calls: list[Any]) -> Ending | None:
+        picture: str | None = None
         for call in tool_calls:
             function = (call.get("function") if isinstance(call, dict) else None) or {}
             name = function.get("name")
@@ -242,6 +246,7 @@ class Session:
                 why=judged.why,
                 arguments=function.get("arguments"),
                 reply=judged.reply,
+                **({"detail": judged.detail} if judged.detail is not None else {}),
             )
             self.messages.append(
                 {
@@ -250,10 +255,41 @@ class Session:
                     "content": judged.reply or "ok",
                 }
             )
+            if judged.image:
+                picture = judged.image
+                self._keep_view(judged.image)
             if judged.outcome == "ok" and name in ("done", "blocked"):
                 # The rest of the turn's calls aren't carried out, nor counted.
                 return Ending(name, "" if name == "done" else "said", judged.args or {})
+        if picture:
+            self._show(picture)
         return None
+
+    def _keep_view(self, image: str) -> None:
+        """The view's picture, kept in the run's records beside its events."""
+        import base64  # noqa: PLC0415
+
+        views = self.events.parent / "views"
+        views.mkdir(exist_ok=True)
+        self.views += 1
+        (views / f"{self.views}.png").write_bytes(base64.b64decode(image))
+
+    def _show(self, image: str) -> None:
+        """The turn's latest view, to the model as a picture of its own: a tool's reply
+        can't carry an image. An earlier picture is replaced by a note (a rewrite the
+        records keep), so only the latest is in the conversation."""
+        for index, message in enumerate(self.messages):
+            if message.get("role") == "user" and isinstance(message.get("content"), list):
+                self.rewrite(index, SHOWN_BEFORE)
+        self.messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "The view you asked for:"},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image}"}},
+                ],
+            }
+        )
 
     def _record(self, kind: str, **detail: Any) -> None:
         with self.events.open("a", encoding="utf-8") as fh:
@@ -275,6 +311,7 @@ def usage(answer: Any) -> dict[str, int]:
     for key, detail in (
         ("reasoning_tokens", "completion_tokens_details"),
         ("cached_tokens", "prompt_tokens_details"),
+        ("image_tokens", "prompt_tokens_details"),
     ):
         value = (raw.get(detail) or {}).get(key)
         if isinstance(value, int):

@@ -475,3 +475,36 @@ lookup index):
 - **A name no class has:** the nearest names, first the class's own, then all of
   CadQuery's: "No CadQuery class has `makeFace`. Names near it: `makeFromWires`…".
 - **Where it comes from:** what's installed, not a list anyone wrote.
+
+**`measure`** (from #28, now in the base): a query about the model's own STEP file,
+run in the container. The queries are `hole x,y,z`, `distance A B`, `clearance FILE`
+and `position A`. The request carries only the path and the query: none of the case's
+probes, bounds, volumes or mates. So the model checks against what the spec states,
+never against the evaluation's checks.
+
+**`view`** (from #29): the model's own STEP files, rendered by VTK in the v2 image.
+- **Views:** `top`, `front`, `side`, `iso`, `exploded`, or `section x=40`.
+- **Keep-outs:** only what the model declares. `keepouts` names more of its own STEP
+  files (a board, a mating part it modelled from the spec), drawn translucent red.
+  Nothing of the case's is drawn: the v1 arm drew the case's hidden mates, which an
+  unseen part wouldn't have.
+- **Only the latest picture stays.** Earlier ones are replaced by a note through a
+  rewrite the records keep, so every request still rebuilds. Each picture is kept in
+  `views/<n>.png`.
+- **The row** records `views` and `image_tokens`.
+
+**`plan`** (from #30, made generic): before any `write`, `edit` or `run`, the model
+sends its parts and files, interfaces, sizes and fits.
+- **Each size says where it comes from:**
+  - `spec`, quoting the spec's words: the quote must be in the spec's text (markup,
+    layout and case aside), and the value one of the quote's numbers;
+  - `reference`, quoting a table the session can read;
+  - `derived` or `chosen`: recorded, never judged.
+- **No answer key:** there's no per-case key of values, so it works on any spec. v1's
+  `STATED` judged unseen parts not at all, and once told the model a spool was 70 mm
+  wide where the spec says 65. A miss quotes back the model's own entry, never a
+  value the evaluation holds.
+- **The gate:** `write`, `edit` and `run` open when a plan holds, or after 3 that
+  don't.
+- **The records:** each check goes to the events, each miss with its entry. The row
+  records `plans`, `plan_passed` and `plan_misses`.

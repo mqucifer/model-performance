@@ -34,7 +34,8 @@ from typing import Any
 
 from cad_eval import hint as hint_module
 from cad_eval import lookup as lookup_module
-from cad_eval import measure, skills
+from cad_eval import measure, plan, skills
+from cad_eval import render as render_module
 
 RUN_TIMEOUT = 120
 MEASURE_TIMEOUT = 180
@@ -47,6 +48,11 @@ MEASURE_SOURCE = Path(measure.__file__).read_text(encoding="utf-8")
 LOOKUP_SOURCE = Path(lookup_module.__file__).read_text(encoding="utf-8")
 LOOKUP_TIMEOUT = 60
 HINT_SOURCE = Path(hint_module.__file__).read_text(encoding="utf-8")
+RENDER_SOURCE = Path(render_module.__file__).read_text(encoding="utf-8")
+RENDER_TIMEOUT = 180
+VIEWS = ("top", "front", "side", "iso", "exploded", "section")
+# A measure the tool itself failed: not the model's query, not its part.
+TOOL_FAILURES = ("the measure didn't finish", "it loads but can't be measured")
 # v2's base arm (mqucifer/model-performance#40): the full toolset.
 BASE = "base"
 # An AttributeError's owner and name, as Python 3.12 says them.
@@ -182,6 +188,12 @@ class Judged:
     reply: str
     why: str = ""  # the rule or reason, in a word, when it isn't ok
     args: Any = None
+    # A `view`'s picture, as base64 PNG: sent to the model in a message of its own.
+    image: str | None = None
+    painted: float | None = None  # the picture's share that isn't background
+    # What the run's events keep beside the call: a plan's check, each miss with the
+    # entry it was checked against.
+    detail: Any = None
 
 
 def parse(raw: Any) -> Any:
@@ -209,15 +221,53 @@ def arm_specs(arm: str) -> list[dict[str, Any]]:
     return [SKILL_SPEC, found] if skills.ARMS[arm][1] else [SKILL_SPEC]
 
 
+MEASURE = _spec(
+    "measure",
+    "Measure your part, in the container: `hole x,y,z` (the hole nearest a point: its "
+    "diameter and axis), `distance A B` (between two faces), `clearance FILE` (to "
+    "another of your STEP files: overlap and gap), or `position A` (where faces are). "
+    "A face is a selector such as `>Z`, `<X`, `%CYLINDER`, or a point `x,y,z`.",
+    path="The STEP file to measure, relative to the part's directory.",
+    query="What to measure, such as `hole 0,0,5` or `distance >Z <Z`.",
+)
+VIEW = _spec(
+    "view",
+    "Render your STEP files to a picture: `top`, `front`, `side`, `iso`, `exploded`, or a "
+    "section such as `section x=40` (looking at the cut, the cut face in dark grey). Only "
+    "the latest picture is kept in the conversation.",
+    {
+        "keepouts": {
+            "type": "string",
+            "description": "More of your own STEP files to draw translucent red, such as a "
+            "board or a mating part you modelled from the spec. Optional.",
+        }
+    },
+    files="Your STEP files to draw, separated by spaces, such as `base.step lid.step`.",
+    view="The view: `iso`, `top`, `front`, `side`, `exploded` or `section x=40`.",
+)
+PLAN = _spec(
+    "plan",
+    "Your dimensioned plan, before any code. Each size says where it comes from: "
+    "`spec`, quoting the spec's words that give it; `reference`, quoting the table it "
+    "came from; `derived` or `chosen`. A quote is checked against the spec or the "
+    "references; `write`, `edit` and `run` open once the plan holds.",
+    plan='A JSON object: `parts` ([{"name", "file", "what"}]), `interfaces` ([{"between": '
+    '[part, part], "what"}]), `sizes` ([{"part", "name", "value" (mm or degrees), '
+    '"source", "quote"}]), and `fits` ([{"between", "kind": "clearance", "interference" '
+    'or "contact", "value"}]).',
+)
+
+
 def base_specs(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The base arm's tools: `write` that may run, and `edit` after it."""
+    """The base arm's tools: `write` that may run and `edit` after it, then the rest,
+    then `measure`, `view` and `plan`."""
     found = []
     for spec in specs:
         if spec["function"]["name"] == "write":
             found += [WRITE_BASE, EDIT]
         else:
             found.append(spec)
-    return found
+    return [*found, MEASURE, VIEW, PLAN]
 
 
 def _trim(text: str) -> str:
@@ -328,8 +378,16 @@ class PartTools:
         workspace: Any,
         outputs: list[str] | None = None,
         arm: str | None = None,
+        spec: str = "",
     ) -> None:
         self.directory = directory
+        # The spec's text: what `plan`'s quotes are checked against.
+        self.spec = spec
+        # The plan stage (the base arm's): plans checked, whether one held, its misses.
+        self.planned = arm == BASE
+        self.plans = 0
+        self.plan_passed = False
+        self.plan_misses = 0
         self.workspace = workspace
         self.outputs = outputs or [OUTPUT]
         self.arm = arm
@@ -351,7 +409,103 @@ class PartTools:
             return bad
         if name in ("done", "blocked"):
             return self._ending(name, args)
+        if name in ("write", "edit", "run") and self.planned and not self.plan_open:
+            reply = (
+                "Send your plan with `plan` first: `write`, `edit` and `run` open once it holds."
+            )
+            return self._failed(name, "no_plan", reply, args)
         return getattr(self, f"_{name}")(args)
+
+    @property
+    def plan_open(self) -> bool:
+        """Whether the gate's open: a plan held, or `plan.ATTEMPTS` of them missed."""
+        return self.plan_passed or self.plans >= plan.ATTEMPTS
+
+    def _plan(self, args: dict[str, Any]) -> Judged:
+        """The `plan` tool: its quotes against the spec and the references (`plan.py`)."""
+        checked = plan.check(self.spec, self.outputs, args["plan"])
+        self.plans += 1
+        self.plan_misses += len(checked.said())
+        detail = {
+            "attempt": self.plans,
+            "wrong": checked.wrong,
+            "misses": [{"entry": m.entry, "why": m.why} for m in checked.misses],
+        }
+        if checked.passed:
+            self.plan_passed = True
+            reply = "The plan holds: `write`, `edit` and `run` are open."
+            return Judged("plan", "ok", reply, detail=detail)
+        said = "\n".join(f"- {m}" for m in checked.said())
+        after = (
+            "`write`, `edit` and `run` are open now."
+            if self.plan_open
+            else "Send the plan again with these fixed."
+        )
+        judged = self._failed("plan", "misses", f"The plan doesn't hold:\n{said}\n{after}", args)
+        judged.detail = detail
+        return judged
+
+    def _measure(self, args: dict[str, Any]) -> Judged:
+        """The `measure` tool: the model's own file and query, and nothing of the case's.
+
+        The request carries only the path and the query: no probes, bounds, volumes or
+        mates, so the model checks its part against what the spec states, never against
+        the evaluation's checks (mqucifer/model-performance#28)."""
+        missing = self._existing("measure", args)
+        if missing is not None:
+            return missing
+        if len(args["query"]) > MAX_PATH or not args["query"].strip():
+            reply = "`query` is one line, such as `hole 0,0,5` or `distance >Z <Z`."
+            return self._failed("measure", "not_a_query", reply, args)
+        found = self.measure_request({"path": args["path"], "query": args["query"]})
+        error = str(found.get("error", ""))
+        if error.startswith("query:"):
+            return self._failed("measure", "not_a_query", error, args)
+        if error.startswith(TOOL_FAILURES):
+            return self._failed("measure", "unfinished", error, args)
+        return Judged("measure", "ok", json.dumps(found))
+
+    def _view(self, args: dict[str, Any]) -> Judged:
+        """The `view` tool: the model's own files, and only its own, drawn by VTK."""
+        files = args["files"].split()
+        keepouts = str(args.get("keepouts") or "").split()
+        if not files:
+            return self._failed("view", "not_a_query", "Name at least one STEP file.", args)
+        for name in files + keepouts:
+            missing = self._existing("view", {"path": name})
+            if missing is not None:
+                return missing
+        words = args["view"].split()
+        plane = None
+        if not words or words[0] not in VIEWS:
+            reply = f"`view` is one of {', '.join(VIEWS[:-1])}, or `section x=40`."
+            return self._failed("view", "not_a_query", reply, args)
+        if words[0] == "section":
+            axis, _, at = (words[1] if len(words) == 2 else "").partition("=")
+            try:
+                plane = {"axis": axis, "at": float(at)}
+            except ValueError:
+                plane = None
+            if plane is None or axis not in ("x", "y", "z"):
+                reply = "A section names its plane: `section x=40`, `section z=12.5`."
+                return self._failed("view", "not_a_query", reply, args)
+        request = {"files": files, "view": words[0], "plane": plane, "keepouts": keepouts}
+        done = self.execute(
+            ["python", "-I", "-", json.dumps(request)], RENDER_TIMEOUT, stdin=RENDER_SOURCE
+        )
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(render_module.MARK):
+                found = json.loads(line[len(render_module.MARK) :])
+                if "error" in found:
+                    why = "not_a_query" if found["error"].startswith("query:") else "unfinished"
+                    return self._failed("view", why, found["error"], args)
+                caption = "; ".join(found.get("caption", []))
+                reply = f"The {words[0]} view follows, in a picture of its own. {caption}."
+                return Judged("view", "ok", reply, image=found["png"], painted=found.get("painted"))
+        self.troubles["view_unfinished"] = self.troubles.get("view_unfinished", 0) + 1
+        return self._failed(
+            "view", "unfinished", f"The view didn't finish (exit {done.code}).", args
+        )
 
     def _failed(self, name: str, why: str, reply: str, args: Any) -> Judged:
         return Judged(name, "failed", reply, why, args)

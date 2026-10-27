@@ -241,7 +241,7 @@ def evaluate(
         "harness_dirty": harness["dirty"],
         "skills_sha": identity.texts_sha(skills.files(skills.SETS)),
         "model_alias": alias,
-        "image": container.IMAGE,
+        "image": container.IMAGE_V2 if arm == "base" else container.IMAGE,
         "image_id": None,
         "cadquery_version": None,
         "ocp_version": None,
@@ -271,6 +271,8 @@ def evaluate(
         # Which of a `--repeat` run's samples this is (mqucifer/model-performance#27).
         row["sample"] = sample
         row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
+        row.update(views=None, image_tokens=None, plans=None, plan_passed=None)
+        row["plan_misses"] = None
     kept: dict[str, Any] = {}
     send.ticking()
     began = time.monotonic()
@@ -279,15 +281,20 @@ def evaluate(
     tools: PartTools | None = None
     session: Session | None = None
     try:
-        row["image_id"] = image_id()
+        image = row["image"]
+        # The base arm's image is the v2 image (#40): the same CadQuery, plus OSMesa.
+        row["image_id"] = image_id() if image_id is not container.image_id else image_id(image)
         if row["image_id"] is None:
-            raise Refused("no_image", f"{container.IMAGE} isn't built: cad_eval/image/build.sh")
+            raise Refused("no_image", f"{image} isn't built: cad_eval/image/build.sh")
         root = directory(settings, p, run)
-        workspace = workspace_for(root, f"cad-{p.name}-{run}")
+        if workspace_for is container.held:
+            workspace = container.held(root, f"cad-{p.name}-{run}", image=image)
+        else:
+            workspace = workspace_for(root, f"cad-{p.name}-{run}")
         started = workspace.start()
         if not started.ok:
             raise Refused("container_start", started.output[-3000:])
-        tools = PartTools(root, workspace, case.outputs() if case else None, arm=arm)
+        tools = PartTools(root, workspace, case.outputs() if case else None, arm=arm, spec=p.spec())
         found = tools.versions()
         row["cadquery_version"], row["ocp_version"] = found["cadquery"], found["ocp"]
         session = Session(
@@ -310,6 +317,11 @@ def evaluate(
         if case is not None:
             row["calls_to_first_compile"] = session.first_compile
             row["runaways"] = len(session.runaways)
+            row["views"] = session.views
+            row["image_tokens"] = session.usage.get("image_tokens", 0)
+            if tools.planned:
+                row["plans"], row["plan_passed"] = tools.plans, tools.plan_passed
+                row["plan_misses"] = tools.plan_misses
             if session.runaways:
                 row["runaway_reasoning_tokens"] = sum(r["reasoning"] for r in session.runaways)
                 row["runaway_content_tokens"] = sum(r["content"] for r in session.runaways)

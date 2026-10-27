@@ -117,6 +117,13 @@ SUITES: dict[str, set[str]] = {
         "served_model",
         "served_models",
         "served_changed",
+        # The base arm's tools (#40, A1): `view`'s pictures and what they cost in the
+        # prompt, and the plan stage's plans, whether one held, and the misses over them.
+        "views",
+        "image_tokens",
+        "plans",
+        "plan_passed",
+        "plan_misses",
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed

@@ -256,7 +256,7 @@ def go(r: Run, name: str, **kw: Any) -> dict[str, Any]:
         image_id=lambda: "sha256:abc",
         results_dir=r.results,
         read_spend=lambda _sql: "",
-        **kw,
+        **{"serving_record": lambda: {"serving_image": "lmsysorg/sglang:test"}, **kw},
     )
 
 
