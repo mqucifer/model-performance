@@ -867,6 +867,23 @@ CASES: dict[str, Case] = {
                         SectionSpan("plate_b", "x", 15, "z", (2.9, 3.1)),
                     ),
                     own_gap=(0.25, 0.35),
+                    # The clearance, 0.25 to 0.35 "everywhere", at each place the leaves meet:
+                    # the closest distance between the two solids in a box round each, which
+                    # holds that face pair and no other (round 3 of #41's audit).
+                    region_gaps=tuple(
+                        RegionGap(name, "self", box, (0.25, 0.35))
+                        for name, box in (
+                            # The pin in knuckle B's bore, inside r = 2.2.
+                            ("pin", ((-2.2, 2.2), (-4, 4), (-2.2, 2.2))),
+                            # The knuckles' ends, in their walls over the axis, off the pin.
+                            ("ends_+y", ((-0.5, 0.5), (4, 6), (2.0, 2.9))),
+                            ("ends_-y", ((-0.5, 0.5), (-6, -4), (2.0, 2.9))),
+                            # Each knuckle to the other leaf's plate, across X = ±3.15.
+                            ("knuckle_a_+y_to_plate_b", ((2.5, 3.6), (6, 14), (-1, 1))),
+                            ("knuckle_a_-y_to_plate_b", ((2.5, 3.6), (-14, -6), (-1, 1))),
+                            ("knuckle_b_to_plate_a", ((-3.6, -2.5), (-4, 4), (-1, 1))),
+                        )
+                    ),
                     # The 3 mm pin and the 3.6 mm bore, each ±0.05, on the Y axis at ±0.1
                     # (the second review of #41: probes held them to about ±0.1).
                     cylinders=(
@@ -1303,6 +1320,23 @@ CASES: dict[str, Case] = {
                     # The finger hole's 20 mm at ±0.1, its axis at X = 0, Z = 38 at ±0.1.
                     cylinders=(Cylinder("finger_hole", "y", (0, -2, 38), (9.95, 10.05)),),
                     gaps=(Gap("cabinet", distance=(0.4, 0.6)),),
+                    # Each gap to the cabinet, 0.4 to 0.6 "everywhere": the closest distance in
+                    # a box round each face pair, clear of the corners where another pair is
+                    # (round 3 of #41's audit: the Gap above holds only the closest of all).
+                    region_gaps=tuple(
+                        RegionGap(name, "cabinet", box, (0.4, 0.6))
+                        for name, box in (
+                            ("side_+x", ((45, 49), (10, 70), (10, 45))),
+                            ("side_-x", ((-49, -45), (10, 70), (10, 45))),
+                            ("floor", ((-40, 40), (10, 70), (1, 5))),
+                            ("back", ((-40, 40), (73, 79), (10, 45))),
+                            # The plate's back to the cabinet's front edge, round its opening.
+                            ("plate_+x", ((47.5, 49.5), (-2, 2), (10, 45))),
+                            ("plate_-x", ((-49.5, -47.5), (-2, 2), (10, 45))),
+                            ("plate_top", ((-40, 40), (-2, 2), (57.5, 59))),
+                            ("plate_bottom", ((-40, 40), (-2, 2), (1, 2.5))),
+                        )
+                    ),
                 ),
             ),
         ),
@@ -1349,7 +1383,18 @@ CASES: dict[str, Case] = {
                     # The 5.4 mm bore at ±0.05, on the Z axis at ±0.1.
                     cylinders=(Cylinder("bore", "z", (0, 0, 7.5), (2.675, 2.725), offset=0.1),),
                     samples=(
-                        ring("pitch", (0, 0, 7.5), 9, n=499, share=(0.48, 0.52), changes=(24, 24)),
+                        # Each tooth's own width at the pitch circle, the involute's π·1.5/2 =
+                        # 2.3562 mm of arc, within 0.1: 1440 points, 0.039 mm apart (round 3
+                        # of #41's audit: the share holds only the teeth's mean).
+                        ring(
+                            "pitch",
+                            (0, 0, 7.5),
+                            9,
+                            n=1440,
+                            share=(0.48, 0.52),
+                            changes=(24, 24),
+                            runs=(2.2562, 2.4562),
+                        ),
                         # The involute's share at r = 9.75 is 0.355 (#40 V2: only the pitch
                         # circle was held, so straight flanks passed).
                         # Its window ±0.0195 of the ring, ±0.0995 mm of the 5.105 mm pitch
@@ -1387,6 +1432,11 @@ CASES: dict[str, Case] = {
                         Gap("gear-b", distance=(0.02, 0.3)),
                         Gap("plate", distance=(0.15, 0.25)),
                     ),
+                    # 0.5 above the plate, ±0.1: under the gear's face, clear of the post
+                    # (round 3 of #41's audit: the Gap above is the bore's, on the post).
+                    region_gaps=(
+                        RegionGap("over_plate", "plate", ((4, 7), (-2, 2), (3, 5)), (0.4, 0.6)),
+                    ),
                 ),
                 Member(
                     "gear-b",
@@ -1396,8 +1446,15 @@ CASES: dict[str, Case] = {
                     outside={"gap_-x": (30.2 - 22.4, 0, 7.5)},
                     cylinders=(Cylinder("bore", "z", (30.2, 0, 7.5), (2.675, 2.725), offset=0.1),),
                     samples=(
+                        # As gear A's: 3000 points, 0.044 mm apart.
                         ring(
-                            "pitch", (30.2, 0, 7.5), 21, n=499, share=(0.48, 0.52), changes=(56, 56)
+                            "pitch",
+                            (30.2, 0, 7.5),
+                            21,
+                            n=3000,
+                            share=(0.48, 0.52),
+                            changes=(56, 56),
+                            runs=(2.2562, 2.4562),
                         ),
                         ring(
                             "addendum",
@@ -1429,6 +1486,11 @@ CASES: dict[str, Case] = {
                         ring("root_at_most", (30.2, 0, 7.5), 19.225, n=181, share=(0.0, 0.95)),
                     ),
                     gaps=(Gap("plate", distance=(0.15, 0.25)),),
+                    region_gaps=(
+                        RegionGap(
+                            "over_plate", "plate", ((34.2, 44.2), (-2, 2), (3, 5)), (0.4, 0.6)
+                        ),
+                    ),
                 ),
             ),
         ),

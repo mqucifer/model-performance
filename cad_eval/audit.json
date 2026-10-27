@@ -3422,6 +3422,84 @@
     "values": [
      0.1
     ]
+   },
+   "part/region.pin": {
+    "class": "stated",
+    "quotes": [
+     "So there is a 0.3 mm clearance everywhere the leaves meet: round the pin, between the knuckles' ends, and between each knuckle and the other leaf's plate",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "The clearance from the pin (r = 1.5) in knuckle B's bore (r = 1.8), 0.25 to 0.35: the closest distance between the two leaves' material in the box X and Z ±2.2, Y ±4: the pin and the bore's wall, inside r = 2.2 of the axis (`RegionGap`, \"self\"), which holds that place and no other: own.distance holds only the closest of all. The reference: 0.3.",
+    "values": [
+     0.3,
+     0.25,
+     0.35
+    ]
+   },
+   "part/region.ends_+y": {
+    "class": "stated",
+    "quotes": [
+     "So there is a 0.3 mm clearance everywhere the leaves meet: round the pin, between the knuckles' ends, and between each knuckle and the other leaf's plate",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "The clearance from knuckle B's +Y end (4.85) to knuckle A's (5.15), 0.25 to 0.35: the closest distance between the two leaves' material in the box X ±0.5, Y 4 to 6, Z 2.0 to 2.9: the knuckles' walls over the axis, off the pin (`RegionGap`, \"self\"), which holds that place and no other: own.distance holds only the closest of all. The reference: 0.3.",
+    "values": [
+     0.3,
+     0.25,
+     0.35
+    ]
+   },
+   "part/region.ends_-y": {
+    "class": "stated",
+    "quotes": [
+     "So there is a 0.3 mm clearance everywhere the leaves meet: round the pin, between the knuckles' ends, and between each knuckle and the other leaf's plate",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "The clearance from knuckle B's -Y end (-4.85) to knuckle A's (-5.15), 0.25 to 0.35: the closest distance between the two leaves' material in the box X ±0.5, Y -6 to -4, Z 2.0 to 2.9 (`RegionGap`, \"self\"), which holds that place and no other: own.distance holds only the closest of all. The reference: 0.3.",
+    "values": [
+     0.3,
+     0.25,
+     0.35
+    ]
+   },
+   "part/region.knuckle_a_+y_to_plate_b": {
+    "class": "stated",
+    "quotes": [
+     "So there is a 0.3 mm clearance everywhere the leaves meet: round the pin, between the knuckles' ends, and between each knuckle and the other leaf's plate",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "The clearance from knuckle A's +Y knuckle (r = 3) to plate B's edge (X = 3.3), 0.25 to 0.35: the closest distance between the two leaves' material in the box X 2.5 to 3.6, Y 6 to 14, Z ±1 (`RegionGap`, \"self\"), which holds that place and no other: own.distance holds only the closest of all. The reference: 0.3.",
+    "values": [
+     0.3,
+     0.25,
+     0.35
+    ]
+   },
+   "part/region.knuckle_a_-y_to_plate_b": {
+    "class": "stated",
+    "quotes": [
+     "So there is a 0.3 mm clearance everywhere the leaves meet: round the pin, between the knuckles' ends, and between each knuckle and the other leaf's plate",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "The clearance from knuckle A's -Y knuckle to plate B's edge, 0.25 to 0.35: the closest distance between the two leaves' material in the box X 2.5 to 3.6, Y -14 to -6, Z ±1 (`RegionGap`, \"self\"), which holds that place and no other: own.distance holds only the closest of all. The reference: 0.3.",
+    "values": [
+     0.3,
+     0.25,
+     0.35
+    ]
+   },
+   "part/region.knuckle_b_to_plate_a": {
+    "class": "stated",
+    "quotes": [
+     "So there is a 0.3 mm clearance everywhere the leaves meet: round the pin, between the knuckles' ends, and between each knuckle and the other leaf's plate",
+     "the clearance must stay between 0.25 and 0.35 mm, and the leaves must not touch: two separate solids. ±0.05 mm on the pin and the bore, ±0.1 mm on everything else"
+    ],
+    "says": "The clearance from knuckle B to plate A's edge (X = -3.3), 0.25 to 0.35: the closest distance between the two leaves' material in the box X -3.6 to -2.5, Y ±4, Z ±1 (`RegionGap`, \"self\"), which holds that place and no other: own.distance holds only the closest of all. The reference: 0.3.",
+    "values": [
+     0.3,
+     0.25,
+     0.35
+    ]
    }
   },
   "stated": [
@@ -3676,7 +3754,13 @@
       "part/own.distance",
       "part/out.knuckle_ends",
       "part/out.knuckle_a_to_plate_b",
-      "part/out.knuckle_b_to_plate_a"
+      "part/out.knuckle_b_to_plate_a",
+      "part/region.pin",
+      "part/region.ends_+y",
+      "part/region.ends_-y",
+      "part/region.knuckle_a_+y_to_plate_b",
+      "part/region.knuckle_a_-y_to_plate_b",
+      "part/region.knuckle_b_to_plate_a"
      ]
     }
    },
@@ -3685,7 +3769,13 @@
     "value": 0.25,
     "for": {
      "the clearance's least, everywhere": [
-      "part/own.distance"
+      "part/own.distance",
+      "part/region.pin",
+      "part/region.ends_+y",
+      "part/region.ends_-y",
+      "part/region.knuckle_a_+y_to_plate_b",
+      "part/region.knuckle_a_-y_to_plate_b",
+      "part/region.knuckle_b_to_plate_a"
      ]
     }
    },
@@ -3693,7 +3783,14 @@
     "at": "0.25 and 0.35 mm",
     "value": 0.35,
     "for": {
-     "the clearance's greatest, everywhere": "unchecked: needs a gap within a region (the closest distance between the member's own solids, measured only within a stated box: one round the pin, one at each knuckle-end pair, one at each knuckle-to-plate gap): own.distance holds only the closest to 0.35. The faces either side are each held now: the +Y knuckle-end gap to 0.42 at most (in.knuckle_a, in.knuckle_b at 0.06), the -Y one to 0.5 (in at 0.1), the knuckle-to-plate gaps to 0.41 (the plates' edges at 3.36, the knuckles' r at 2.95 or more), the pin's to 0.4 (radii at ±0.025)"
+     "the clearance's greatest, everywhere": [
+      "part/region.pin",
+      "part/region.ends_+y",
+      "part/region.ends_-y",
+      "part/region.knuckle_a_+y_to_plate_b",
+      "part/region.knuckle_a_-y_to_plate_b",
+      "part/region.knuckle_b_to_plate_a"
+     ]
     }
    },
    {
@@ -8445,6 +8542,110 @@
      38,
      0.1
     ]
+   },
+   "drawer/region.side_+x": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "the drawer's gap to the cabinet, everywhere, between 0.4 and 0.6 mm, never overlapping; ±0.1 mm on everything else"
+    ],
+    "says": "The gap from the body's +X side (46.5) to the cabinet's +X wall (47), 0.4 to 0.6: the closest distance between the two parts' material in the box X 45 to 49, Y 10 to 70, Z 10 to 45 (`RegionGap`), which holds that face pair and no other. With the face probes either side (±0.1 each) it holds the gap \"everywhere\" over the face, to the closest point in the box. The reference: 0.5.",
+    "values": [
+     0.5,
+     0.4,
+     0.6
+    ]
+   },
+   "drawer/region.side_-x": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "the drawer's gap to the cabinet, everywhere, between 0.4 and 0.6 mm, never overlapping; ±0.1 mm on everything else"
+    ],
+    "says": "The gap from the body's -X side to the cabinet's -X wall, 0.4 to 0.6: the closest distance between the two parts' material in the box X -49 to -45, Y 10 to 70, Z 10 to 45 (`RegionGap`), which holds that face pair and no other. With the face probes either side (±0.1 each) it holds the gap \"everywhere\" over the face, to the closest point in the box. The reference: 0.5.",
+    "values": [
+     0.5,
+     0.4,
+     0.6
+    ]
+   },
+   "drawer/region.floor": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "the drawer's gap to the cabinet, everywhere, between 0.4 and 0.6 mm, never overlapping; ±0.1 mm on everything else"
+    ],
+    "says": "The gap from the body's underside (3.5) to the cabinet's floor (3), 0.4 to 0.6: the closest distance between the two parts' material in the box X ±40, Y 10 to 70, Z 1 to 5 (`RegionGap`), which holds that face pair and no other. With the face probes either side (±0.1 each) it holds the gap \"everywhere\" over the face, to the closest point in the box. The reference: 0.5.",
+    "values": [
+     0.5,
+     0.4,
+     0.6
+    ]
+   },
+   "drawer/region.back": {
+    "class": "stated",
+    "quotes": [
+     "an open-topped box with 2 mm walls and a 2 mm floor, 0.5 mm clear of the cabinet's inside on each side, the floor and the back: so it runs from X = -46.5 to 46.5, Y = -0.5 to 76.5, Z = 3.5 to 50",
+     "the drawer's gap to the cabinet, everywhere, between 0.4 and 0.6 mm, never overlapping; ±0.1 mm on everything else"
+    ],
+    "says": "The gap from the body's back (76.5) to the cabinet's back (77), 0.4 to 0.6: the closest distance between the two parts' material in the box X ±40, Y 73 to 79, Z 10 to 45 (`RegionGap`), which holds that face pair and no other. With the face probes either side (±0.1 each) it holds the gap \"everywhere\" over the face, to the closest point in the box. The reference: 0.5.",
+    "values": [
+     0.5,
+     0.4,
+     0.6
+    ]
+   },
+   "drawer/region.plate_+x": {
+    "class": "stated",
+    "quotes": [
+     "a plate on the drawer's front 100 mm wide (X = -50 to 50), 3 mm thick, from Y = -3.5 to -0.5, and from Z = 0.5 to 59.5. So it stops 0.5 mm short of the cabinet's front edge",
+     "the drawer's gap to the cabinet, everywhere, between 0.4 and 0.6 mm, never overlapping; ±0.1 mm on everything else"
+    ],
+    "says": "The gap from the plate's back (-0.5) to the cabinet's +X wall's front edge (Y = 0), 0.4 to 0.6: the closest distance between the two parts' material in the box X 47.5 to 49.5, Y ±2, Z 10 to 45, past the body (`RegionGap`), which holds that face pair and no other. With the face probes either side (±0.1 each) it holds the gap \"everywhere\" over the face, to the closest point in the box. The reference: 0.5.",
+    "values": [
+     0.5,
+     0.4,
+     0.6
+    ]
+   },
+   "drawer/region.plate_-x": {
+    "class": "stated",
+    "quotes": [
+     "a plate on the drawer's front 100 mm wide (X = -50 to 50), 3 mm thick, from Y = -3.5 to -0.5, and from Z = 0.5 to 59.5. So it stops 0.5 mm short of the cabinet's front edge",
+     "the drawer's gap to the cabinet, everywhere, between 0.4 and 0.6 mm, never overlapping; ±0.1 mm on everything else"
+    ],
+    "says": "The gap from the plate's back to the -X wall's front edge, 0.4 to 0.6: the closest distance between the two parts' material in the box X -49.5 to -47.5, Y ±2, Z 10 to 45 (`RegionGap`), which holds that face pair and no other. With the face probes either side (±0.1 each) it holds the gap \"everywhere\" over the face, to the closest point in the box. The reference: 0.5.",
+    "values": [
+     0.5,
+     0.4,
+     0.6
+    ]
+   },
+   "drawer/region.plate_top": {
+    "class": "stated",
+    "quotes": [
+     "a plate on the drawer's front 100 mm wide (X = -50 to 50), 3 mm thick, from Y = -3.5 to -0.5, and from Z = 0.5 to 59.5. So it stops 0.5 mm short of the cabinet's front edge",
+     "the drawer's gap to the cabinet, everywhere, between 0.4 and 0.6 mm, never overlapping; ±0.1 mm on everything else"
+    ],
+    "says": "The gap from the plate's back to the cabinet top's front edge, 0.4 to 0.6: the closest distance between the two parts' material in the box X ±40, Y ±2, Z 57.5 to 59 (`RegionGap`), which holds that face pair and no other. With the face probes either side (±0.1 each) it holds the gap \"everywhere\" over the face, to the closest point in the box. The reference: 0.5.",
+    "values": [
+     0.5,
+     0.4,
+     0.6
+    ]
+   },
+   "drawer/region.plate_bottom": {
+    "class": "stated",
+    "quotes": [
+     "a plate on the drawer's front 100 mm wide (X = -50 to 50), 3 mm thick, from Y = -3.5 to -0.5, and from Z = 0.5 to 59.5. So it stops 0.5 mm short of the cabinet's front edge",
+     "the drawer's gap to the cabinet, everywhere, between 0.4 and 0.6 mm, never overlapping; ±0.1 mm on everything else"
+    ],
+    "says": "The gap from the plate's back to the cabinet floor's front edge, 0.4 to 0.6: the closest distance between the two parts' material in the box X ±40, Y ±2, Z 1 to 2.5, under the body's 3.5 (`RegionGap`), which holds that face pair and no other. With the face probes either side (±0.1 each) it holds the gap \"everywhere\" over the face, to the closest point in the box. The reference: 0.5.",
+    "values": [
+     0.5,
+     0.4,
+     0.6
+    ]
    }
   },
   "stated": [
@@ -8583,7 +8784,11 @@
     "value": 0.5,
     "for": {
      "the drawer's clearance each side, floor and back": [
-      "drawer/gap.cabinet.distance"
+      "drawer/gap.cabinet.distance",
+      "drawer/region.side_+x",
+      "drawer/region.side_-x",
+      "drawer/region.floor",
+      "drawer/region.back"
      ]
     }
    },
@@ -8723,7 +8928,12 @@
     "at": "stops 0.5 mm short",
     "value": 0.5,
     "for": {
-     "the plate's gap to the cabinet's front edge": "unchecked: needs a gap within a region (a `Gap` whose closest distance is measured only between the member's material inside a stated box and the other part's): the plate's back (Y = -0.5 ±0.1, in.plate_back_±x and out.behind_plate_±x) and the cabinet's front (Y = 0 ±0.1, bbox.y.min) are each held, so this gap is 0.3 to 0.7, and 0.4 or more by gap.cabinet.distance: 0.4 to 0.7, not 0.4 to 0.6"
+     "the plate's gap to the cabinet's front edge": [
+      "drawer/region.plate_+x",
+      "drawer/region.plate_-x",
+      "drawer/region.plate_top",
+      "drawer/region.plate_bottom"
+     ]
     }
    },
    {
@@ -8768,7 +8978,15 @@
     "value": 0.4,
     "for": {
      "the drawer's least gap, everywhere": [
-      "drawer/gap.cabinet.distance"
+      "drawer/gap.cabinet.distance",
+      "drawer/region.side_+x",
+      "drawer/region.side_-x",
+      "drawer/region.floor",
+      "drawer/region.back",
+      "drawer/region.plate_+x",
+      "drawer/region.plate_-x",
+      "drawer/region.plate_top",
+      "drawer/region.plate_bottom"
      ]
     }
    },
@@ -8776,7 +8994,16 @@
     "at": "and 0.6 mm",
     "value": 0.6,
     "for": {
-     "the drawer's greatest gap, everywhere": "unchecked: needs a gap within a region (a `Gap` whose closest distance is measured only between the member's material inside a stated box and the other part's): gap.cabinet.distance holds only the closest distance to 0.6. Each face either side of each gap is now held to ±0.1 (the cabinet's inner faces, the body's sides, underside and back, the plate's back), so each gap is 0.5 ±0.2, at least 0.4: up to 0.7, not 0.6"
+     "the drawer's greatest gap, everywhere": [
+      "drawer/region.side_+x",
+      "drawer/region.side_-x",
+      "drawer/region.floor",
+      "drawer/region.back",
+      "drawer/region.plate_+x",
+      "drawer/region.plate_-x",
+      "drawer/region.plate_top",
+      "drawer/region.plate_bottom"
+     ]
     }
    },
    {
@@ -9863,6 +10090,60 @@
      0.1
     ],
     "held_to": 0.1
+   },
+   "gear-a/region.over_plate": {
+    "class": "stated",
+    "quotes": [
+     "The gears sit on their posts 0.5 mm above the plate, from Z = 4.5 to 10.5",
+     "from X = -12 to 58, Y = -25 to 25, Z = 0 to 4",
+     "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
+    ],
+    "says": "Gear A 0.5 above the plate's top, ±0.1: the closest distance between the gear's material and the plate's in the box X 4 to 7, Y ±2, Z 3 to 5 (`RegionGap`): under the gear's face, clear of the post (gap.plate.distance is the bore's clearance on the post, never this). The reference: 0.5.",
+    "values": [
+     0.5,
+     0.1
+    ]
+   },
+   "gear-b/region.over_plate": {
+    "class": "stated",
+    "quotes": [
+     "The gears sit on their posts 0.5 mm above the plate, from Z = 4.5 to 10.5",
+     "from X = -12 to 58, Y = -25 to 25, Z = 0 to 4",
+     "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
+    ],
+    "says": "Gear B 0.5 above the plate's top, ±0.1: the closest distance between the gear's material and the plate's in the box X 34.2 to 44.2, Y ±2, Z 3 to 5 (`RegionGap`): under the gear's face, clear of the post (gap.plate.distance is the bore's clearance on the post, never this). The reference: 0.5.",
+    "values": [
+     0.5,
+     0.1
+    ]
+   },
+   "gear-a/runs.pitch": {
+    "class": "derived",
+    "quotes": [
+     "module 1.5, a 20° pressure angle, the standard full-depth involute profile (an addendum of one module, a dedendum of 1.25), 6 mm thick. Gear A has 12 teeth, gear B 28. Each has a 5.4 mm bore",
+     "Each tooth's width within about 0.1 mm of the involute's",
+     "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
+    ],
+    "says": "Each tooth's own width at the pitch circle (r = 9): the involute's tooth there is half the pitch, π·1.5/2 = 2.3562 mm of arc, so each run of points in the material round the ring, times the 0.0393 mm arc spacing (1440 points), within 2.2562 to 2.4562: one thin tooth among wide ones fails, where the share holds only their mean. held_to: 0.1, to the 0.0393 mm point spacing.",
+    "values": [
+     1.5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "gear-b/runs.pitch": {
+    "class": "derived",
+    "quotes": [
+     "module 1.5, a 20° pressure angle, the standard full-depth involute profile (an addendum of one module, a dedendum of 1.25), 6 mm thick. Gear A has 12 teeth, gear B 28. Each has a 5.4 mm bore",
+     "Each tooth's width within about 0.1 mm of the involute's",
+     "the gears mustn't overlap each other or the plate, and mesh: their closest distance, tooth to tooth, between 0.02 and 0.3 mm. ±0.05 mm on the bores and posts, so each gear's clearance on its post is 0.15 to 0.25 mm. Each tooth's width within about 0.1 mm of the involute's; ±0.1 mm on everything else"
+    ],
+    "says": "Each tooth's own width at the pitch circle (r = 21): the involute's tooth there is half the pitch, π·1.5/2 = 2.3562 mm of arc, so each run of points in the material round the ring, times the 0.044 mm arc spacing (3000 points), within 2.2562 to 2.4562: one thin tooth among wide ones fails, where the share holds only their mean. held_to: 0.1, to the 0.044 mm point spacing.",
+    "values": [
+     1.5,
+     0.1
+    ],
+    "held_to": 0.1
    }
   },
   "stated": [
@@ -10085,7 +10366,10 @@
     "at": "posts 0.5 mm above the plate",
     "value": 0.5,
     "for": {
-     "the gears' height over the plate": "unchecked: needs a gap within a region (the closest distance between a gear's material and the plate's, measured only below Z = 4.5 + 0.2, under the gear's face, clear of the post): gap.plate.distance is the bore's clearance on the post, 0.15 to 0.25, never this 0.5. The two faces are each held to ±0.1 (gear-*/bbox.z.min; plate/in.plate_top, out.over_plate), so the 0.5 is 0.3 to 0.7, not ±0.1"
+     "the gears' height over the plate": [
+      "gear-a/region.over_plate",
+      "gear-b/region.over_plate"
+     ]
     }
    },
    {
@@ -10174,7 +10458,10 @@
       "gear-b/share.involute_base",
       "gear-b/share.involute_tip"
      ],
-     "each tooth's own width": "unchecked: needs a per-run width on a ring (a `Sample` field, as `gaps` is for a line, for a closed ring: each run of inside points, wrapping round, times the arc spacing, within a window): every ring here holds the teeth's mean width at its radius, to ±0.0942 to ±0.0995 mm, and one thin tooth among wide ones passes"
+     "each tooth's own width": [
+      "gear-a/runs.pitch",
+      "gear-b/runs.pitch"
+     ]
     },
     "tolerance": true
    },
@@ -10220,7 +10507,9 @@
       "gear-a/share.root",
       "gear-a/share.root_at_most",
       "gear-b/share.root",
-      "gear-b/share.root_at_most"
+      "gear-b/share.root_at_most",
+      "gear-a/region.over_plate",
+      "gear-b/region.over_plate"
      ]
     }
    }
