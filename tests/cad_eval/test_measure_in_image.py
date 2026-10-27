@@ -12,7 +12,7 @@ from cad_eval import container
 from cad_eval.tools import PartTools
 
 pytestmark = pytest.mark.skipif(
-    container.image_id() is None, reason=f"{container.IMAGE} isn't built"
+    container.image_id(container.IMAGE_V2) is None, reason=f"{container.IMAGE_V2} isn't built"
 )
 MAKE = """
 import cadquery as cq
@@ -27,6 +27,9 @@ b = (
     .faces(">Z").workplane().center(8, 0).hole(6.6)
 )
 cq.exporters.export(b, "lid.step")
+# V5's pin (press-fit-pin, 20261027T141934Z): chamfered at both ends.
+pin = cq.Workplane("XY").circle(2.55).extrude(16).edges("%CIRCLE").chamfer(0.5)
+cq.exporters.export(pin, "pin.step")
 """
 
 
@@ -35,7 +38,10 @@ def tools(tmp_path_factory: pytest.TempPathFactory):
     directory = tmp_path_factory.mktemp("measure")
     (directory / "make.py").write_text(MAKE)
     with contextlib.chdir(tmp_path_factory.mktemp("work")):
-        held = container.held(directory, f"test-{directory.name}-{os.getpid()}")
+        # The image the runs use (#40: the v2 image, not the CadQuery one under it).
+        held = container.held(
+            directory, f"test-{directory.name}-{os.getpid()}", image=container.IMAGE_V2
+        )
         assert held.start().ok
         try:
             t = PartTools(directory, held, arm="base")
@@ -70,3 +76,26 @@ def test_the_clearance_to_another_file_and_a_faces_position(tools: PartTools) ->
 
 def test_a_query_it_cant_read_fails(tools: PartTools) -> None:
     assert tools.call("measure", '{"path": "part.step", "query": "spin >Z"}').why == "not_a_query"
+
+
+def test_an_outer_diameter_is_measured_as_a_hole_is(tools: PartTools) -> None:
+    """V5's review: `hole` on a plain pin said "no cylindrical face in the part"."""
+    found = json.loads(
+        tools.call("measure", '{"path": "pin.step", "query": "diameter 0,0,8"}').reply
+    )
+    assert found["diameter"]["diameter"] == 5.1 and found["diameter"]["kind"] == "outer"
+    boss = json.loads(
+        tools.call("measure", '{"path": "part.step", "query": "diameter 8,0,12"}').reply
+    )
+    assert (boss["diameter"]["diameter"], boss["diameter"]["kind"]) == (6.0, "outer")
+    hole = json.loads(
+        tools.call("measure", '{"path": "part.step", "query": "diameter -8,0,3"}').reply
+    )
+    assert (hole["diameter"]["diameter"], hole["diameter"]["kind"]) == (4.5, "hole")
+
+
+def test_no_hole_names_the_cylinders_there_are(tools: PartTools) -> None:
+    found = tools.call("measure", '{"path": "pin.step", "query": "hole 0,0,8"}')
+    error = json.loads(found.reply)["error"]
+    assert "no hole" in error and "Ø5.1" in error and "`diameter x,y,z`" in error
+    assert "no cylindrical face" not in error

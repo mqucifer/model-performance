@@ -46,6 +46,8 @@ class Sender:
         self.alias = alias
         self.calls = 0
         self.models: set[str] = set()
+        # The last call's LiteLLM deployment headers (`x-litellm-*`, none of the key's).
+        self.served: dict[str, str] = {}
         self._tick = tick
         # Calls made while a tick ran, and whether one was seen at all.
         self.tick_calls = 0
@@ -73,6 +75,14 @@ class Sender:
                 request=response.request,
                 response=response,
             )
+        # Which deployment served it, as LiteLLM's headers name it: kept beside the
+        # response, which stays as the proxy sent it (`cad_eval/session.py` reads it).
+        self.served = {
+            k.lower(): str(v)
+            for k, v in response.headers.items()
+            if k.lower().startswith("x-litellm-")
+            and not any(p in k.lower() for p in ("key", "spend", "cost", "budget", "user", "team"))
+        }
         result: dict[str, Any] = response.json()
         return result
 

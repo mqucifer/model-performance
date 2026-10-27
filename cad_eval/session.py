@@ -150,6 +150,8 @@ class Session:
     # The last call's measured prompt, and how long its messages were as characters.
     last_prompt: int = 0
     last_chars: int = 0
+    # The reasoning's size over the run, in characters: each call's is in its event.
+    reasoning_chars: int = 0
     # Each tool reply's tool, by its message's index.
     answered_by: dict[int, str] = field(default_factory=dict)
     # How many messages the records already hold, and the last tools and parameters
@@ -326,10 +328,16 @@ class Session:
             took = time.monotonic() - began
             self.model_s += took
         self.calls += 1
+        message = (answer.get("choices") or [{}])[0].get("message") or {}
+        thought = len(str(message.get("reasoning_content") or ""))
+        self.reasoning_chars += thought
         self.last_prompt = int(usage(answer).get("prompt_tokens") or 0)
         self.last_chars = sent_chars
-        served = answer.get("model") if isinstance(answer, dict) else None
-        if isinstance(served, str) and served:
+        # What served it: LiteLLM's deployment id from its headers. The response's
+        # `model` is the alias the proxy was asked for, so it can't show a change.
+        headers = dict(getattr(self.send, "served", None) or {})
+        served = headers.get("x-litellm-model-id") or None
+        if served:
             self.served.append(served)
         self.usage.update(usage(answer))
         choices = answer.get("choices") if isinstance(answer, dict) else None
@@ -348,7 +356,10 @@ class Session:
             response_id=answer.get("id"),
             at=at.isoformat(timespec="seconds"),
             seconds=round(took, 1),
+            # The reasoning's size, beside its tokens in `usage` when the stream gives them.
+            reasoning_chars=thought,
             served_model=served,
+            served=headers,
             finish=choices[0].get("finish_reason"),
             message=choices[0].get("message"),
             usage=usage(answer),

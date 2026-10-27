@@ -70,6 +70,12 @@ def checks(case: Case) -> list[dict[str, Any]]:
         if m.own_gap is not None:
             add(m.name, "own.interference", [0.0, 0.01])
             add(m.name, "own.distance", list(m.own_gap))
+        for spec in m.section_spans:
+            add(
+                m.name,
+                f"section.{spec.name}",
+                {"at": f"{spec.axis}={spec.at}", "span": list(spec.span)},
+            )
         if m.vents is not None:
             add(m.name, f"vents.{m.vents.name}", {"area": m.vents.area})
     return found

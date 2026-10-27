@@ -79,27 +79,52 @@ def test_a_rewritten_message_is_rebuilt_as_it_was_sent(tmp_path: Path) -> None:
         assert transcript.rebuild(tmp_path / "events.jsonl", n) == sent
 
 
-def test_each_call_records_its_time_and_the_model_that_served_it(tmp_path: Path) -> None:
-    served = ["RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead", "RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead"]
-    replies = [{**a, "model": m} for a, m in zip(GOOD[:2], served, strict=True)]
-    replies += [{**a, "model": "other/model"} for a in GOOD[2:]]
+def served(deployment: str) -> dict[str, Any]:
+    """LiteLLM's headers as a response carries them: the deployment, never the key."""
+    return {"x-litellm-model-id": deployment, "x-litellm-model-api-base": "http://spark/v1"}
+
+
+def test_each_call_records_its_time_and_the_deployment_that_served_it(tmp_path: Path) -> None:
+    """The alias (`model`) can't show a change; LiteLLM's deployment id can (the review
+    of #41: every V5 call recorded `crew-code-think`)."""
+    replies = [{**a, "model": "crew-code-think", "served": served("dep-a")} for a in GOOD[:2]]
+    replies += [{**a, "model": "crew-code-think", "served": served("dep-b")} for a in GOOD[2:]]
     r = Run(tmp_path, replies, measured=measured("spacer"))
     row = r.go()
     events = [json.loads(line) for line in (r.records(row) / "events.jsonl").open()]
     calls = [e for e in events if e["kind"] == "call"]
-    assert [c["served_model"] for c in calls] == [*served, "other/model", "other/model"]
+    assert [c["served_model"] for c in calls] == ["dep-a", "dep-a", "dep-b", "dep-b"]
+    assert calls[0]["served"]["x-litellm-model-api-base"] == "http://spark/v1"
     assert all(c["seconds"] >= 0 and c["at"].endswith("+00:00") for c in calls)
-    # The row names the first served model, how many there were, and flags the change.
-    assert row["served_model"] == served[0]
+    assert row["served_model"] == "dep-a"
     assert (row["served_models"], row["served_changed"]) == (2, True)
     kept = json.loads((r.records(row) / "result.json").read_text())
-    assert kept["served"] == [served[0], "other/model"]
+    assert kept["served"] == ["dep-a", "dep-b"]
 
 
-def test_one_served_model_is_no_change(tmp_path: Path) -> None:
-    replies = [{**a, "model": "RadixArk/Qwen3.8-27B"} for a in GOOD]
+def test_one_deployment_is_no_change_and_the_alias_isnt_a_deployment(tmp_path: Path) -> None:
+    replies = [{**a, "model": "crew-code-think", "served": served("dep-a")} for a in GOOD]
     row = Run(tmp_path, replies, measured=measured("spacer")).go()
-    assert (row["served_models"], row["served_changed"]) == (1, False)
+    assert (row["served_model"], row["served_models"], row["served_changed"]) == ("dep-a", 1, False)
+    bare = Run(tmp_path / "b", [{**a, "model": "crew-code-think"} for a in GOOD])
+    bare.workspace.measured = measured("spacer")
+    assert bare.go()["served_model"] is None
+
+
+def test_litellms_headers_are_kept_but_never_the_keys_or_spend() -> None:
+    from cad_eval.send import served_headers  # noqa: PLC0415
+
+    headers = {
+        "X-LiteLLM-Model-Id": "dep-a",
+        "x-litellm-model-group": "crew-code-think",
+        "x-litellm-key-spend": "0.1",
+        "x-litellm-response-cost": "0",
+        "content-type": "text/event-stream",
+    }
+    assert served_headers(headers) == {
+        "x-litellm-model-id": "dep-a",
+        "x-litellm-model-group": "crew-code-think",
+    }
 
 
 def test_the_serving_record_is_read_from_infras_inventory() -> None:
@@ -145,6 +170,57 @@ def test_a_serving_record_that_changes_during_the_run_is_flagged(tmp_path: Path)
     row = Run(tmp_path, GOOD, measured=measured("spacer")).go(serving_record=lambda: next(reads))
     assert row["serving_image"] == "lmsysorg/sglang:v0.5.22"
     assert row["serving_record_changed"] is True
+
+
+def test_a_new_infra_commit_alone_isnt_a_change() -> None:
+    same = {"serving_image": "lmsysorg/sglang:v0.5.22", "serving_route": "q"}
+    assert not identity.changed(
+        {**same, "serving_infra_commit": "a"}, {**same, "serving_infra_commit": "b"}
+    )
+    assert identity.changed(same, {**same, "serving_route": "other"})
+
+
+CONFIG = """model_list:
+  - model_name: crew-code
+    litellm_params:
+      model: openai/other
+  - model_name: crew-code-think
+    model_info:
+      max_input_tokens: 262144
+    litellm_params:
+      model: openai/qwen3.8-27b-sglang
+      api_base: os.environ/SGLANG_BASE_URL
+"""
+
+
+def test_the_serving_is_fetched_from_infras_main_with_the_aliases_route() -> None:
+    import base64  # noqa: PLC0415
+
+    asked: list[str] = []
+
+    def fetch(path: str) -> str:
+        asked.append(path)
+        if path == "commits/main":
+            return json.dumps({"sha": "1d0a29b" + "0" * 33})
+        text = SGLANG if "sglang" in path else CONFIG
+        return json.dumps({"content": base64.b64encode(text.encode()).decode()})
+
+    found = identity.serving("crew-code-think", fetch)
+    assert found["serving_infra_commit"] == "1d0a29b"
+    assert found["serving_route"] == "qwen3.8-27b-sglang"
+    assert found["serving_route_matches"] is True
+    assert found["serving_image"] == "lmsysorg/sglang:v0.5.22-cu130"
+    # Each file read at the commit it named, not whatever main is by then.
+    assert all("ref=1d0a29b" in p for p in asked[1:])
+    assert identity.route_from(CONFIG, "crew-code") == "other"
+
+
+def test_a_serving_that_cant_be_fetched_is_none_not_a_local_guess() -> None:
+    def down(_: str) -> str:
+        raise OSError("no network")
+
+    found = identity.serving("crew-code-think", down)
+    assert found["serving_infra_commit"] is None and found["serving_route"] is None
 
 
 def test_a_harness_with_uncommitted_changes_refuses_to_run(

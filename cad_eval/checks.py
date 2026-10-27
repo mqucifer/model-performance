@@ -120,6 +120,14 @@ def member(m: Member, measured: dict[str, Any]) -> list[Check]:
         )
     if m.own_gap is not None:
         found.extend(gapped("own", (0.0, 0.01), m.own_gap, measured.get("self")))
+    for k, spec in enumerate(m.section_spans):
+        cut = (measured.get("sections") or [{}] * len(m.section_spans))[k] or {}
+        extent = 0.0
+        if cut.get("area"):
+            low, high = cut["bbox"]["xyz".index(spec.across)]
+            extent = round(high - low, 4)
+        ok = spec.span[0] <= extent <= spec.span[1]
+        found.append(Check(f"section.{spec.name}", ok, list(spec.span), extent))
     if m.vents is not None:
         hits = measured.get("rays") or []
         area = round((len(hits) - sum(hits)) * m.vents.step**2, 1) if hits else None

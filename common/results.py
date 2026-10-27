@@ -113,6 +113,9 @@ SUITES: dict[str, set[str]] = {
         "serving_digest",
         "serving_model",
         "serving_record_changed",
+        "serving_route",  # the model LiteLLM's config sends the alias to, as SGLang serves it
+        "serving_route_matches",  # whether that names the container infra records
+        # LiteLLM's deployment id for each call (`x-litellm-model-id`), not the alias.
         # The model each call's response named: the first, how many, and whether it changed.
         "served_model",
         "served_models",
@@ -125,6 +128,7 @@ SUITES: dict[str, set[str]] = {
         "plan_passed",
         "plan_misses",
         "compactions",  # the base arm's: times the prompt was compacted at crew's 125k
+        "reasoning_chars",  # the reasoning's size over the run, beside its tokens
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed

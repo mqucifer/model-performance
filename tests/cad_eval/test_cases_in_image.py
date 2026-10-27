@@ -20,7 +20,7 @@ from cad_eval.tools import PartTools
 
 HERE = Path(__file__).parent
 pytestmark = pytest.mark.skipif(
-    container.image_id() is None, reason=f"{container.IMAGE} isn't built"
+    container.image_id(container.IMAGE_V2) is None, reason=f"{container.IMAGE_V2} isn't built"
 )
 
 
@@ -28,7 +28,10 @@ pytestmark = pytest.mark.skipif(
 def workspace(tmp_path_factory: pytest.TempPathFactory):
     directory = tmp_path_factory.mktemp("case")
     with contextlib.chdir(tmp_path_factory.mktemp("work")):
-        held = container.held(directory, f"test-{directory.name}-{os.getpid()}")
+        # The image the runs use (#40: the v2 image, not the CadQuery one under it).
+        held = container.held(
+            directory, f"test-{directory.name}-{os.getpid()}", image=container.IMAGE_V2
+        )
         assert held.start().ok
         try:
             yield directory, held

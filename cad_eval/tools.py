@@ -132,11 +132,17 @@ ACCEPTED = {s["function"]["name"]: s["function"]["parameters"] for s in SPECS}
 # `run` on `write` and `edit` (#40, A1): one call to change a file and run a script.
 RUN_AFTER = {
     "run": {
-        "anyOf": [{"type": "boolean"}, {"type": "string"}],
-        "description": "`true` to run this file after, or the path of the script to run "
-        "after (such as `make.py`, when this file is one it imports). Optional.",
-    }
+        "type": "boolean",
+        "description": "true to run this file after, as `run` does. Optional.",
+    },
+    "run_script": {
+        "type": "string",
+        "description": "Another script to run after, such as `make.py` when this file is "
+        "one it imports. Optional.",
+    },
 }
+# `run` sent as text, as V5's model sent it ("true"): read as the boolean it names.
+BOOLEAN_TEXT = {"true": True, "false": False}
 WRITE_BASE = _spec(
     "write",
     "Write a text file in the part's directory, replacing it if it exists. With `run`, "
@@ -225,12 +231,13 @@ def arm_specs(arm: str) -> list[dict[str, Any]]:
 
 MEASURE = _spec(
     "measure",
-    "Measure your part, in the container: `hole x,y,z` (the hole nearest a point: its "
-    "diameter and axis), `distance A B` (between two faces), `clearance FILE` (to "
+    "Measure your part, in the container: `diameter x,y,z` (the cylindrical face nearest "
+    "a point, a hole or an outer one such as a pin: its diameter and axis), `hole x,y,z` "
+    "(the nearest hole), `distance A B` (between two faces), `clearance FILE` (to "
     "another of your STEP files: overlap and gap), or `position A` (where faces are). "
     "A face is a selector such as `>Z`, `<X`, `%CYLINDER`, or a point `x,y,z`.",
     path="The STEP file to measure, relative to the part's directory.",
-    query="What to measure, such as `hole 0,0,5` or `distance >Z <Z`.",
+    query="What to measure, such as `diameter 0,0,5` or `distance >Z <Z`.",
 )
 VIEW = _spec(
     "view",
@@ -431,6 +438,14 @@ class PartTools:
 
     def call(self, name: str, raw: Any) -> Judged:
         args = parse(raw)
+        if (
+            name in ("write", "edit")
+            and isinstance(args, dict)
+            and isinstance(args.get("run"), str)
+        ):
+            said = args["run"].strip().lower()
+            if said in BOOLEAN_TEXT:
+                args = {**args, "run": BOOLEAN_TEXT[said]}
         bad = well_formed(name, args, self.accepted)
         if bad is not None:
             return bad
@@ -561,19 +576,14 @@ class PartTools:
     def _run_after(self, name: str, args: dict[str, Any]) -> tuple[str | None, Judged | None]:
         """The script a `write` or `edit` runs after (`run`): the file itself for `true`,
         a path as given, none for `false` or none; or why `run` can't be done."""
-        run = args.get("run")
-        if run is None or run is False:
-            return None, None
-        if run is True:
-            return args["path"], None
-        if not isinstance(run, str):
-            reply = "`run` is `true`, or the path of a script to run after."
-            return None, self._failed(name, "not_a_run", reply, args)
-        if run != args["path"]:
-            missing = self._existing(name, {**args, "run": run}, "run")
-            if missing is not None:
-                return None, missing
-        return run, None
+        script = args.get("run_script")
+        if script is not None:
+            if script != args["path"]:
+                missing = self._existing(name, args, "run_script")
+                if missing is not None:
+                    return None, missing
+            return script, None
+        return (args["path"], None) if args.get("run") is True else (None, None)
 
     def _then_run(self, name: str, said: str, script: str | None) -> Judged:
         """A change's reply, and the run after it when one was asked for."""

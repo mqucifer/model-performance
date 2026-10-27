@@ -113,7 +113,9 @@ def test_run_may_name_another_script(tmp_path: Path) -> None:
     (tmp_path / "params.py").write_text("SIZE = 10\n")
     found = tool.call(
         "edit",
-        json.dumps({"path": "params.py", "old": "SIZE = 10", "new": "SIZE = 12", "run": "make.py"}),
+        json.dumps(
+            {"path": "params.py", "old": "SIZE = 10", "new": "SIZE = 12", "run_script": "make.py"}
+        ),
     )
     assert found.outcome == "ok"
     assert tool.workspace.commands[-1] == ["python", "make.py"]
@@ -132,11 +134,14 @@ def test_run_false_or_absent_runs_nothing_and_a_bad_run_is_said(tmp_path: Path) 
     tool.call("write", json.dumps({"path": "a.py", "content": "x = 1\n", "run": False}))
     tool.call("write", json.dumps({"path": "b.py", "content": "x = 1\n"}))
     assert tool.workspace.commands == []
+    # `run` is a boolean: anything else is ill-typed, and nothing is written.
     found = tool.call("write", json.dumps({"path": "c.py", "content": "x = 1\n", "run": 3}))
-    assert (found.outcome, found.why) == ("failed", "not_a_run")
+    assert found.outcome == "ill_typed"
     assert (tmp_path / "c.py").exists() is False
-    missing = tool.call("write", json.dumps({"path": "d.py", "content": "x\n", "run": "no.py"}))
-    assert missing.why == "no_file"
+    found = tool.call("write", json.dumps({"path": "c.py", "content": "x\n", "run": "make.py"}))
+    assert found.outcome == "ill_typed"
+    args = {"path": "d.py", "content": "x\n", "run_script": "no.py"}
+    assert tool.call("write", json.dumps(args)).why == "no_file"
 
 
 class Failing(FakeWorkspace):

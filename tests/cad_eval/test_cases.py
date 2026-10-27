@@ -107,7 +107,9 @@ def test_samples_count_their_share_changes_and_gaps() -> None:
     assert comb.spacing == 1.0
     inside = [False, True, False, True, True, False, False, True, False, False, False]
     assert checks.gap_widths(inside, 1.0) == [2.0, 3.0]
-    assert not checks.sampled(comb, inside)[1].ok
+    # Its share's window is 0 to 1, so no share check: only its gaps (#40 V2).
+    assert [c.name for c in checks.sampled(comb, inside)] == ["gaps.cables"]
+    assert not checks.sampled(comb, inside)[0].ok
 
 
 def test_a_hole_cut_in_halves_counts_once() -> None:

@@ -3852,14 +3852,6 @@
     ],
     "says": "Centred on Z = 0, at most 120 tall."
    },
-   "part/span.y": {
-    "class": "judgment",
-    "quotes": [
-     "The bag weighs up to 5 kg, and its strap is about 40 mm wide, so the hook needs room for it",
-     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre it on Y = 0 and Z = 0"
-    ],
-    "says": "Room for a strap about 40 mm wide, hanging with its width along Y: at least 35 mm wide, so 'about' is taken. A hook narrower than that would bunch the strap."
-   },
    "part/holes.screws": {
     "class": "derived",
     "quotes": [
@@ -3874,6 +3866,14 @@
      "I'll print it in PLA"
     ],
     "says": "Arithmetic: 5 kg, 49.05 N, hung at the hook's far end (the worst place); the section at X = 8 (the case's choice, past a wall plate). PLA's 52.5 MPa (Ultimaker TDS) over a factor of 4: 13.1 MPa, a simplification."
+   },
+   "part/section.strap_seat": {
+    "class": "judgment",
+    "quotes": [
+     "its strap is about 40 mm wide, so the hook needs room for it",
+     "The strap hangs over the hook with its width along Y"
+    ],
+    "says": "What the strap rests on, cut at X = 20 (out on the arm, past any wall plate a hook would have), must be 35 mm or more wide along Y: room for a strap \"about 40\", without failing a 38 mm hook. X = 20 is the check's choice of where the seat is; the whole part's Y extent, the old check, passed a wide wall plate with a narrow arm (the blind oracle, #40)."
    }
   },
   "unchecked": {}

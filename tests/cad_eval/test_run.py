@@ -58,7 +58,12 @@ class Run:
         def reply(request: httpx.Request) -> httpx.Response:
             self.bodies.append(json.loads(request.content))
             got = next(queue)
-            return got if isinstance(got, httpx.Response) else httpx.Response(200, json=got)
+            if isinstance(got, httpx.Response):
+                return got
+            # A reply's `served` is LiteLLM's response headers, as the proxy sends them.
+            headers = got.get("served") or {}
+            body = {k: v for k, v in got.items() if k != "served"}
+            return httpx.Response(200, json=body, headers=headers)
 
         self.send = Sender(
             self.settings,

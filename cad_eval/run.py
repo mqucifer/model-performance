@@ -98,6 +98,8 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
             request["cylinders"] = True
         if m.load is not None:
             request["section"] = {"axis": m.load.axis, "at": m.load.at}
+        if m.section_spans:
+            request["sections"] = [{"axis": s.axis, "at": s.at} for s in m.section_spans]
         if m.vents is not None:
             request["rays"] = {"axis": m.vents.axis, "points": m.vents.points()}
         found[m.name] = request
@@ -252,6 +254,7 @@ def evaluate(
         # The serving's image tag, as infra records it: read, never typed.
         "serving": serving_start.get("serving_image"),
         "serving_record_changed": None,
+        "serving_route_matches": serving_start.get("serving_route_matches"),
         "served_model": None,
         "served_models": None,
         "served_changed": None,
@@ -275,6 +278,7 @@ def evaluate(
         row["sample"] = sample
         row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
         row.update(views=None, image_tokens=None, plans=None, plan_passed=None, compactions=None)
+        row["reasoning_chars"] = None
         row["plan_misses"] = None
     kept: dict[str, Any] = {}
     send.ticking()
@@ -322,6 +326,7 @@ def evaluate(
             row["calls_to_first_compile"] = session.first_compile
             row["runaways"] = len(session.runaways)
             row["views"] = session.views
+            row["reasoning_chars"] = session.reasoning_chars
             row["compactions"] = session.compactions if arm == "base" else None
             row["image_tokens"] = session.usage.get("image_tokens", 0)
             if tools.planned:
@@ -369,9 +374,7 @@ def evaluate(
         row["served_changed"] = len(served) > 1
         serving_end = serving_record()
         kept["serving_end"] = serving_end
-        row["serving_record_changed"] = any(
-            serving_end.get(k) != v for k, v in serving_start.items()
-        )
+        row["serving_record_changed"] = identity.changed(serving_start, serving_end)
         # Every other call through the proxy while this one ran (`common/spend.py`).
         overlapped = spend.others(
             started_at, datetime.now(UTC), own_calls(out / "events.jsonl"), read_spend
@@ -598,7 +601,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     # What production serves as the batch starts, from infra's record (`identity.py`).
-    batch_serving = identity.serving()
+    batch_serving = identity.serving(alias)
     settings.work_dir.mkdir(parents=True, exist_ok=True)
     stop = settings.work_dir / STOP_FILE
     stop.unlink(missing_ok=True)

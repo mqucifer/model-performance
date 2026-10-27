@@ -706,3 +706,47 @@ pi5's stated "2.7 mm across" holes have no check, and are listed under `unchecke
   everything else" (`root_at_most`, gaps just past each root).
 - **Unchanged:** spur-gear and bolt-nut state no tolerance on their roots, so they stay
   a judgment in the audit.
+
+## What V5's live run showed, and fixed (mqucifer/model-performance#40)
+
+press-fit-pin, `20261027T141934Z`: it passed 14/14 in 9 calls, but 5 of those calls
+went to the harness, and `measure` gave a wrong answer. Each fix has its test
+(`test_v5_review.py`, and `test_measure_in_image.py` for `measure`):
+- **`run` on `write` and `edit` is a boolean.** The model sent `"run": "true"` as text
+  and was told "There's no file true". Text `"true"` or `"false"` is now read as the
+  boolean. The script to run after, when it isn't the file itself, has its own
+  argument, `run_script`.
+- **`measure` measures outer diameters.** `hole` looked only at inner cylinders, and
+  on a plain pin said "no cylindrical face in the part". `diameter x,y,z` now
+  measures the nearest cylindrical face of either kind and says which kind. A `hole`
+  that finds none names the cylinders the part does have. Neither says there's no
+  cylinder when there is one.
+- **The plan check says what's accepted.** A missing list says "send [] if there are
+  none". A value that isn't one number says "one number with its unit, such as 16 or
+  "16 mm"; for a range or a placement, send a size for each number, or make it
+  `chosen`". The gate took 3 calls on that trivial part.
+- **Each call's reasoning size** is in its event (`reasoning_chars`), and the run's
+  total is on the row, beside the reasoning tokens `usage` already gave.
+
+**From the blind oracle at 12e1540:**
+- **wall-hook's strap width** is now the width of what the strap rests on, cut 20 mm
+  out from the wall (`SectionSpan`), not the whole part's Y extent, which passed a
+  wide wall plate with a narrow arm.
+- **The case and measure tests now run in the v2 image** the runs use, not the
+  CadQuery image under it.
+
+**The served model, from the review of #41:**
+- **The response's `model` is the alias** LiteLLM was asked for (`crew-code-think`), so
+  V5 recorded that on every call, and `served_changed` could never fire.
+- **What's recorded now:** each call's LiteLLM response headers (`x-litellm-*`, never
+  the key's, spend's or budget's) go into its event. The deployment id
+  (`x-litellm-model-id`) goes on the row as `served_model`, and `served_changed` fires
+  when it changes. The response itself stays as the proxy sent it; the sender keeps
+  the headers beside it (`send.served`).
+- **infra's record is fetched** from mqucifer/infra's main on GitHub (`gh api`), not a
+  local clone that may be stale. Each file is read at the commit just fetched. Beside
+  the image, digest and model, it gives the route infra's LiteLLM config takes for
+  the alias (`serving_route`, now `qwen3.8-27b-sglang`). `serving_route_matches` says
+  whether that names the container infra records.
+- **A change of serving** is a change of the image, digest, model or route. A new
+  infra commit alone isn't one.

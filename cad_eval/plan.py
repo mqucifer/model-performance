@@ -94,7 +94,9 @@ def read(text: Any) -> tuple[dict[str, Any] | None, list[str]]:
     if not isinstance(found, dict):
         return None, ["the plan is a JSON object with parts, interfaces, sizes and fits"]
     wrong = [
-        f"`{key}` is a list"
+        f"`{key}` is missing: send [] if there are none"
+        if key not in found
+        else f"`{key}` is a list (send [] if there are none)"
         for key in ("parts", "interfaces", "sizes", "fits")
         if not isinstance(found.get(key), list)
     ]
@@ -104,7 +106,10 @@ def read(text: Any) -> tuple[dict[str, Any] | None, list[str]]:
             break
         shown = json.dumps(size)[:120]
         if number(size.get("value")) is None:
-            wrong.append(f"the size {shown} has no number for its value")
+            wrong.append(
+                f'the size {shown}: `value` is one number with its unit, such as 16 or "16 mm"; '
+                "for a range or a placement, send a size for each number, or make it `chosen`"
+            )
         if size.get("source") not in SOURCES:
             wrong.append(f"the size {shown}: `source` is one of {', '.join(SOURCES)}")
         elif size["source"] in QUOTED and not str(size.get("quote") or "").strip():

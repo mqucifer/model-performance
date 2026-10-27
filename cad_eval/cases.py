@@ -202,6 +202,18 @@ class Vents:
 
 
 @dataclass(frozen=True)
+class SectionSpan:
+    """The material's extent across the plane `axis` = `at`: in `across`, within `span`.
+    A feature's own width, where a part's overall box would count a wall plate too."""
+
+    name: str
+    axis: str
+    at: float
+    across: str
+    span: Span
+
+
+@dataclass(frozen=True)
 class Gap:
     """How a member meets another part: a mate the case gives, or another member.
 
@@ -244,6 +256,7 @@ class Member:
     # not overlap: a print-in-place joint's clearance.
     own_gap: Span | None = None
     vents: Vents | None = None
+    section_spans: tuple[SectionSpan, ...] = ()
 
     def probes(self) -> list[Point]:
         found = [*self.inside.values(), *self.outside.values()]
@@ -1007,8 +1020,10 @@ CASES: dict[str, Case] = {
                 Member(
                     "part",
                     within=((0, 100), (-40, 40), (-60, 60)),
-                    # Room for a strap "about 40 mm wide": 35 mm or more (#40 V2).
-                    spans=(None, (35, 80), None),
+                    # Room for a strap "about 40 mm wide", lying along Y: what it rests on,
+                    # cut 20 mm out from the wall, is 35 mm wide or more (#40 V2: the whole
+                    # part's Y extent passed a wide wall plate with a narrow arm).
+                    section_spans=(SectionSpan("strap_seat", "x", 20, "y", (35, 80)),),
                     holes=(Holes("screws", "x", (2.1, 2.6), 2),),
                     # 5 kg hung at the hook's far end, the worst place it could hang.
                     load=Load("bag", "x", 8, force_n=5 * G),

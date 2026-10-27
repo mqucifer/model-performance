@@ -44,6 +44,7 @@ class StreamingSender(Sender):
         served = ""
         run = 0
         with self._client.stream("POST", "/chat/completions", json=body) as response:
+            self.served = served_headers(response.headers)
             if response.status_code >= 400:
                 # The status only: a body can echo the request, and this text reaches the record.
                 raise httpx.HTTPStatusError(
@@ -92,6 +93,20 @@ class StreamingSender(Sender):
     def wire(self, body: dict[str, Any]) -> dict[str, Any]:
         """The body as it's sent: streamed, with the usage in its last chunk."""
         return {**super().wire(body), "stream": True, "stream_options": {"include_usage": True}}
+
+
+# LiteLLM's headers that say which deployment served a call: never the key's, the
+# spend's or the budget's.
+PRIVATE = ("key", "spend", "cost", "budget", "user", "team")
+
+
+def served_headers(headers: Any) -> dict[str, str]:
+    """The `x-litellm-*` response headers, as LiteLLM names the deployment it used."""
+    return {
+        k.lower(): str(v)
+        for k, v in headers.items()
+        if k.lower().startswith("x-litellm-") and not any(p in k.lower() for p in PRIVATE)
+    }
 
 
 def assemble(calls: dict[int, dict[str, Any]], part: dict[str, Any]) -> None:
