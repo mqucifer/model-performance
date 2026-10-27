@@ -52,9 +52,11 @@ import cadquery as cq
 
 pitch, length, root = 2.0, 6.0, 4.8
 helix = cq.Wire.makeHelix(pitch, length + 2 * pitch, 5, center=cq.Vector(0, 0, -pitch))
-profile = cq.Workplane("XZ").polyline(
-    [(root - 0.1, -pitch - 0.5), (5.8, -pitch), (root - 0.1, -pitch + 0.5)]
-).close()
+profile = (
+    cq.Workplane("XZ")
+    .polyline([(root - 0.1, -pitch - 0.5), (5.8, -pitch), (root - 0.1, -pitch + 0.5)])
+    .close()
+)
 thread = profile.sweep(helix, isFrenet=True)
 core = cq.Workplane("XY").workplane(offset=-pitch).circle(root).extrude(length + 2 * pitch)
 trim = cq.Workplane("XY").circle(10).extrude(length)

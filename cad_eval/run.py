@@ -54,6 +54,9 @@ RESULTS_LOCK = threading.Lock()
 # A part's calls (the operator, 2026-10-25): 20 ended two of the first run's five, so it
 # starts high and comes down from each part's `calls_to_done`.
 CAP_PER_PART = 40
+# The base arm's (#40, A6): high, so a run tells what a lower cap would have done; it's
+# lowered from the calls each run took to its first clean run. The model isn't told it.
+CAP_BASE = 50
 
 
 class Refused(Exception):
@@ -120,7 +123,7 @@ def fault(row: dict[str, Any], measured: dict[str, Any], troubles: dict[str, int
         return "tool"
     if row["ending"] == "refused" or row["stop"] in INFRA_STOPS:
         return "infra"
-    if row["stop"] in ("call_cap", "backstop"):
+    if row["stop"] in ("call_cap", "backstop", "context_full"):
         return "budget"
     if row["ending"] == "done":
         errors = [str(m.get("error", "")) for m in measured.values()]
@@ -271,7 +274,7 @@ def evaluate(
         # Which of a `--repeat` run's samples this is (mqucifer/model-performance#27).
         row["sample"] = sample
         row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
-        row.update(views=None, image_tokens=None, plans=None, plan_passed=None)
+        row.update(views=None, image_tokens=None, plans=None, plan_passed=None, compactions=None)
         row["plan_misses"] = None
     kept: dict[str, Any] = {}
     send.ticking()
@@ -311,6 +314,7 @@ def evaluate(
             # load an hour of model time is a handful of calls.
             backstop_s=math.inf if case else BACKSTOP_S,
         )
+        session.keep_reasoning = arm == "base"
         ending = session.run()
         row["ending"], row["stop"] = ending.how, ending.stop or None
         row["calls_to_done"] = session.calls if ending.how == "done" else None
@@ -318,6 +322,7 @@ def evaluate(
             row["calls_to_first_compile"] = session.first_compile
             row["runaways"] = len(session.runaways)
             row["views"] = session.views
+            row["compactions"] = session.compactions if arm == "base" else None
             row["image_tokens"] = session.usage.get("image_tokens", 0)
             if tools.planned:
                 row["plans"], row["plan_passed"] = tools.plans, tools.plan_passed
@@ -506,11 +511,17 @@ def main(argv: list[str] | None = None) -> int:
         default=1,
         help="harder cases run at once: at most what the operator gives, and Docker's memory holds",
     )
-    parser.add_argument("--cap", type=int, default=CAP_PER_PART, help="calls a part may make")
+    parser.add_argument(
+        "--cap",
+        type=int,
+        help=f"calls a part may make (default {CAP_PER_PART}, or {CAP_BASE} in the base arm)",
+    )
     parser.add_argument(
         "--total", type=int, help="calls the whole run may make (default: the cap for each part)"
     )
     args = parser.parse_args(argv)
+    if args.cap is None:
+        args.cap = CAP_BASE if args.arm == "base" else CAP_PER_PART
     if bool(args.parts) == (args.first or args.all or args.hard or args.hard_first):
         parser.error("name the parts, or --first, --all, --hard or --hard-first")
     harness = identity.harness()

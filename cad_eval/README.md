@@ -567,3 +567,42 @@ library is a challenger, not the base.
 - every fenced example runs as written, with asserts that state its meaning;
 - every link is to v2.8.0;
 - no case is named in it.
+
+## Context and the cap (mqucifer/model-performance#40, A5, A6)
+
+**The reasoning is kept between calls** in the base arm, as crew's session keeps it:
+each assistant turn's `reasoning_content` goes back as it came. v1 dropped it, so a
+35k-token gear derivation was gone by the next call. v1's arms still drop it, as they
+ran.
+
+**Compaction at crew's 125k.**
+- **The estimate:** before each call, the next prompt's size, from the last call's
+  measured `prompt_tokens` plus what's come since (at 3 characters a token,
+  calibrated on v1).
+- **At 125k it's compacted, crew's way:**
+  - every turn before the newest loses its reasoning;
+  - every tool reply shrinks to one line, but the latest `run`'s and the newest turn's;
+  - every `write` or `edit` call's content shrinks, but each file's latest, since
+    there's no tool to read a file back.
+- **The records:** each change is a recorded rewrite, so every request still rebuilds.
+  The row counts `compactions`.
+
+**A prompt that won't fit is the budget's, not the infrastructure's.** It ends as
+`context_full`, with fault `budget`, in two cases:
+- the prompt is still at 125k after compacting;
+- LiteLLM answers 400 to a prompt estimated at the line.
+v1 recorded that as `call_failed`, an infra fault. A failed call keeps its HTTP status.
+
+**Does the template keep it?** If Qwen 3.8's template is Qwen 3's, it renders reasoning
+only after the last real user message. A view's picture is a user message, so it could
+silently drop everything before it. `python -m cad_eval.probe --go` asks:
+- **How:** three pairs of requests at `max_tokens: 1` (six calls), each the same but
+  for one turn's reasoning, with the turn followed by a user message, a tool reply, or
+  a tool reply then an inserted user message. A prompt that grows by about the
+  reasoning's tokens kept it.
+- **Tested offline** against stand-ins of both kinds of template.
+- **Not yet run:** it waits for the operator's go, before any batch.
+
+**The cap is 50 in the base arm** (`CAP_BASE`). The model isn't told it, so a run
+says what a lower cap would have done. It's lowered from the calls each run took to
+its first clean run, which the row records.

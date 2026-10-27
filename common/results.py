@@ -124,6 +124,7 @@ SUITES: dict[str, set[str]] = {
         "plans",
         "plan_passed",
         "plan_misses",
+        "compactions",  # the base arm's: times the prompt was compacted at crew's 125k
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed

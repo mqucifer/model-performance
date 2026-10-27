@@ -36,6 +36,14 @@ from common.litellm import CallCapReached
 
 QUIET_LIMIT = 3
 BACKSTOP_S = 60 * 60
+# A prompt this size or larger is compacted first: crew's own line (the Sponsor's 125k,
+# `crew_org/session/conversation.py`), in a 262,144-token window that keeps 65,536 for
+# the answer. One still this size after compacting ends the run, as the budget's.
+COMPACT_AT = 125_000
+# Characters a token, to estimate the next prompt from the last one's measured size:
+# calibrated on v1's first calls (the context review, 2026-10-27).
+CHARS_PER_TOKEN = 3
+COMPACTED = "(compacted: {what})"
 QUIET = "Call a tool to go on, or `done` or `blocked`."
 SHOWN_BEFORE = "(An earlier view was here: only the latest view is kept.)"
 SYSTEM = f"""You make 3D-printable parts in CadQuery 2.8 (Python), from a spec, \
@@ -134,6 +142,16 @@ class Session:
     messages: list[dict[str, Any]] = field(default_factory=list)
     # The model each call's response named, in order (`identity.py`: read, not typed).
     served: list[str] = field(default_factory=list)
+    # The base arm's (#40, A5): each turn's reasoning goes back as it came, as crew's
+    # session sends it, and a prompt at `compact_at` is compacted first.
+    keep_reasoning: bool = False
+    compact_at: int = COMPACT_AT
+    compactions: int = 0
+    # The last call's measured prompt, and how long its messages were as characters.
+    last_prompt: int = 0
+    last_chars: int = 0
+    # Each tool reply's tool, by its message's index.
+    answered_by: dict[int, str] = field(default_factory=dict)
     # How many messages the records already hold, and the last tools and parameters
     # they hold: each `request` event keeps only what's new (`transcript.py`).
     logged: int = 0
@@ -158,6 +176,9 @@ class Session:
             message = answer["choices"][0].get("message") or {}
             tool_calls = message.get("tool_calls") or []
             kept: dict[str, Any] = {"role": "assistant", "content": message.get("content") or ""}
+            if self.keep_reasoning and message.get("reasoning_content"):
+                # Qwen's template renders each past turn's reasoning: it goes back as it came.
+                kept["reasoning_content"] = message["reasoning_content"]
             if tool_calls:
                 kept["tool_calls"] = tool_calls
             self.messages.append(kept)
@@ -203,7 +224,77 @@ class Session:
         self._record("request", **event)
         self.logged = len(self.messages)
 
+    def _chars(self) -> int:
+        return len(json.dumps(self.messages))
+
+    def estimate(self) -> int:
+        """The next prompt's tokens: the last one's, measured, plus what's come since."""
+        if not self.last_prompt:
+            return (self._chars() + len(json.dumps(self.tools.specs))) // CHARS_PER_TOKEN
+        return self.last_prompt + (self._chars() - self.last_chars) // CHARS_PER_TOKEN
+
+    def compact(self) -> None:
+        """crew's compaction, on this conversation, each change a recorded rewrite.
+
+        Every assistant turn before the newest loses its reasoning. Every tool reply
+        shrinks to one line, but the latest `run`'s and the newest turn's. Each
+        `write` or `edit` call's arguments shrink too, but each file's latest, since
+        there's no tool to read a file back.
+        """
+        last = max((i for i, m in enumerate(self.messages) if m["role"] == "assistant"), default=-1)
+        runs = [i for i, tool in self.answered_by.items() if tool == "run"]
+        latest_run = max(runs, default=-1)
+        latest_file: dict[str, tuple[int, int]] = {}
+        for i, m in enumerate(self.messages):
+            for k, called in enumerate(m.get("tool_calls") or []):
+                function = called.get("function") or {}
+                if function.get("name") in ("write", "edit"):
+                    args = _arguments(function.get("arguments"))
+                    latest_file[str(args.get("path"))] = (i, k)
+        kept_calls = set(latest_file.values())
+        for i, m in enumerate(self.messages):
+            if m["role"] == "assistant" and i != last:
+                changed = dict(m)
+                if m.get("reasoning_content"):
+                    changed["reasoning_content"] = ""
+                calls = []
+                for k, called in enumerate(m.get("tool_calls") or []):
+                    function = called.get("function") or {}
+                    if function.get("name") in ("write", "edit") and (i, k) not in kept_calls:
+                        args = _arguments(function.get("arguments"))
+                        short = {
+                            "path": args.get("path"),
+                            "content": COMPACTED.format(
+                                what=f"{len(str(function.get('arguments')))} characters"
+                            ),
+                        }
+                        called = {
+                            **called,
+                            "function": {**function, "arguments": json.dumps(short)},
+                        }
+                    calls.append(called)
+                if calls:
+                    changed["tool_calls"] = calls
+                if changed != m:
+                    self.messages[i] = changed
+                    self._record("rewrite", index=i, message=changed)
+            elif m["role"] == "tool" and i < last and i != latest_run:
+                content = str(m.get("content") or "")
+                if not content.startswith("(compacted:"):
+                    first = content.splitlines()[0][:120] if content else ""
+                    what = f"{self.answered_by.get(i, 'tool')}: {first}"
+                    self.rewrite(i, COMPACTED.format(what=what))
+        self.compactions += 1
+
     def _call(self) -> tuple[dict[str, Any], Ending | None]:
+        if self.keep_reasoning and self.last_prompt and self.estimate() >= self.compact_at:
+            before = self.estimate()
+            self.compact()
+            self._record("compacted", estimated=before, estimated_after=self.estimate())
+            if self.estimate() >= self.compact_at:
+                said = {"estimated": self.estimate(), "limit": self.compact_at}
+                return {}, Ending("interrupted", "context_full", said)
+        sent_chars = self._chars()
         body = {
             "model": self.alias,
             "messages": self.messages,
@@ -220,14 +311,23 @@ class Session:
             return {}, Ending("interrupted", "call_cap", {"error": str(capped)})
         except Exception as exc:  # noqa: BLE001 - any failed call ends it as interrupted
             said: dict[str, Any] = {"error": f"{type(exc).__name__}"}
+            stop = "call_failed"
             if isinstance(exc, httpx.HTTPStatusError):
                 # The status only: the body can echo the request.
                 said["status"] = exc.response.status_code
-            return {}, Ending("interrupted", "call_failed", said)
+                if said["status"] == 400 and self.keep_reasoning:
+                    # A prompt the window won't hold is the budget's, not the server's.
+                    estimated = self.estimate()
+                    if estimated >= self.compact_at:
+                        stop = "context_full"
+                        said.update(estimated=estimated, limit=self.compact_at)
+            return {}, Ending("interrupted", stop, said)
         finally:
             took = time.monotonic() - began
             self.model_s += took
         self.calls += 1
+        self.last_prompt = int(usage(answer).get("prompt_tokens") or 0)
+        self.last_chars = sent_chars
         served = answer.get("model") if isinstance(answer, dict) else None
         if isinstance(served, str) and served:
             self.served.append(served)
@@ -273,13 +373,14 @@ class Session:
                 reply=judged.reply,
                 **({"detail": judged.detail} if judged.detail is not None else {}),
             )
-            self.messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": call.get("id") if isinstance(call, dict) else None,
-                    "content": judged.reply or "ok",
-                }
-            )
+            reply: dict[str, Any] = {
+                "role": "tool",
+                "tool_call_id": call.get("id") if isinstance(call, dict) else None,
+                "content": judged.reply or "ok",
+            }
+            # Which tool answered, kept here, not sent: compaction keeps the latest run's.
+            self.answered_by[len(self.messages)] = str(name)
+            self.messages.append(reply)
             if judged.image:
                 picture = judged.image
                 self._keep_view(judged.image)
@@ -323,6 +424,14 @@ class Session:
     def _ended(self, ending: Ending) -> Ending:
         self._record("ended", how=ending.how, stop=ending.stop, said=ending.said)
         return ending
+
+
+def _arguments(raw: Any) -> dict[str, Any]:
+    try:
+        found = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        return {}
+    return found if isinstance(found, dict) else {}
 
 
 def usage(answer: Any) -> dict[str, int]:
