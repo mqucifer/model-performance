@@ -28,6 +28,7 @@ import ast
 import difflib
 import json
 import re
+import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -39,7 +40,10 @@ from cad_eval import render as render_module
 from cad_eval import search as search_module
 
 RUN_TIMEOUT = 120
-MEASURE_TIMEOUT = 180
+MEASURE_TIMEOUT = 180  # the model's `measure` and `inspect`
+# The final judging's, after `done`: high, as a timeout there is the infrastructure's
+# fault, never the model's (the operator, the second review of #41).
+JUDGE_TIMEOUT = 600
 TAIL = 4000
 MAX_CONTENT = 200_000
 MAX_PATH = 200
@@ -526,13 +530,19 @@ class PartTools:
         if len(args["query"]) > MAX_PATH or not args["query"].strip():
             reply = "`query` is one line, such as `hole 0,0,5` or `distance >Z <Z`."
             return self._failed("measure", "not_a_query", reply, args)
+        began = time.monotonic()
         found = self.measure_request({"path": args["path"], "query": args["query"]})
+        # How long, against its limit: whether the model is ever cut off.
+        took = {"seconds": round(time.monotonic() - began, 2), "limit": MEASURE_TIMEOUT}
         error = str(found.get("error", ""))
         if error.startswith("query:"):
-            return self._failed("measure", "not_a_query", error, args)
-        if error.startswith(TOOL_FAILURES):
-            return self._failed("measure", "unfinished", error, args)
-        return Judged("measure", "ok", json.dumps(found))
+            judged = self._failed("measure", "not_a_query", error, args)
+        elif error.startswith(TOOL_FAILURES):
+            judged = self._failed("measure", "unfinished", error, args)
+        else:
+            judged = Judged("measure", "ok", json.dumps(found))
+        judged.detail = {**(judged.detail or {}), **took}
+        return judged
 
     def _view(self, args: dict[str, Any]) -> Judged:
         """The `view` tool: the model's own files, and only its own, drawn by VTK."""
@@ -813,12 +823,16 @@ class PartTools:
         return done
 
     def measure(
-        self, path: str, probes: list[Any] | None = None, mate: str | None = None
+        self,
+        path: str,
+        probes: list[Any] | None = None,
+        mate: str | None = None,
+        timeout: int = MEASURE_TIMEOUT,
     ) -> dict[str, Any]:
         """What `measure.py` finds, run from stdin in the container, never from /work."""
         request = {"path": path, "probes": probes or [], "mate": mate}
         done = self.execute(
-            ["python", "-I", "-", json.dumps(request)], MEASURE_TIMEOUT, stdin=MEASURE_SOURCE
+            ["python", "-I", "-", json.dumps(request)], timeout, stdin=MEASURE_SOURCE
         )
         for line in reversed(done.output.splitlines()):
             if line.startswith(measure.MARK):
@@ -826,11 +840,13 @@ class PartTools:
         self.troubles["measure_unfinished"] = self.troubles.get("measure_unfinished", 0) + 1
         return {"path": path, "error": f"the measure didn't finish (exit {done.code})"}
 
-    def measure_request(self, request: dict[str, Any]) -> dict[str, Any]:
+    def measure_request(
+        self, request: dict[str, Any], timeout: int = MEASURE_TIMEOUT
+    ) -> dict[str, Any]:
         """`measure.py` on a whole request: the harder cases' `against`, `self`,
         `cylinders` and `section` beside the probes."""
         done = self.execute(
-            ["python", "-I", "-", json.dumps(request)], MEASURE_TIMEOUT, stdin=MEASURE_SOURCE
+            ["python", "-I", "-", json.dumps(request)], timeout, stdin=MEASURE_SOURCE
         )
         for line in reversed(done.output.splitlines()):
             if line.startswith(measure.MARK):
@@ -847,7 +863,7 @@ class PartTools:
         if ran.code != 0 or not output.is_file():
             result["measured"] = {"path": OUTPUT, "error": f"no {OUTPUT} after exit {ran.code}"}
             return result
-        result["measured"] = self.measure(OUTPUT, probes, mate)
+        result["measured"] = self.measure(OUTPUT, probes, mate, timeout=JUDGE_TIMEOUT)
         return result
 
     def final_case(self, script: str, requests: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -866,6 +882,6 @@ class PartTools:
                     error = f"exit {ran.code}: {request['path']} was written, but the script failed"
                 measured[name] = {"path": request["path"], "error": error}
             else:
-                measured[name] = self.measure_request(request)
+                measured[name] = self.measure_request(request, timeout=JUDGE_TIMEOUT)
         result["measured"] = measured
         return result

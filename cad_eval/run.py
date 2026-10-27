@@ -111,7 +111,9 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
 # proxy, the model's server: nothing about the case), or the budget's (the call cap
 # or a backstop ended it before an answer: no verdict on the design).
 INFRA_STOPS = {"call_failed", "workspace_gone", "no_image", "container_start"}
-TOOL_ERRORS = ("the measure didn't finish", "it loads but can't be measured")
+TOOL_ERRORS = ("it loads but can't be measured",)
+# The judging's measure cut off, by its time or its memory: the infrastructure's.
+INFRA_ERRORS = ("the measure didn't finish",)
 
 
 def fault(row: dict[str, Any], measured: dict[str, Any], troubles: dict[str, int]) -> str | None:
@@ -129,6 +131,8 @@ def fault(row: dict[str, Any], measured: dict[str, Any], troubles: dict[str, int
         return "budget"
     if row["ending"] == "done":
         errors = [str(m.get("error", "")) for m in measured.values()]
+        if any(e.startswith(INFRA_ERRORS) for e in errors):
+            return "infra"
         if any(e.startswith(TOOL_ERRORS) for e in errors):
             return "tool"
         if row["compiles"] and row["closed_mesh"] and row["within_tolerance"]:

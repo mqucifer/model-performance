@@ -49,3 +49,29 @@ def test_the_base_has_it_and_v1s_arms_dont(tmp_path: Path) -> None:
         refs.call("measure", '{"path": "part.step", "query": "position >Z"}').outcome == "malformed"
     )
     assert "measure" in [s["function"]["name"] for s in tools(tmp_path / "b").specs]
+
+
+def test_the_models_measure_keeps_its_limit_and_says_how_long_it_took(tmp_path: Path) -> None:
+    """The operator: the model-facing limit stays, and each call's time is recorded, so
+    whether the model is ever cut off can be seen."""
+    from cad_eval import tools as tools_module  # noqa: PLC0415
+
+    t = tools(tmp_path, {"hole": {"diameter": 4.5}})
+    found = t.call("measure", '{"path": "part.step", "query": "hole 0,0,5"}')
+    assert t.workspace.timeouts[-1] == tools_module.MEASURE_TIMEOUT == 180
+    assert found.detail["limit"] == 180 and found.detail["seconds"] >= 0
+    broken = tools(tmp_path / "d", {"error": "the measure didn't finish (exit 124)"})
+    cut = broken.call("measure", '{"path": "part.step", "query": "position >Z"}')
+    assert cut.why == "unfinished" and cut.detail["limit"] == 180
+
+
+def test_the_final_judging_has_its_own_longer_limit(tmp_path: Path) -> None:
+    from cad_eval import tools as tools_module  # noqa: PLC0415
+
+    (tmp_path / "part.step").write_text("step")
+    # Only another output to clear first, so the fake's part.step is there to measure.
+    workspace = FakeWorkspace(directory=tmp_path, measured={"valid": True})
+    t = PartTools(tmp_path, workspace, ["other.step"])
+    t.final_case("make.py", {"part": {"path": "part.step", "probes": []}})
+    assert tools_module.JUDGE_TIMEOUT == 600
+    assert t.workspace.timeouts[-1] == 600

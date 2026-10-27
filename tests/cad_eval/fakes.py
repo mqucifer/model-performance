@@ -52,6 +52,7 @@ class FakeWorkspace:
 
     def exec(self, command: list[str], timeout: int = 0, stdin: str | None = None) -> Ran:
         self.commands.append(command)
+        self.timeouts = [*getattr(self, "timeouts", []), timeout]
         if command[:3] == ["python", "-I", "-c"] and "CAD_EVAL_VERSIONS" in command[3]:
             import json  # noqa: PLC0415
 

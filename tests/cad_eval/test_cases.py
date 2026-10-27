@@ -224,9 +224,11 @@ def test_the_pi_case_checks_only_what_the_drawings_publish() -> None:
                 "closed_mesh": True,
                 "within_tolerance": False,
             },
+            # The judging's measure cut off (time or memory): the infrastructure's, never
+            # the model's (the operator, the second review of #41).
             {"part": {"error": "the measure didn't finish (exit 137)"}},
             {},
-            "tool",
+            "infra",
         ),
         ({"ending": "blocked", "stop": "said"}, {}, {}, "model"),
         ({"ending": "blocked", "stop": "no_tool_call"}, {}, {"measure_unfinished": 2}, "tool"),

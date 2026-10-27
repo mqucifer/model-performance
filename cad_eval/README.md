@@ -898,3 +898,8 @@ what the number is for and which checks hold it, or says why nothing does
 
 **What the table admits:** 21 cases and 500 numbers. Many features are held only loosely
 or not at all, each said where it stands (`unchecked: …`).
+
+**Two measure limits.** The final judging, after `done`, measures with 600 s
+(`JUDGE_TIMEOUT`), and a cut-off there (by time or memory) is an `infra` fault, never
+the model's. The model's own `measure` keeps its 180 s, and each call's event records
+its `seconds` and `limit`, so whether the model is ever cut off can be seen.
