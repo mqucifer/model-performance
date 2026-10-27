@@ -604,3 +604,44 @@ and a rerun, in two processes) shared a run id. The records refused the second r
 than overwrite, so drawer-cabinet's baseline rerun didn't run the first time. A taken
 id now gets the next suffix (`cad_eval/run.py`, `fresh_run`), and the case was run
 again.
+
+## Question 2, gears and threads (mqucifer/model-performance#27): a gap, or noise?
+
+**Answer: at a 20-call budget, gear-pair and bolt-nut are gaps, spur-gear is closed, and
+m8-bolt is noise. But the gaps are the budget, not shown to be the model's reach.** Of
+46 misses, 41 ended at the 20-call cap and 1 at the backstop. Every case passed in full
+on some arm at least once, and the passes ran long: a median of 15 calls, with 4 of the
+11 at 18 or 19.
+
+| Case | Verdict | baseline | skill | refs | skill-refs |
+|---|---|---|---|---|---|
+| spur-gear | **closed** | 4/5 pass | 0/2 | 1/3 open | 0/2 |
+| m8-bolt | **noise** | 0/3 fail | 1/5 fail | 0/3 fail | 2/4 open |
+| gear-pair | **gap** | 0/3 fail | 0/3 fail | 0/3 fail | 1/5 fail |
+| bolt-nut | **gap** | 0/3 fail | 1/5 fail | 0/3 fail | 1/5 fail |
+
+- **The rule** was set before the runs (`cad_eval/spread.py`, read as written):
+  - a cell fails at 0/3 or ≤1/5, and passes at 3/3 or ≥4/5;
+  - a case is a gap when every cell fails, and closed when any cell passes;
+  - only decisive runs were made, re-planned after each one. A cell left short or
+    open could no longer change its case's verdict.
+- **n = 3 is a screen, not a measurement.** Each cell's 95% Wilson interval is in
+  `uv run python -m cad_eval.spread`, and every interval is wide.
+- **The runs:** 57 samples (tool and infra faults left out), 11 passes. Of the 46
+  misses:
+  - 41 ended at the cap (`call_cap`), 1 at the backstop;
+  - 3 ended with `done` on parts that failed checks;
+  - 1 ended on a failed call.
+- **The passes, in full:** gear-pair 46/46 checks and bolt-nut 34/34 (skill-refs),
+  m8-bolt 19/19 (skill, skill-refs), spur-gear 18/18 (baseline, refs).
+- **Serving:** SGLang v0.5.22 for every screen run, from 2026-10-26 14:45Z. Each
+  cell's earlier single runs were on v0.5.20, and the report counts both.
+- **Concurrency:** two runs at a time, on a shared Spark. Each row records its
+  concurrency and other calls, and no timing claim is made.
+
+**What it means for M14:**
+- **No arm makes gears and threads reliable at 20 calls.** The skill and references
+  don't move a cell to a pass.
+- **The model can build every one of these parts.** Most runs run out of calls first.
+- **So the next question is the budget,** not training: a measurement at a larger cap
+  on the two gap cases, with the best arm. Not made here.
