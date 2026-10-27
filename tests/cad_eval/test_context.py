@@ -159,3 +159,134 @@ def test_the_probe_wont_run_without_the_operators_go() -> None:
     from cad_eval import probe  # noqa: PLC0415
 
     assert probe.main([]) == 2
+
+
+# The review of #41: compaction must never leave the model without its own script.
+
+
+def turn(n: int, name: str, args: dict, reasoning: str = "") -> dict:
+    return thought(call(name, args, n), reasoning=reasoning, prompt=1000 + n)
+
+
+def compacted(tmp_path: Path, replies: list[dict]) -> tuple[Session, list[dict]]:
+    """The session run, then compacted, as it would be before its next call."""
+    s, _ = session(tmp_path, replies)
+    s.run()
+    s.compact()
+    return s, s.messages
+
+
+def text_of(messages: list[dict]) -> str:
+    return json.dumps(messages)
+
+
+SCRIPT = "".join(f"line_{k} = {k}\n" for k in range(40))
+
+
+def test_a_write_then_edits_keeps_the_written_text_and_every_edit_after_it(tmp_path: Path) -> None:
+    replies = [
+        turn(1, "write", {"path": "make.py", "content": SCRIPT}),
+        turn(2, "edit", {"path": "make.py", "old": "line_3 = 3", "new": "line_3 = 33"}),
+        turn(3, "edit", {"path": "make.py", "old": "line_7 = 7", "new": "line_7 = 77"}),
+        turn(4, "blocked", {"reason": "x"}),
+    ]
+    s, last = compacted(tmp_path, replies)
+    assert s.compactions >= 1
+    sent = text_of(last)
+    # The file's whole text can be rebuilt from the request: the write and both edits.
+    for k in range(40):
+        assert f"line_{k} = {k}" in sent
+    assert "line_3 = 33" in sent and "line_7 = 77" in sent
+
+
+def test_an_older_write_of_a_file_written_again_is_the_one_compacted(tmp_path: Path) -> None:
+    replies = [
+        turn(1, "write", {"path": "make.py", "content": "first = 1\n" * 50}),
+        turn(2, "write", {"path": "make.py", "content": SCRIPT}),
+        turn(3, "blocked", {"reason": "x"}),
+    ]
+    _, last = compacted(tmp_path, replies)
+    sent = text_of(last)
+    assert "first = 1" not in sent and "line_39 = 39" in sent
+
+
+def test_a_compacted_edit_keeps_its_own_arguments(tmp_path: Path) -> None:
+    replies = [
+        turn(1, "write", {"path": "a.py", "content": "x = 1\n"}),
+        turn(2, "edit", {"path": "a.py", "old": "x = 1", "new": "x = 2"}),
+        turn(3, "write", {"path": "a.py", "content": "y = 1\n"}),
+        turn(4, "blocked", {"reason": "x"}),
+    ]
+    _, last = compacted(tmp_path, replies)
+    edit_args = [
+        json.loads(c["function"]["arguments"])
+        for m in last
+        for c in m.get("tool_calls") or []
+        if c["function"]["name"] == "edit"
+    ]
+    assert set(edit_args[0]) == {"path", "old", "new"}
+    assert edit_args[0]["old"].startswith("(compacted")
+
+
+def test_the_latest_run_is_kept_whether_it_came_from_run_or_from_write(tmp_path: Path) -> None:
+    replies = [
+        turn(1, "run", {"path": "make.py"}),
+        turn(2, "write", {"path": "make.py", "content": SCRIPT, "run": True}),
+        turn(3, "write", {"path": "other.py", "content": "z = 0\n"}),
+        turn(4, "blocked", {"reason": "x"}),
+    ]
+    (tmp_path / "make.py").write_text("x = 1\n")
+    _, last = compacted(tmp_path, replies)
+    tool_replies = [m["content"] for m in last if m["role"] == "tool"]
+    # The plain run's reply is compacted; the write's run, the latest, is whole.
+    assert tool_replies[0].startswith("(compacted")
+    assert "Ran make.py" in tool_replies[1]
+
+
+def test_read_gives_a_file_numbered_and_paged(tmp_path: Path) -> None:
+    tools = PartTools(tmp_path, FakeWorkspace(directory=tmp_path), arm="base")
+    (tmp_path / "make.py").write_text("".join(f"x{k} = {k}\n" for k in range(1, 501)))
+    found = tools.call("read", json.dumps({"path": "make.py"}))
+    assert found.outcome == "ok"
+    assert "    1| x1 = 1" in found.reply and "  400| x400 = 400" in found.reply
+    assert "x401" not in found.reply and "lines 1-400 of 500" in found.reply
+    more = tools.call("read", json.dumps({"path": "make.py", "start": 401}))
+    assert "  500| x500 = 500" in more.reply
+    assert tools.call("read", json.dumps({"path": "../x.py"})).why == "outside"
+    assert tools.call("read", json.dumps({"path": "no.py"})).why == "no_file"
+
+
+def test_a_read_is_the_latest_full_text_and_the_older_write_compacts(tmp_path: Path) -> None:
+    (tmp_path / "make.py").write_text(SCRIPT)
+    replies = [
+        turn(1, "write", {"path": "make.py", "content": SCRIPT}),
+        turn(2, "read", {"path": "make.py"}),
+        turn(3, "blocked", {"reason": "x"}),
+    ]
+    _, last = compacted(tmp_path, replies)
+    writes = [
+        json.loads(c["function"]["arguments"])
+        for m in last
+        for c in m.get("tool_calls") or []
+        if c["function"]["name"] == "write"
+    ]
+    assert writes[0]["content"].startswith("(compacted")
+    assert "line_39 = 39" in text_of(last)
+
+
+def test_a_pictures_base64_isnt_counted_as_text(tmp_path: Path) -> None:
+    s, _ = session(tmp_path, [])
+    s.messages = [{"role": "user", "content": "spec"}]
+    s.last_prompt, s.last_chars = 1000, s._chars()
+    without = s.estimate()
+    s.messages.append(
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "The view you asked for:"},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64," + "A" * 60000}},
+            ],
+        }
+    )
+    # About 600 tokens for the picture, not 60,000 characters' worth (22k "tokens").
+    assert 500 < s.estimate() - without < 1000

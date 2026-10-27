@@ -229,6 +229,18 @@ def arm_specs(arm: str) -> list[dict[str, Any]]:
     return [SKILL_SPEC, found] if skills.ARMS[arm][1] else [SKILL_SPEC]
 
 
+# The most lines one `read` shows; the rest are a `start` away.
+READ_LINES = 400
+READ = _spec(
+    "read",
+    f"Read a text file in the part's directory, its lines numbered, at most {READ_LINES} "
+    "at a time.",
+    {
+        "start": {"type": "integer", "description": "The first line to show, from 1. Optional."},
+        "end": {"type": "integer", "description": "The last line to show. Optional."},
+    },
+    path="The file's path, relative to the part's directory.",
+)
 MEASURE = _spec(
     "measure",
     "Measure your part, in the container: `diameter x,y,z` (the cylindrical face nearest "
@@ -296,7 +308,7 @@ def base_specs(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     found = []
     for spec in specs:
         if spec["function"]["name"] == "write":
-            found += [WRITE_BASE, EDIT]
+            found += [WRITE_BASE, EDIT, READ]
         elif spec["function"]["name"] == "lookup":
             found += [LOOKUP, DOCS]
         else:
@@ -591,6 +603,28 @@ class PartTools:
             return Judged(name, "ok", said)
         ran = self._run({"path": script})
         return Judged(name, "ok", f"{said}\n\nRan {script}: {ran.reply}")
+
+    def _read(self, args: dict[str, Any]) -> Judged:
+        """A file of the part's directory, its lines numbered: the model's own copy of its
+        script, whatever compaction has done to the conversation."""
+        from crew_org.session.tools import numbered  # noqa: PLC0415
+
+        missing = self._existing("read", args)
+        if missing is not None:
+            return missing
+        try:
+            text = (self.directory / args["path"]).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return self._failed("read", "not_text", f"`{args['path']}` isn't a text file.", args)
+        lines = text.splitlines()
+        start = max(1, int(args.get("start") or 1))
+        end = min(
+            len(lines), int(args.get("end") or start + READ_LINES - 1), start + READ_LINES - 1
+        )
+        shown = "\n".join(numbered(lines, start - 1, end))
+        head = f"`{args['path']}`, lines {start}-{end} of {len(lines)}:"
+        more = f"\n(more: `start` {end + 1})" if end < len(lines) else ""
+        return Judged("read", "ok", f"{head}\n{shown}{more}")
 
     def _edit(self, args: dict[str, Any]) -> Judged:
         """crew's `replace_text`, as `edit`: each refusal its own rule, and nothing run."""

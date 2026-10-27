@@ -44,6 +44,9 @@ COMPACT_AT = 125_000
 # the served model by `cad_eval.probe` (2026-10-27: ~2,160 characters, ~800 tokens).
 CHARS_PER_TOKEN = 2.7
 COMPACTED = "(compacted: {what})"
+# A picture's tokens in the next prompt, before a response reports them: V5's view
+# was 576 (press-fit-pin, 20261027T141934Z).
+PICTURE_TOKENS = 600
 QUIET = "Call a tool to go on, or `done` or `blocked`."
 SHOWN_BEFORE = "(An earlier view was here: only the latest view is kept.)"
 SYSTEM = f"""You make 3D-printable parts in CadQuery 2.8 (Python), from a spec, \
@@ -80,7 +83,8 @@ with tools, in a directory of your own.
 
 - Save {saves}, with `cq.exporters.export(part, "<file>")`. Units are millimetres.
 - First send your plan with `plan`. Then write a script with `write`, change it with \
-`edit`, and run it with `run` (or `run: true` on `write` or `edit`).
+`edit`, read a file back with `read`, and run it with `run` (or `run: true` on `write` \
+or `edit`).
 - Check what it made against the spec: `inspect` (whether it's a valid closed solid, \
 its bounding box and volume), `measure` (holes, distances, the gap between your files, \
 where faces are) and `view` (a picture).
@@ -152,8 +156,10 @@ class Session:
     last_chars: int = 0
     # The reasoning's size over the run, in characters: each call's is in its event.
     reasoning_chars: int = 0
-    # Each tool reply's tool, by its message's index.
+    # Each tool reply's tool, by its message's index, and what compaction needs of it:
+    # the file it was about, whether it ran something, and whether it was done.
     answered_by: dict[int, str] = field(default_factory=dict)
+    replies: dict[int, dict[str, Any]] = field(default_factory=dict)
     # How many messages the records already hold, and the last tools and parameters
     # they hold: each `request` event keeps only what's new (`transcript.py`).
     logged: int = 0
@@ -227,7 +233,16 @@ class Session:
         self.logged = len(self.messages)
 
     def _chars(self) -> int:
-        return len(json.dumps(self.messages))
+        """The messages' size as text, a picture counted as its tokens, not its base64
+        (a view's PNG is 30 to 60k characters: the review of #41)."""
+        pictures = 0
+        shown = []
+        for m in self.messages:
+            if isinstance(m.get("content"), list):
+                pictures += sum(1 for p in m["content"] if p.get("type") == "image_url")
+                m = {**m, "content": [p for p in m["content"] if p.get("type") != "image_url"]}
+            shown.append(m)
+        return len(json.dumps(shown)) + int(pictures * PICTURE_TOKENS * CHARS_PER_TOKEN)
 
     def estimate(self) -> int:
         """The next prompt's tokens: the last one's, measured, plus what's come since."""
@@ -238,22 +253,33 @@ class Session:
     def compact(self) -> None:
         """crew's compaction, on this conversation, each change a recorded rewrite.
 
-        Every assistant turn before the newest loses its reasoning. Every tool reply
-        shrinks to one line, but the latest `run`'s and the newest turn's. Each
-        `write` or `edit` call's arguments shrink too, but each file's latest, since
-        there's no tool to read a file back.
+        - Every assistant turn before the newest loses its reasoning.
+        - **Each file's latest full text stays whole** (the review of #41: an edit after
+          a write left no copy of the script): its last `write` (the call), or its last
+          `read` (the reply), and every `edit` of it after that, call and reply.
+        - The latest reply that ran something stays whole, from `run` or from `write`
+          or `edit` with `run`, and so do the newest turn's replies.
+        - Every other `write` or `edit` call keeps its own keys, its text shrunk to a
+          note, and every other tool reply shrinks to one line.
         """
         last = max((i for i, m in enumerate(self.messages) if m["role"] == "assistant"), default=-1)
-        runs = [i for i, tool in self.answered_by.items() if tool == "run"]
-        latest_run = max(runs, default=-1)
-        latest_file: dict[str, tuple[int, int]] = {}
+        full: dict[str, set[tuple[str, int, int]]] = {}
         for i, m in enumerate(self.messages):
             for k, called in enumerate(m.get("tool_calls") or []):
                 function = called.get("function") or {}
-                if function.get("name") in ("write", "edit"):
-                    args = _arguments(function.get("arguments"))
-                    latest_file[str(args.get("path"))] = (i, k)
-        kept_calls = set(latest_file.values())
+                path = str(_arguments(function.get("arguments")).get("path"))
+                if function.get("name") == "write":
+                    full[path] = {("call", i, k)}
+                elif function.get("name") == "edit":
+                    full.setdefault(path, set()).add(("call", i, k))
+            info = self.replies.get(i)
+            if info and info["ok"] and info["name"] == "read":
+                full[str(info["path"])] = {("reply", i, -1)}
+            elif info and info["ok"] and info["name"] == "edit":
+                full.setdefault(str(info["path"]), set()).add(("reply", i, -1))
+        kept = set().union(*full.values()) if full else set()
+        ran = [i for i, info in self.replies.items() if info["ran"]]
+        latest_ran = max(ran, default=-1)
         for i, m in enumerate(self.messages):
             if m["role"] == "assistant" and i != last:
                 changed = dict(m)
@@ -262,14 +288,13 @@ class Session:
                 calls = []
                 for k, called in enumerate(m.get("tool_calls") or []):
                     function = called.get("function") or {}
-                    if function.get("name") in ("write", "edit") and (i, k) not in kept_calls:
+                    name = function.get("name")
+                    if name in ("write", "edit") and ("call", i, k) not in kept:
                         args = _arguments(function.get("arguments"))
-                        short = {
-                            "path": args.get("path"),
-                            "content": COMPACTED.format(
-                                what=f"{len(str(function.get('arguments')))} characters"
-                            ),
-                        }
+                        size = len(str(function.get("arguments")))
+                        note = COMPACTED.format(what=f"{size} characters")
+                        texts = ("content",) if name == "write" else ("old", "new")
+                        short = {**args, **{t: note for t in texts if t in args}}
                         called = {
                             **called,
                             "function": {**function, "arguments": json.dumps(short)},
@@ -280,7 +305,12 @@ class Session:
                 if changed != m:
                     self.messages[i] = changed
                     self._record("rewrite", index=i, message=changed)
-            elif m["role"] == "tool" and i < last and i != latest_run:
+            elif (
+                m["role"] == "tool"
+                and i < last
+                and i != latest_ran
+                and ("reply", i, -1) not in kept
+            ):
                 content = str(m.get("content") or "")
                 if not content.startswith("(compacted:"):
                     first = content.splitlines()[0][:120] if content else ""
@@ -391,6 +421,14 @@ class Session:
             }
             # Which tool answered, kept here, not sent: compaction keeps the latest run's.
             self.answered_by[len(self.messages)] = str(name)
+            args = _arguments(function.get("arguments"))
+            self.replies[len(self.messages)] = {
+                "name": name,
+                "path": args.get("path"),
+                "ok": judged.outcome == "ok",
+                "ran": judged.outcome == "ok"
+                and (name == "run" or "\n\nRan " in str(judged.reply or "")),
+            }
             self.messages.append(reply)
             if judged.image:
                 picture = judged.image

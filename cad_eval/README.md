@@ -750,3 +750,17 @@ went to the harness, and `measure` gave a wrong answer. Each fix has its test
   whether that names the container infra records.
 - **A change of serving** is a change of the image, digest, model or route. A new
   infra commit alone isn't one.
+
+**Compaction keeps the script** (the review of #41: when an `edit` followed a `write`,
+the `write`'s text was compacted, and no copy of the script was left):
+- **Each file's latest full text stays whole:** its last `write` call, or its last
+  `read` reply, and every `edit` of it after that, call and reply.
+- **The latest reply that ran something stays whole,** whether from `run` or from
+  `write`/`edit` with `run`. Before, only a standalone `run`'s was kept, so the path
+  the prompt encourages was the one compacted.
+- **A compacted `edit` keeps its own keys** (`path`, `old`, `new`), its text a note.
+- **`read`** (new, base arm) gives back any text file in the part's directory,
+  numbered, up to 400 lines at a time, so the model never depends on what's still in
+  the conversation.
+- **A view's base64 isn't counted as text.** A picture counts as 600 tokens (V5's
+  was 576) until a response reports its tokens.
