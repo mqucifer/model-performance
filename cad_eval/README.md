@@ -534,3 +534,36 @@ There are no curated call lists anywhere.
 - **Coverage, tested in the image:** every CadQuery name the reference solutions call
   resolves in the index. The references are a corpus to check `lookup` against, never
   shown to the model.
+
+## The CadQuery skill, corrected (mqucifer/model-performance#40, A3)
+
+The skill's names were all real, but some of its meanings were wrong in 2.8.0, and
+some lines led the model into errors (the skill review, 2026-10-27). Fixed:
+- **`|Z`** picks faces whose normal is along Z, the top and bottom (it said "across").
+- **`>Z[n]`** counts along +Z: `>Z[-2]` is the second from the top and `>Z[1]` the
+  second from the bottom (it said `>Z[1]` was the second from the top).
+- **`.faces(">Z").workplane()`'s origin** is the current origin projected onto the
+  face; the face's centre takes `centerOption="CenterOfBoundBox"`.
+- **`isValid()` and `fuse`** belong to shapes, not Workplanes. The skill called them
+  on Workplanes, which caused 11 and 7 v1 failures, all in the skill arms. A new
+  section, "Two kinds of object", says which methods are whose.
+- **Also corrected:**
+  - `mirror` returns only the copy unless `union=True`, and `slot2D` takes a diameter;
+  - `polyline` must `.close()` before it can be extruded;
+  - the misleading named planes are gone;
+  - the in-script clearance uses `Shape.distance`, beside `measure`;
+  - `errors.md` is rebuilt around the errors v1 hit (wrong-object attributes, the
+    tuple `translate`, `Solids()`, the real causes of "No pending wires"), and its
+    unverified lines are cut.
+
+**Pinned:** links go to CadQuery's docs at the v2.8.0 tag, not to `/latest/`, which
+is master.
+
+**General:** the skill holds no case's name or numbers, and no gear content. A gear
+library is a challenger, not the base.
+
+**Tested in the image** (`test_skills_in_image.py`):
+- every CadQuery name the skill mentions exists;
+- every fenced example runs as written, with asserts that state its meaning;
+- every link is to v2.8.0;
+- no case is named in it.
