@@ -3848,6 +3848,7 @@
     "says": "The head from Y = -12.",
     "values": [
      12,
+     2,
      0.1
     ]
    },
@@ -3932,10 +3933,12 @@
     "quotes": [
      "6 mm across, along Y from Y = -10 to 10, on the holes' axis (X = 0, Z = 18), with a head 10 mm across and 2 mm long from Y = -12 to -10"
     ],
-    "says": "Nothing past the head's end at -12: at -12.1.",
+    "says": "Nothing past the head's end at -12: at -12.1. With the head's inner face's probes (in.head_inner, out.past_head_inner) it holds the head's 2 mm length, each face ±0.1: 0.1 past the face, held one way here, the other by the box's -Y end.",
     "values": [
-     12
-    ]
+     12,
+     2
+    ],
+    "held_to": 0.1
    },
    "pin/gap.clevis.interference": {
     "class": "stated",
@@ -4123,12 +4126,15 @@
    "clevis/cylinder.holes.position": {
     "class": "stated",
     "quotes": [
-     "hole along y at z = 18"
+     "Each has a hole for the pin through it along Y, 6.3 mm across, centred at X = 0, Z = 18",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
     ],
     "values": [
-     18
+     0,
+     18,
+     0.1
     ],
-    "says": "On the hole's axis: along Y at X = 0, Z = 18, within 0.1. Measured off the part's cylindrical faces (`checks.cylinder`): every face of its kind on the axis within 0.25 mm of the stated radius, the worst reported."
+    "says": "Both cheeks' holes on their axis: along Y at X = 0, Z = 18, within 0.1 (each cheek's face held, the worst reported). Measured off the part's cylindrical faces (`checks.cylinder`): every face of its kind on the axis within 0.25 mm of the stated radius."
    },
    "tongue/cylinder.hole.position": {
     "class": "stated",
@@ -4143,12 +4149,525 @@
    "pin/cylinder.pin.position": {
     "class": "stated",
     "quotes": [
-     "hole along y at z = 18"
+     "6 mm across, along Y from Y = -10 to 10, on the holes' axis (X = 0, Z = 18), with a head 10 mm across and 2 mm long from Y = -12 to -10",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
     ],
     "values": [
-     18
+     0,
+     18,
+     0.1
     ],
-    "says": "On the hole's axis: along Y at X = 0, Z = 18, within 0.1. Measured off the part's cylindrical faces (`checks.cylinder`): every face of its kind on the axis within 0.25 mm of the stated radius, the worst reported."
+    "says": "On the holes' axis: along Y at X = 0, Z = 18, within 0.1. Measured off the part's cylindrical faces (`checks.cylinder`): every face of its kind on the axis within 0.25 mm of the stated radius, the worst reported."
+   },
+   "clevis/in.base_top": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along X, 18 mm along Y, 6 mm tall, from Z = 0 to 6",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The base just under its top (Z = 6), between the cheeks, at 5.9. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     6,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.over_base": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along X, 18 mm along Y, 6 mm tall, from Z = 0 to 6",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just over the base's top, between the cheeks, at 6.1. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     6,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.base_end_+x": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along X, 18 mm along Y, 6 mm tall, from Z = 0 to 6",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The base just inside its +X end (X = +8), at Z = 3, under the cheeks: the box's X ends may be the cheeks'. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.past_base_end_+x": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along X, 18 mm along Y, 6 mm tall, from Z = 0 to 6",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the base's +X end, at Z = 3. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.base_side_+y": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along X, 18 mm along Y, 6 mm tall, from Z = 0 to 6",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The base just inside its +Y side (Y = +9), at Z = 3: the box's Y ends may be the cheeks'. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     18,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.past_base_+y": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along X, 18 mm along Y, 6 mm tall, from Z = 0 to 6",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the base's +Y side, at Z = 3. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     18,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.cheek_+y_end_+x": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y cheek just inside its +X end (X = +8), at Z = 24 over the hole. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.past_cheek_+y_end_+x": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the +Y cheek's +X end, at Z = 24. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.cheek_-y_end_+x": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y cheek just inside its +X end (X = +8), at Z = 24 over the hole. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.past_cheek_-y_end_+x": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the -Y cheek's +X end, at Z = 24. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.cheek_+y_inner": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y cheek just inside its inner face (Y = +5), at Z = 24. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     4,
+     5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.inside_cheek_+y": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just inside the +Y cheek's inner face, between the cheeks, at Z = 24. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     4,
+     5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.cheek_+y_outer": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y cheek just inside its outer face (Y = +9), at Z = 24: the box's Y ends may be the base's. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     4,
+     9,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.past_cheek_+y": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the +Y cheek's outer face, at Z = 24. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     4,
+     9,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.cheek_+y_top": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y cheek just under its own top (Z = 26), at Y = +7: the box's Z holds only the taller cheek. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     26,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.over_cheek_+y": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just over the +Y cheek's top, at Y = +7. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     26,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.base_end_-x": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along X, 18 mm along Y, 6 mm tall, from Z = 0 to 6",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The base just inside its -X end (X = -8), at Z = 3, under the cheeks: the box's X ends may be the cheeks'. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.past_base_end_-x": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along X, 18 mm along Y, 6 mm tall, from Z = 0 to 6",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the base's -X end, at Z = 3. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.base_side_-y": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along X, 18 mm along Y, 6 mm tall, from Z = 0 to 6",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The base just inside its -Y side (Y = -9), at Z = 3: the box's Y ends may be the cheeks'. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     18,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.past_base_-y": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along X, 18 mm along Y, 6 mm tall, from Z = 0 to 6",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the base's -Y side, at Z = 3. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     18,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.cheek_+y_end_-x": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The +Y cheek just inside its -X end (X = -8), at Z = 24 over the hole. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.past_cheek_+y_end_-x": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the +Y cheek's -X end, at Z = 24. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.cheek_-y_end_-x": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y cheek just inside its -X end (X = -8), at Z = 24 over the hole. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.past_cheek_-y_end_-x": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the -Y cheek's -X end, at Z = 24. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     16,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.cheek_-y_inner": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y cheek just inside its inner face (Y = -5), at Z = 24. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     4,
+     5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.inside_cheek_-y": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just inside the -Y cheek's inner face, between the cheeks, at Z = 24. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     4,
+     5,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.cheek_-y_outer": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y cheek just inside its outer face (Y = -9), at Z = 24: the box's Y ends may be the base's. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     4,
+     9,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.past_cheek_-y": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the -Y cheek's outer face, at Z = 24. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     4,
+     9,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/in.cheek_-y_top": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The -Y cheek just under its own top (Z = 26), at Y = -7: the box's Z holds only the taller cheek. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     26,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/out.over_cheek_-y": {
+    "class": "stated",
+    "quotes": [
+     "Two cheeks stand on it, each 16 mm along X and 4 mm thick, from Y = -9 to -5 and from Y = 5 to 9, up to Z = 26",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just over the -Y cheek's top, at Y = -7. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     26,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "pin/in.head_inner": {
+    "class": "stated",
+    "quotes": [
+     "6 mm across, along Y from Y = -10 to 10, on the holes' axis (X = 0, Z = 18), with a head 10 mm across and 2 mm long from Y = -12 to -10",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "The head just inside its inner face (Y = -10), at 4 from the axis, past the shank. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     10,
+     2,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "pin/out.past_head_inner": {
+    "class": "stated",
+    "quotes": [
+     "6 mm across, along Y from Y = -10 to 10, on the holes' axis (X = 0, Z = 18), with a head 10 mm across and 2 mm long from Y = -12 to -10",
+     "±0.05 mm on the pin's and the holes' diameters, so the pin's clearance in each hole is 0.1 to 0.2 mm; the tongue's gap to each cheek 0.3 to 0.5 mm; ±0.1 mm on everything else. No two parts may overlap"
+    ],
+    "says": "Nothing just past the head's inner face, at 4 from the axis: the shank is 3. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     10,
+     2,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "clevis/section.base_x": {
+    "class": "stated",
+    "quotes": [
+     "a base 16 mm along x",
+     "±0.1 mm on everything else"
+    ],
+    "values": [
+     16,
+     0.1
+    ],
+    "says": "The base's 16 mm along X, cut at Z = 3. Measured as the section's extent (`SectionSpan`), so the size itself is held to ±0.1, not its two faces each."
+   },
+   "clevis/section.base_y": {
+    "class": "stated",
+    "quotes": [
+     "18 mm along y",
+     "±0.1 mm on everything else"
+    ],
+    "values": [
+     18,
+     0.1
+    ],
+    "says": "The base's 18 mm along Y, cut at Z = 3. Measured as the section's extent (`SectionSpan`), so the size itself is held to ±0.1, not its two faces each."
+   },
+   "clevis/section.base_height": {
+    "class": "stated",
+    "quotes": [
+     "6 mm tall",
+     "±0.1 mm on everything else"
+    ],
+    "values": [
+     6,
+     0.1
+    ],
+    "says": "The base's 6 mm, cut at Y = 0 between the cheeks. Measured as the section's extent (`SectionSpan`), so the size itself is held to ±0.1, not its two faces each."
+   },
+   "clevis/section.cheeks_x": {
+    "class": "stated",
+    "quotes": [
+     "each 16 mm along x",
+     "±0.1 mm on everything else"
+    ],
+    "values": [
+     16,
+     0.1
+    ],
+    "says": "Each cheek's 16 mm along X, cut at Z = 24. Measured as the section's extent (`SectionSpan`), so the size itself is held to ±0.1, not its two faces each."
+   },
+   "clevis/section.cheek_-y": {
+    "class": "stated",
+    "quotes": [
+     "4 mm thick, from y",
+     "±0.1 mm on everything else"
+    ],
+    "values": [
+     4,
+     0.1
+    ],
+    "says": "The -Y cheek's 4 mm, cut at Z = 24 and clipped to Y < 0. Measured as the section's extent (`SectionSpan`), so the size itself is held to ±0.1, not its two faces each."
+   },
+   "clevis/section.cheek_+y": {
+    "class": "stated",
+    "quotes": [
+     "4 mm thick, from y",
+     "±0.1 mm on everything else"
+    ],
+    "values": [
+     4,
+     0.1
+    ],
+    "says": "The +Y cheek's 4 mm, cut at Z = 24 and clipped to Y > 0. Measured as the section's extent (`SectionSpan`), so the size itself is held to ±0.1, not its two faces each."
+   },
+   "pin/section.head": {
+    "class": "stated",
+    "quotes": [
+     "and 2 mm long",
+     "±0.1 mm on everything else"
+    ],
+    "values": [
+     2,
+     0.1
+    ],
+    "says": "The head's 2 mm along Y, cut at X = 4, off the pin. Measured as the section's extent (`SectionSpan`), so the size itself is held to ±0.1, not its two faces each."
    }
   },
   "stated": [
@@ -4159,7 +4678,14 @@
      "the clevis's length along X (the base's)": [
       "clevis/bbox.x.min",
       "clevis/bbox.x.max",
-      "clevis/size.x"
+      "clevis/size.x",
+      "clevis/section.base_x"
+     ],
+     "the base's own length along X: both its ends": [
+      "clevis/in.base_end_+x",
+      "clevis/in.base_end_-x",
+      "clevis/out.past_base_end_+x",
+      "clevis/out.past_base_end_-x"
      ]
     }
    },
@@ -4170,7 +4696,14 @@
      "the clevis's width along Y (the base's)": [
       "clevis/bbox.y.min",
       "clevis/bbox.y.max",
-      "clevis/size.y"
+      "clevis/size.y",
+      "clevis/section.base_y"
+     ],
+     "the base's own width along Y: both its sides": [
+      "clevis/in.base_side_+y",
+      "clevis/in.base_side_-y",
+      "clevis/out.past_base_+y",
+      "clevis/out.past_base_-y"
      ]
     }
    },
@@ -4178,7 +4711,11 @@
     "at": "6 mm tall",
     "value": 6,
     "for": {
-     "the base's height": "unchecked: the base's top (Z = 6) isn't probed: in.base at Z = 3 and out.between_cheeks at Z = 15 bound it only to 3 to 15; the volume's ±4% is about ±5 mm of base height."
+     "the base's height: its top (its bottom by the box's)": [
+      "clevis/in.base_top",
+      "clevis/out.over_base",
+      "clevis/section.base_height"
+     ]
     }
    },
    {
@@ -4194,21 +4731,47 @@
     "at": "from z = 0 to 6.",
     "value": 6,
     "for": {
-     "the base's top": "unchecked: the base's top (Z = 6) isn't probed: in.base at Z = 3 and out.between_cheeks at Z = 15 bound it only to 3 to 15; the volume's ±4% is about ±5 mm of base height."
+     "the base's top": [
+      "clevis/in.base_top",
+      "clevis/out.over_base"
+     ]
     }
    },
    {
     "at": "each 16 mm along x",
     "value": 16,
     "for": {
-     "the cheeks' length along X": "unchecked: the cheeks' X width isn't held: the box's X ends (±8) may be the base's, and in.cheek is a single point at X = 0."
+     "the cheeks' length along X: each cheek's two ends": [
+      "clevis/in.cheek_+y_end_+x",
+      "clevis/in.cheek_+y_end_-x",
+      "clevis/in.cheek_-y_end_+x",
+      "clevis/in.cheek_-y_end_-x",
+      "clevis/out.past_cheek_+y_end_+x",
+      "clevis/out.past_cheek_+y_end_-x",
+      "clevis/out.past_cheek_-y_end_+x",
+      "clevis/out.past_cheek_-y_end_-x",
+      "clevis/section.cheeks_x"
+     ]
     }
    },
    {
     "at": "4 mm thick, from y",
     "value": 4,
     "for": {
-     "the cheeks' thickness": "unchecked: the outer faces are held by the box's Y ends (±0.1), the inner faces only to about ±0.2 (see Y = ±5): the thickness to about ±0.3."
+     "the -Y cheek's thickness: both its faces": [
+      "clevis/in.cheek_-y_inner",
+      "clevis/out.inside_cheek_-y",
+      "clevis/in.cheek_-y_outer",
+      "clevis/out.past_cheek_-y",
+      "clevis/section.cheek_-y"
+     ],
+     "the +Y cheek's thickness: both its faces": [
+      "clevis/in.cheek_+y_inner",
+      "clevis/out.inside_cheek_+y",
+      "clevis/in.cheek_+y_outer",
+      "clevis/out.past_cheek_+y",
+      "clevis/section.cheek_+y"
+     ]
     }
    },
    {
@@ -4216,7 +4779,9 @@
     "value": 9,
     "for": {
      "the -Y cheek's outer face": [
-      "clevis/bbox.y.min"
+      "clevis/bbox.y.min",
+      "clevis/in.cheek_-y_outer",
+      "clevis/out.past_cheek_-y"
      ]
     }
    },
@@ -4224,14 +4789,20 @@
     "at": "-9 to -5 and",
     "value": 5,
     "for": {
-     "the -Y cheek's inner face": "unchecked: the cheeks' inner faces (Y = ±5) aren't probed: only through the tongue's gap to them (0.3 to 0.5) and the tongue's box (±0.1), to about ±0.2; out.between_cheeks only at Y = 0."
+     "the -Y cheek's inner face": [
+      "clevis/in.cheek_-y_inner",
+      "clevis/out.inside_cheek_-y"
+     ]
     }
    },
    {
     "at": "and from y = 5 to",
     "value": 5,
     "for": {
-     "the +Y cheek's inner face": "unchecked: the cheeks' inner faces (Y = ±5) aren't probed: only through the tongue's gap to them (0.3 to 0.5) and the tongue's box (±0.1), to about ±0.2; out.between_cheeks only at Y = 0."
+     "the +Y cheek's inner face": [
+      "clevis/in.cheek_+y_inner",
+      "clevis/out.inside_cheek_+y"
+     ]
     }
    },
    {
@@ -4239,7 +4810,9 @@
     "value": 9,
     "for": {
      "the +Y cheek's outer face": [
-      "clevis/bbox.y.max"
+      "clevis/bbox.y.max",
+      "clevis/in.cheek_+y_outer",
+      "clevis/out.past_cheek_+y"
      ]
     }
    },
@@ -4250,6 +4823,12 @@
      "the cheeks' top": [
       "clevis/bbox.z.max",
       "clevis/size.z"
+     ],
+     "each cheek's own top": [
+      "clevis/in.cheek_+y_top",
+      "clevis/out.over_cheek_+y",
+      "clevis/in.cheek_-y_top",
+      "clevis/out.over_cheek_-y"
      ]
     }
    },
@@ -4266,14 +4845,18 @@
     "at": "centred at x = 0, z",
     "value": 0,
     "for": {
-     "the holes' X": "unchecked: the holes' place isn't held by a check of its own: out.hole on the axis and the one-sided radial probes bound it to within about 3 mm; the pin's 0.1 to 0.2 clearance (pin/gap.*.distance) holds it to the pin's axis within about 0.05 to 0.1, and the pin's place by its head's box, ±0.1, so about ±0.15 in all."
+     "the holes' X": [
+      "clevis/cylinder.holes.position"
+     ]
     }
    },
    {
     "at": "centred at x = 0, z = 18",
     "value": 18,
     "for": {
-     "the holes' Z": "unchecked: the holes' place isn't held by a check of its own: out.hole on the axis and the one-sided radial probes bound it to within about 3 mm; the pin's 0.1 to 0.2 clearance (pin/gap.*.distance) holds it to the pin's axis within about 0.05 to 0.1, and the pin's place by its head's box, ±0.1, so about ±0.15 in all."
+     "the holes' Z": [
+      "clevis/cylinder.holes.position"
+     ]
     }
    },
    {
@@ -4396,7 +4979,10 @@
     "at": "from y = -10 to 10",
     "value": 10,
     "for": {
-     "the pin's end at the head": "unchecked: the head's inner face (Y = -10) isn't probed: in.head at Y = -11 bounds it only to past -11; the volume's ±4% is about ±3.7 mm of head length."
+     "the pin's end at the head": [
+      "pin/in.head_inner",
+      "pin/out.past_head_inner"
+     ]
     }
    },
    {
@@ -4417,6 +5003,9 @@
      ],
      "the pin's X, by the head's +X end (with its size)": [
       "pin/bbox.x.max"
+     ],
+     "the pin's axis' X": [
+      "pin/cylinder.pin.position"
      ]
     }
    },
@@ -4429,6 +5018,9 @@
      ],
      "the pin's Z, by the head's top (with its size)": [
       "pin/bbox.z.max"
+     ],
+     "the pin's axis' Z": [
+      "pin/cylinder.pin.position"
      ]
     }
    },
@@ -4452,7 +5044,13 @@
     "at": "and 2 mm long",
     "value": 2,
     "for": {
-     "the head's length": "unchecked: the head's inner face (Y = -10) isn't probed: in.head at Y = -11 bounds it only to past -11; the volume's ±4% is about ±3.7 mm of head length."
+     "the head's length: both its faces": [
+      "pin/bbox.y.min",
+      "pin/out.past_head",
+      "pin/in.head_inner",
+      "pin/out.past_head_inner",
+      "pin/section.head"
+     ]
     }
    },
    {
@@ -4469,7 +5067,10 @@
     "at": "-12 to -10.",
     "value": 10,
     "for": {
-     "the head's inner face": "unchecked: the head's inner face (Y = -10) isn't probed: in.head at Y = -11 bounds it only to past -11; the volume's ±4% is about ±3.7 mm of head length."
+     "the head's inner face": [
+      "pin/in.head_inner",
+      "pin/out.past_head_inner"
+     ]
     }
    },
    {
@@ -4554,7 +5155,50 @@
       "pin/size.y",
       "pin/bbox.z.min",
       "pin/bbox.z.max",
-      "pin/size.z"
+      "pin/size.z",
+      "clevis/in.base_end_+x",
+      "clevis/in.base_end_-x",
+      "clevis/in.base_side_+y",
+      "clevis/in.base_side_-y",
+      "clevis/in.base_top",
+      "clevis/in.cheek_+y_end_+x",
+      "clevis/in.cheek_+y_end_-x",
+      "clevis/in.cheek_+y_inner",
+      "clevis/in.cheek_+y_outer",
+      "clevis/in.cheek_+y_top",
+      "clevis/in.cheek_-y_end_+x",
+      "clevis/in.cheek_-y_end_-x",
+      "clevis/in.cheek_-y_inner",
+      "clevis/in.cheek_-y_outer",
+      "clevis/in.cheek_-y_top",
+      "clevis/out.inside_cheek_+y",
+      "clevis/out.inside_cheek_-y",
+      "clevis/out.over_base",
+      "clevis/out.over_cheek_+y",
+      "clevis/out.over_cheek_-y",
+      "clevis/out.past_base_+y",
+      "clevis/out.past_base_-y",
+      "clevis/out.past_base_end_+x",
+      "clevis/out.past_base_end_-x",
+      "clevis/out.past_cheek_+y",
+      "clevis/out.past_cheek_+y_end_+x",
+      "clevis/out.past_cheek_+y_end_-x",
+      "clevis/out.past_cheek_-y",
+      "clevis/out.past_cheek_-y_end_+x",
+      "clevis/out.past_cheek_-y_end_-x",
+      "pin/in.head_inner",
+      "pin/out.past_head",
+      "pin/out.past_head_inner",
+      "clevis/cylinder.holes.position",
+      "tongue/cylinder.hole.position",
+      "pin/cylinder.pin.position",
+      "clevis/section.base_x",
+      "clevis/section.base_y",
+      "clevis/section.base_height",
+      "clevis/section.cheeks_x",
+      "clevis/section.cheek_-y",
+      "clevis/section.cheek_+y",
+      "pin/section.head"
      ]
     }
    },
@@ -8295,12 +8939,12 @@
      "60 mm along X, 40 mm along Y and 30 mm tall, with 2 mm walls and a 2 mm floor, open at the top",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The floor just under its top (2). The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The floor just under its top (2). The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      2,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/out.window_+x": {
     "class": "stated",
@@ -8441,13 +9085,13 @@
      "Each of its two end walls (at X = ±30) has a window through it: 12 mm wide along Y (Y = -6 to 6) and 4 mm tall, from Z = 21 to 25",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X wall just over the window's top (25). The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The +X wall just over the window's top (25). The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      25,
      4,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/out.window_top_+x": {
     "class": "stated",
@@ -8455,13 +9099,13 @@
      "Each of its two end walls (at X = ±30) has a window through it: 12 mm wide along Y (Y = -6 to 6) and 4 mm tall, from Z = 21 to 25",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X window open just under its top. The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The +X window open just under its top. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      25,
      4,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/in.under_window_+x": {
     "class": "stated",
@@ -8469,13 +9113,13 @@
      "Each of its two end walls (at X = ±30) has a window through it: 12 mm wide along Y (Y = -6 to 6) and 4 mm tall, from Z = 21 to 25",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X wall just under the window's bottom (21). The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The +X wall just under the window's bottom (21). The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      21,
      4,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/out.window_bottom_+x": {
     "class": "stated",
@@ -8483,13 +9127,13 @@
      "Each of its two end walls (at X = ±30) has a window through it: 12 mm wide along Y (Y = -6 to 6) and 4 mm tall, from Z = 21 to 25",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X window open just over its bottom. The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The +X window open just over its bottom. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      21,
      4,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/in.past_window_+y_+x": {
     "class": "stated",
@@ -8553,12 +9197,12 @@
      "60 mm along X, 40 mm along Y and 30 mm tall, with 2 mm walls and a 2 mm floor, open at the top",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X end wall just inside its inner face (28). The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The +X end wall just inside its inner face (28). The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      2,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/out.end_wall_inside_+x": {
     "class": "stated",
@@ -8566,12 +9210,12 @@
      "60 mm along X, 40 mm along Y and 30 mm tall, with 2 mm walls and a 2 mm floor, open at the top",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just past the +X end wall's inner face. The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "Nothing just past the +X end wall's inner face. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      2,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "lid/in.arm_+x": {
     "class": "stated",
@@ -8587,14 +9231,14 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X arm just inside its inner face (30.2 off the centre). The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The +X arm just inside its inner face (30.2 off the centre). The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      30.2,
      0.2,
      1.6,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.arm_clear_+x": {
     "class": "stated",
@@ -8602,14 +9246,14 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X arm clear of the wall: nothing just inside 30.2. The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The +X arm clear of the wall: nothing just inside 30.2. The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      30.2,
      0.2,
      1.6,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.arm_outer_face_+x": {
     "class": "stated",
@@ -8617,13 +9261,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X arm just inside its outer face (31.8). The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The +X arm just inside its outer face (31.8). The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      31.8,
      1.6,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.past_arm_+x": {
     "class": "stated",
@@ -8631,13 +9275,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just past the +X arm's outer face. The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "Nothing just past the +X arm's outer face. The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      31.8,
      1.6,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.arm_+y_+x": {
     "class": "stated",
@@ -8645,13 +9289,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X arm just inside its +y side (5). The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The +X arm just inside its +y side (5). The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      10,
      5,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.past_arm_+y_+x": {
     "class": "stated",
@@ -8659,13 +9303,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just past the +X arm's +y side. The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "Nothing just past the +X arm's +y side. The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      10,
      5,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.arm_-y_+x": {
     "class": "stated",
@@ -8673,13 +9317,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X arm just inside its -y side (5). The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The +X arm just inside its -y side (5). The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      10,
      5,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.past_arm_-y_+x": {
     "class": "stated",
@@ -8687,13 +9331,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just past the +X arm's -y side. The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "Nothing just past the +X arm's -y side. The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      10,
      5,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.arm_bottom_+x": {
     "class": "stated",
@@ -8701,12 +9345,12 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X arm just over its bottom (Z = 20). The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The +X arm just over its bottom (Z = 20). The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      20,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.under_arm_+x": {
     "class": "stated",
@@ -8714,12 +9358,12 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just under the +X arm. The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "Nothing just under the +X arm. The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      20,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.hook_holds_+x": {
     "class": "stated",
@@ -8755,12 +9399,12 @@
      "on each arm's inside face, pointing into the window: 1.0 mm deep from the arm, so 0.8 mm into the wall's thickness. Each hook's top is flat, at Z = 24.8, 0.2 mm under the window's top, and it ramps back to the arm at Z = 21.8: a right triangle in the XZ section, across the arm's width",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X hook's tip, at Z = 24.7, 0.1 under its top: there the ramp's face is at 29.2 + 0.1/3 = 29.233 off the centre, and the probe 0.067 inside it. A hook of depth d has its face there at 30.2 - 0.967·d, so with the past-hook probe at 29.163 the depth is held to 0.931 to 1.073: 1.0 ± 0.07, looser than its stated ±0.05 (0.8 into the wall).",
+    "says": "The +X hook's tip, at Z = 24.7, 0.1 under its top: a hook d deep has its ramp's face there at 30.2 - 0.9667·d off the centre (29.233 for 1.0), so material at 29.281 holds d ≥ 0.951, and with out.past_hook at 29.186, d ≤ 1.049: 1.0 ± 0.05, its stated ±0.05 (0.8 into the wall), with the arm's face and the ramp's foot as stated.",
     "values": [
      0.8,
      1.0
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.past_hook_+x": {
     "class": "derived",
@@ -8768,12 +9412,12 @@
      "on each arm's inside face, pointing into the window: 1.0 mm deep from the arm, so 0.8 mm into the wall's thickness. Each hook's top is flat, at Z = 24.8, 0.2 mm under the window's top, and it ramps back to the arm at Z = 21.8: a right triangle in the XZ section, across the arm's width",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing past the +X hook's tip at Z = 24.7: the ramp's face there is at 29.233, and the probe at 29.163 sits 0.07 past it. With in.hook_tip the depth is held to 1.0 ± 0.07, looser than its stated ±0.05.",
+    "says": "Nothing past the +X hook's tip at Z = 24.7, at 29.186: with in.hook_tip the depth is held to 0.951 to 1.049, 1.0 ± 0.05, its stated ±0.05.",
     "values": [
      0.8,
      1.0
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.hook_ramp_+x": {
     "class": "derived",
@@ -8781,9 +9425,9 @@
      "on each arm's inside face, pointing into the window: 1.0 mm deep from the arm, so 0.8 mm into the wall's thickness. Each hook's top is flat, at Z = 24.8, 0.2 mm under the window's top, and it ramps back to the arm at Z = 21.8: a right triangle in the XZ section, across the arm's width",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +X hook's ramp at Z = 23.3, its face at 29.2 + 1.5/3 = 29.7: material 0.06 inside it.",
+    "says": "The +X hook's ramp at Z = 23.3, its face at 29.2 + 1.5/3 = 29.7: material at 29.75, 0.05 inside it. With out.past_ramp it holds the ramp's face there to ±0.05 across.",
     "values": [],
-    "held_to": 0.06
+    "held_to": 0.05
    },
    "lid/out.past_ramp_+x": {
     "class": "derived",
@@ -8791,9 +9435,9 @@
      "on each arm's inside face, pointing into the window: 1.0 mm deep from the arm, so 0.8 mm into the wall's thickness. Each hook's top is flat, at Z = 24.8, 0.2 mm under the window's top, and it ramps back to the arm at Z = 21.8: a right triangle in the XZ section, across the arm's width",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "A ramp, not a block: nothing 0.06 past its face at Z = 23.3. One height only: its foot at 21.8 isn't held.",
+    "says": "A ramp, not a block: nothing at 29.65, 0.05 past its face at Z = 23.3.",
     "values": [],
-    "held_to": 0.06
+    "held_to": 0.05
    },
    "box/in.over_window_-x": {
     "class": "stated",
@@ -8801,13 +9445,13 @@
      "Each of its two end walls (at X = ±30) has a window through it: 12 mm wide along Y (Y = -6 to 6) and 4 mm tall, from Z = 21 to 25",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X wall just over the window's top (25). The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The -X wall just over the window's top (25). The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      25,
      4,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/out.window_top_-x": {
     "class": "stated",
@@ -8815,13 +9459,13 @@
      "Each of its two end walls (at X = ±30) has a window through it: 12 mm wide along Y (Y = -6 to 6) and 4 mm tall, from Z = 21 to 25",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X window open just under its top. The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The -X window open just under its top. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      25,
      4,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/in.under_window_-x": {
     "class": "stated",
@@ -8829,13 +9473,13 @@
      "Each of its two end walls (at X = ±30) has a window through it: 12 mm wide along Y (Y = -6 to 6) and 4 mm tall, from Z = 21 to 25",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X wall just under the window's bottom (21). The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The -X wall just under the window's bottom (21). The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      21,
      4,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/out.window_bottom_-x": {
     "class": "stated",
@@ -8843,13 +9487,13 @@
      "Each of its two end walls (at X = ±30) has a window through it: 12 mm wide along Y (Y = -6 to 6) and 4 mm tall, from Z = 21 to 25",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X window open just over its bottom. The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The -X window open just over its bottom. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      21,
      4,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/in.past_window_+y_-x": {
     "class": "stated",
@@ -8913,12 +9557,12 @@
      "60 mm along X, 40 mm along Y and 30 mm tall, with 2 mm walls and a 2 mm floor, open at the top",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X end wall just inside its inner face (28). The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The -X end wall just inside its inner face (28). The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      2,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/out.end_wall_inside_-x": {
     "class": "stated",
@@ -8926,12 +9570,12 @@
      "60 mm along X, 40 mm along Y and 30 mm tall, with 2 mm walls and a 2 mm floor, open at the top",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just past the -X end wall's inner face. The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "Nothing just past the -X end wall's inner face. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      2,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "lid/in.arm_-x": {
     "class": "stated",
@@ -8947,14 +9591,14 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X arm just inside its inner face (30.2 off the centre). The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The -X arm just inside its inner face (30.2 off the centre). The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      30.2,
      0.2,
      1.6,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.arm_clear_-x": {
     "class": "stated",
@@ -8962,14 +9606,14 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X arm clear of the wall: nothing just inside 30.2. The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The -X arm clear of the wall: nothing just inside 30.2. The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      30.2,
      0.2,
      1.6,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.arm_outer_face_-x": {
     "class": "stated",
@@ -8977,13 +9621,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X arm just inside its outer face (31.8). The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The -X arm just inside its outer face (31.8). The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      31.8,
      1.6,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.past_arm_-x": {
     "class": "stated",
@@ -8991,13 +9635,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just past the -X arm's outer face. The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "Nothing just past the -X arm's outer face. The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      31.8,
      1.6,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.arm_+y_-x": {
     "class": "stated",
@@ -9005,13 +9649,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X arm just inside its +y side (5). The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The -X arm just inside its +y side (5). The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      10,
      5,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.past_arm_+y_-x": {
     "class": "stated",
@@ -9019,13 +9663,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just past the -X arm's +y side. The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "Nothing just past the -X arm's +y side. The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      10,
      5,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.arm_-y_-x": {
     "class": "stated",
@@ -9033,13 +9677,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X arm just inside its -y side (5). The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The -X arm just inside its -y side (5). The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      10,
      5,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.past_arm_-y_-x": {
     "class": "stated",
@@ -9047,13 +9691,13 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just past the -X arm's -y side. The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "Nothing just past the -X arm's -y side. The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      10,
      5,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.arm_bottom_-x": {
     "class": "stated",
@@ -9061,12 +9705,12 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X arm just over its bottom (Z = 20). The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "The -X arm just over its bottom (Z = 20). The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      20,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.under_arm_-x": {
     "class": "stated",
@@ -9074,12 +9718,12 @@
      "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just under the -X arm. The probe sits 0.07 off the nominal face, so with its pair it holds that face to ±0.07, looser than its stated ±0.05.",
+    "says": "Nothing just under the -X arm. The probe sits 0.05 off the nominal face, so with its pair it holds that face to ±0.05, its stated ±0.05.",
     "values": [
      20,
      0.05
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.hook_holds_-x": {
     "class": "stated",
@@ -9115,12 +9759,12 @@
      "on each arm's inside face, pointing into the window: 1.0 mm deep from the arm, so 0.8 mm into the wall's thickness. Each hook's top is flat, at Z = 24.8, 0.2 mm under the window's top, and it ramps back to the arm at Z = 21.8: a right triangle in the XZ section, across the arm's width",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X hook's tip, at Z = 24.7, 0.1 under its top: there the ramp's face is at 29.2 + 0.1/3 = 29.233 off the centre, and the probe 0.067 inside it. A hook of depth d has its face there at 30.2 - 0.967·d, so with the past-hook probe at 29.163 the depth is held to 0.931 to 1.073: 1.0 ± 0.07, looser than its stated ±0.05 (0.8 into the wall).",
+    "says": "The -X hook's tip, at Z = 24.7, 0.1 under its top: a hook d deep has its ramp's face there at 30.2 - 0.9667·d off the centre (29.233 for 1.0), so material at 29.281 holds d ≥ 0.951, and with out.past_hook at 29.186, d ≤ 1.049: 1.0 ± 0.05, its stated ±0.05 (0.8 into the wall), with the arm's face and the ramp's foot as stated.",
     "values": [
      0.8,
      1.0
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/out.past_hook_-x": {
     "class": "derived",
@@ -9128,12 +9772,12 @@
      "on each arm's inside face, pointing into the window: 1.0 mm deep from the arm, so 0.8 mm into the wall's thickness. Each hook's top is flat, at Z = 24.8, 0.2 mm under the window's top, and it ramps back to the arm at Z = 21.8: a right triangle in the XZ section, across the arm's width",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing past the -X hook's tip at Z = 24.7: the ramp's face there is at 29.233, and the probe at 29.163 sits 0.07 past it. With in.hook_tip the depth is held to 1.0 ± 0.07, looser than its stated ±0.05.",
+    "says": "Nothing past the -X hook's tip at Z = 24.7, at 29.186: with in.hook_tip the depth is held to 0.951 to 1.049, 1.0 ± 0.05, its stated ±0.05.",
     "values": [
      0.8,
      1.0
     ],
-    "held_to": 0.07
+    "held_to": 0.05
    },
    "lid/in.hook_ramp_-x": {
     "class": "derived",
@@ -9141,9 +9785,9 @@
      "on each arm's inside face, pointing into the window: 1.0 mm deep from the arm, so 0.8 mm into the wall's thickness. Each hook's top is flat, at Z = 24.8, 0.2 mm under the window's top, and it ramps back to the arm at Z = 21.8: a right triangle in the XZ section, across the arm's width",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -X hook's ramp at Z = 23.3, its face at 29.2 + 1.5/3 = 29.7: material 0.06 inside it.",
+    "says": "The -X hook's ramp at Z = 23.3, its face at 29.2 + 1.5/3 = 29.7: material at 29.75, 0.05 inside it. With out.past_ramp it holds the ramp's face there to ±0.05 across.",
     "values": [],
-    "held_to": 0.06
+    "held_to": 0.05
    },
    "lid/out.past_ramp_-x": {
     "class": "derived",
@@ -9151,9 +9795,9 @@
      "on each arm's inside face, pointing into the window: 1.0 mm deep from the arm, so 0.8 mm into the wall's thickness. Each hook's top is flat, at Z = 24.8, 0.2 mm under the window's top, and it ramps back to the arm at Z = 21.8: a right triangle in the XZ section, across the arm's width",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "A ramp, not a block: nothing 0.06 past its face at Z = 23.3. One height only: its foot at 21.8 isn't held.",
+    "says": "A ramp, not a block: nothing at 29.65, 0.05 past its face at Z = 23.3.",
     "values": [],
-    "held_to": 0.06
+    "held_to": 0.05
    },
    "box/in.side_+y": {
     "class": "stated",
@@ -9161,13 +9805,13 @@
      "60 mm along X, 40 mm along Y and 30 mm tall, with 2 mm walls and a 2 mm floor, open at the top",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The +Y side wall just inside its inner face (18). The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The +Y side wall just inside its inner face (18). The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      2,
      40,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/out.side_+y_inside": {
     "class": "stated",
@@ -9175,13 +9819,13 @@
      "60 mm along X, 40 mm along Y and 30 mm tall, with 2 mm walls and a 2 mm floor, open at the top",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just inside the +Y wall's inner face. The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "Nothing just inside the +Y wall's inner face. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      2,
      40,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/in.side_-y": {
     "class": "stated",
@@ -9189,13 +9833,13 @@
      "60 mm along X, 40 mm along Y and 30 mm tall, with 2 mm walls and a 2 mm floor, open at the top",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "The -Y side wall just inside its inner face (18). The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "The -Y side wall just inside its inner face (18). The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      2,
      40,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/out.side_-y_inside": {
     "class": "stated",
@@ -9203,13 +9847,13 @@
      "60 mm along X, 40 mm along Y and 30 mm tall, with 2 mm walls and a 2 mm floor, open at the top",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just inside the -Y wall's inner face. The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "Nothing just inside the -Y wall's inner face. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      2,
      40,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "box/out.over_floor": {
     "class": "stated",
@@ -9217,12 +9861,12 @@
      "60 mm along X, 40 mm along Y and 30 mm tall, with 2 mm walls and a 2 mm floor, open at the top",
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
-    "says": "Nothing just over the floor. The probe sits 0.12 off the nominal face, so with its pair it holds that face to ±0.12, looser than its stated ±0.1.",
+    "says": "Nothing just over the floor. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
     "values": [
      2,
      0.1
     ],
-    "held_to": 0.12
+    "held_to": 0.1
    },
    "lid/in.ramp_foot_+x": {
     "class": "derived",
@@ -9231,10 +9875,11 @@
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
     "values": [
-     21.8
+     21.8,
+     0.05
     ],
-    "says": "Near the ramp's foot, Z = 22.3: the face is at 30.2 - (22.3 - 21.8)/3 = 30.033, ±0.05; material at 30.1 (mirrored on -X). With past_ramp_foot it holds the foot to 21.51 to 22.02 (-0.29/+0.22), the top and tip as stated: the ramp is 1 in 3, so 0.07 across is 0.2 or more along Z.",
-    "held_to": 0.29
+    "says": "Near the +X ramp's foot, Z = 22.3: the face is at 30.2 - (22.3 - 21.8)/3 = 30.033; material at 30.083, 0.05 inside it. With out.past_ramp_foot it holds the ramp's face there to ±0.05 across; the foot's own Z only to 21.61 to 21.97 (the ramp is 1 in 3, so 0.05 across is 0.15 or more along Z): the foot needs an edge check (see the stated table).",
+    "held_to": 0.05
    },
    "lid/out.past_ramp_foot_+x": {
     "class": "derived",
@@ -9243,10 +9888,11 @@
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
     "values": [
-     21.8
+     21.8,
+     0.05
     ],
-    "says": "Nothing at 29.96, Z = 22.3, just past the ramp's face at 30.033 less its 0.05 (mirrored on -X). With its pair it holds the foot to 21.51 to 22.02 (-0.29/+0.22).",
-    "held_to": 0.29
+    "says": "Nothing at 29.984, Z = 22.3, 0.05 past the +X ramp's face at 30.033. With its pair, the face there to ±0.05 across; the foot only to 21.61 to 21.97.",
+    "held_to": 0.05
    },
    "lid/in.ramp_foot_-x": {
     "class": "derived",
@@ -9255,10 +9901,11 @@
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
     "values": [
-     21.8
+     21.8,
+     0.05
     ],
-    "says": "Near the ramp's foot, Z = 22.3: the face is at 30.2 - (22.3 - 21.8)/3 = 30.033, ±0.05; material at 30.1 (mirrored on -X). With past_ramp_foot it holds the foot to 21.51 to 22.02 (-0.29/+0.22), the top and tip as stated: the ramp is 1 in 3, so 0.07 across is 0.2 or more along Z.",
-    "held_to": 0.29
+    "says": "Near the -X ramp's foot, Z = 22.3: the face is at 30.2 - (22.3 - 21.8)/3 = 30.033; material at 30.083, 0.05 inside it. With out.past_ramp_foot it holds the ramp's face there to ±0.05 across; the foot's own Z only to 21.61 to 21.97 (the ramp is 1 in 3, so 0.05 across is 0.15 or more along Z): the foot needs an edge check (see the stated table).",
+    "held_to": 0.05
    },
    "lid/out.past_ramp_foot_-x": {
     "class": "derived",
@@ -9267,10 +9914,11 @@
      "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
     ],
     "values": [
-     21.8
+     21.8,
+     0.05
     ],
-    "says": "Nothing at 29.96, Z = 22.3, just past the ramp's face at 30.033 less its 0.05 (mirrored on -X). With its pair it holds the foot to 21.51 to 22.02 (-0.29/+0.22).",
-    "held_to": 0.29
+    "says": "Nothing at 29.984, Z = 22.3, 0.05 past the -X ramp's face at 30.033. With its pair, the face there to ±0.05 across; the foot only to 21.61 to 21.97.",
+    "held_to": 0.05
    },
    "box/size.x": {
     "class": "stated",
@@ -9344,6 +9992,84 @@
     "values": [
      20,
      32,
+     0.1
+    ]
+   },
+   "lid/in.arm_top_+x": {
+    "class": "stated",
+    "quotes": [
+     "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
+     "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
+    ],
+    "says": "The +X arm just under the plate's underside (Z = 30), at 29.95: it runs up to the plate. One way only: the plate's underside is held at X = 0 (in.plate_underside, out.under_plate), and the one solid keeps them joined.",
+    "values": [
+     30,
+     0.05
+    ],
+    "held_to": 0.05
+   },
+   "lid/in.arm_top_-x": {
+    "class": "stated",
+    "quotes": [
+     "Two arms hang down from its ends, one outside each end wall, 0.2 mm clear of the wall: each 1.6 mm thick, 10 mm wide along Y (Y = -5 to 5), from Z = 20 to 30. So the arm at +X runs from X = 30.2 to 31.8, and the one at -X from -31.8 to -30.2",
+     "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
+    ],
+    "says": "The -X arm just under the plate's underside (Z = 30), at 29.95: it runs up to the plate. One way only: the plate's underside is held at X = 0 (in.plate_underside, out.under_plate), and the one solid keeps them joined.",
+    "values": [
+     30,
+     0.05
+    ],
+    "held_to": 0.05
+   },
+   "lid/in.plate_underside": {
+    "class": "stated",
+    "quotes": [
+     "a plate 63.6 mm along X (X = -31.8 to 31.8, so it reaches over the arms), 40 mm along Y and 2 mm thick, resting on the box's rim, from Z = 30 to 32",
+     "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
+    ],
+    "says": "The plate just over its underside (Z = 30), at X = 0, over the box's cavity. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     2,
+     30,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "lid/out.under_plate": {
+    "class": "stated",
+    "quotes": [
+     "a plate 63.6 mm along X (X = -31.8 to 31.8, so it reaches over the arms), 40 mm along Y and 2 mm thick, resting on the box's rim, from Z = 30 to 32",
+     "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
+    ],
+    "says": "Nothing of the lid just under the plate, at X = 0: it doesn't hang into the box. The probe sits 0.1 off the nominal face, so with its pair it holds that face to ±0.1, its stated ±0.1.",
+    "values": [
+     2,
+     30,
+     0.1
+    ],
+    "held_to": 0.1
+   },
+   "lid/section.plate": {
+    "class": "stated",
+    "quotes": [
+     "a plate 63.6 mm along X (X = -31.8 to 31.8, so it reaches over the arms), 40 mm along Y and 2 mm thick, resting on the box's rim, from Z = 30 to 32",
+     "±0.05 mm on the arms and hooks, ±0.1 mm on everything else"
+    ],
+    "says": "The plate 2 mm thick, ±0.1: its section at X = 0, clear of the arms and hooks.",
+    "values": [
+     2,
+     0.1
+    ]
+   },
+   "lid/gap.box.distance": {
+    "class": "stated",
+    "quotes": [
+     "the parts mustn't overlap, and the lid rests on the rim. Each hook must reach into its window, under the window's top edge. ±0.05 mm on the arms and hooks, ±0.1 mm on everything else",
+     "a plate 63.6 mm along X (X = -31.8 to 31.8, so it reaches over the arms), 40 mm along Y and 2 mm thick, resting on the box's rim, from Z = 30 to 32"
+    ],
+    "says": "The lid rests on the rim: the closest distance between it and the box 0 (touching) to 0.1, the ±0.1 on everything else. The arms are 0.2 off the walls and the hooks 0.2 under the windows' tops, so only the plate on the rim can make it that close (#40 round 2: a lid floating over the box passed).",
+    "values": [
+     30,
      0.1
     ]
    }
@@ -9543,14 +10269,22 @@
     "at": "and 2 mm thick, resting",
     "value": 2,
     "for": {
-     "the plate's thickness": "unchecked: the plate's underside isn't probed: in.plate at Z = 31 only. The no-overlap check (gap.box.interference) keeps it off the rim's inside, nothing keeps it down on the rim; only the volume's ±5.5% bounds the plate's thickness, to about ±0.12 if all else is nominal."
+     "the plate's thickness": [
+      "lid/section.plate",
+      "lid/in.plate_underside",
+      "lid/out.under_plate"
+     ]
     }
    },
    {
     "at": "from z = 30 to 32",
     "value": 30,
     "for": {
-     "the plate's underside, on the rim": "unchecked: the plate's underside isn't probed: in.plate at Z = 31 only. The no-overlap check (gap.box.interference) keeps it off the rim's inside, nothing keeps it down on the rim; only the volume's ±5.5% bounds the plate's thickness, to about ±0.12 if all else is nominal."
+     "the plate's underside, on the rim": [
+      "lid/in.plate_underside",
+      "lid/out.under_plate",
+      "lid/gap.box.distance"
+     ]
     }
    },
    {
@@ -9647,7 +10381,10 @@
     "at": "z = 20 to 30. so",
     "value": 30,
     "for": {
-     "the arms' top, at the plate": "unchecked: where the arms join the plate's underside: not a face of its own, and the underside isn't probed (see Z = 30 to 32)."
+     "the arms' top, at the plate": [
+      "lid/in.arm_top_+x",
+      "lid/in.arm_top_-x"
+     ]
     }
    },
    {
@@ -9744,20 +10481,55 @@
     "at": "at z = 21.8",
     "value": 21.8,
     "for": {
-     "the ramps' foot": [
-      "lid/in.ramp_foot_+x",
-      "lid/in.ramp_foot_-x",
-      "lid/out.past_ramp_foot_+x",
-      "lid/out.past_ramp_foot_-x"
-     ]
+     "the ramps' foot": "unchecked: needs an edge check: the foot is where the ramp meets the arm's face, a line along Y at X = ±30.2, Z = 21.8. The ramp is 1 in 3, so ±0.05 on the foot's Z is ±0.017 across, inside the arm's own ±0.05: in.ramp_foot/out.past_ramp_foot (Z = 22.3, ±0.05 across) hold it only to 21.61 to 21.97, and a probe nearer the foot would fail an arm face moved within its tolerance. Spec: `Edge(name, axis='y', near=(30.2, 21.8), along='z', span=(21.75, 21.85))`, measured as the part's straight edges parallel to Y within 0.5 mm of `near` in XZ, each held to `span` in Z, none failing; one per side."
     }
    },
    {
     "at": "±0.05 mm on the arms and hooks",
     "value": 0.05,
     "for": {
-     "the arms": "unchecked: held to ±0.07 only, by the arms' in./out. probe pairs (inner and outer faces, ±Y sides, bottom), each 0.07 off its face; the outer faces and bottom by the lid's box to ±0.1.",
-     "hooks": "unchecked: only the hooks' tops are held to ±0.05 (in.hook_holds/out.over_hook, 0.05 off); their depth to -0.07/+0.07 by in.hook_tip/out.past_hook, the ramp's face at Z = 23.3 to ±0.06 by in.hook_ramp/out.past_ramp, the ramp's foot (21.8) to -0.29/+0.22 by in.ramp_foot/out.past_ramp_foot."
+     "the arms": [
+      "lid/in.arm_+y_+x",
+      "lid/in.arm_+y_-x",
+      "lid/in.arm_-y_+x",
+      "lid/in.arm_-y_-x",
+      "lid/in.arm_bottom_+x",
+      "lid/in.arm_bottom_-x",
+      "lid/in.arm_inner_face_+x",
+      "lid/in.arm_inner_face_-x",
+      "lid/in.arm_outer_face_+x",
+      "lid/in.arm_outer_face_-x",
+      "lid/in.arm_top_+x",
+      "lid/in.arm_top_-x",
+      "lid/out.arm_clear_+x",
+      "lid/out.arm_clear_-x",
+      "lid/out.past_arm_+x",
+      "lid/out.past_arm_+y_+x",
+      "lid/out.past_arm_+y_-x",
+      "lid/out.past_arm_-x",
+      "lid/out.past_arm_-y_+x",
+      "lid/out.past_arm_-y_-x",
+      "lid/out.under_arm_+x",
+      "lid/out.under_arm_-x"
+     ],
+     "hooks": [
+      "lid/in.hook_holds_+x",
+      "lid/in.hook_holds_-x",
+      "lid/in.hook_ramp_+x",
+      "lid/in.hook_ramp_-x",
+      "lid/in.hook_tip_+x",
+      "lid/in.hook_tip_-x",
+      "lid/in.ramp_foot_+x",
+      "lid/in.ramp_foot_-x",
+      "lid/out.over_hook_+x",
+      "lid/out.over_hook_-x",
+      "lid/out.past_hook_+x",
+      "lid/out.past_hook_-x",
+      "lid/out.past_ramp_+x",
+      "lid/out.past_ramp_-x",
+      "lid/out.past_ramp_foot_+x",
+      "lid/out.past_ramp_foot_-x"
+     ]
     }
    },
    {
@@ -9790,7 +10562,29 @@
       "box/in.past_window_-y_+x",
       "box/in.past_window_-y_-x",
       "box/out.window_-y_edge_+x",
-      "box/out.window_-y_edge_-x"
+      "box/out.window_-y_edge_-x",
+      "box/in.end_wall_+x",
+      "box/in.end_wall_-x",
+      "box/in.floor",
+      "box/in.over_window_+x",
+      "box/in.over_window_-x",
+      "box/in.side_+y",
+      "box/in.side_-y",
+      "box/in.under_window_+x",
+      "box/in.under_window_-x",
+      "box/out.end_wall_inside_+x",
+      "box/out.end_wall_inside_-x",
+      "box/out.over_floor",
+      "box/out.side_+y_inside",
+      "box/out.side_-y_inside",
+      "box/out.window_bottom_+x",
+      "box/out.window_bottom_-x",
+      "box/out.window_top_+x",
+      "box/out.window_top_-x",
+      "lid/section.plate",
+      "lid/in.plate_underside",
+      "lid/out.under_plate",
+      "lid/gap.box.distance"
      ]
     }
    },
@@ -11349,6 +12143,16 @@
      2,
      150
     ]
+   },
+   "part/centre.y": {
+    "class": "stated",
+    "quotes": [
+     "centre it on y = 0"
+    ],
+    "values": [
+     0
+    ],
+    "says": "The part's box centre within its tolerance of it (`Member.centred`): the size is the model's to choose, so only its middle is held."
    }
   },
   "stated": [
@@ -11424,7 +12228,9 @@
     "at": "centre it on y = 0",
     "value": 0,
     "for": {
-     "the bracket's centre in Y": "unchecked: held only loosely: within.y keeps it inside Y = -30 to 30 and carries_shelf and on_the_wall need material on Y = 0 (on_the_wall over Y ±5); a bracket off-centre by up to about 25 mm passes."
+     "the bracket's centre in Y": [
+      "part/centre.y"
+     ]
     }
    }
   ]
@@ -11503,6 +12309,26 @@
      "the desk is the plane Z = 0, and the comb stands on it. The cables run along X, side by side along Y, with their centres at Z = 10. Centre the comb on X = 0 and Y = 0"
     ],
     "says": "Clicks in from the top: each slot open at Z = 14, 1.5 mm over the cables' tops, between fingers that reach it: 14 changes. Nothing checks the 'click' (a neck narrower than the cable): the reference's straight 5.3 slots don't click (open: #40 V2's findings)."
+   },
+   "part/centre.x": {
+    "class": "stated",
+    "quotes": [
+     "comb on x = 0"
+    ],
+    "values": [
+     0
+    ],
+    "says": "The part's box centre within its tolerance of it (`Member.centred`): the size is the model's to choose, so only its middle is held."
+   },
+   "part/centre.y": {
+    "class": "stated",
+    "quotes": [
+     "and y = 0."
+    ],
+    "values": [
+     0
+    ],
+    "says": "The part's box centre within its tolerance of it (`Member.centred`): the size is the model's to choose, so only its middle is held."
    }
   },
   "stated": [
@@ -11522,7 +12348,7 @@
      "the desk's plane: the comb above it": [
       "part/within.z"
      ],
-     "the comb standing on it": "unchecked: nothing holds the comb down on Z = 0: within.z bounds it only from below (Z at least -0.1), so a comb floating above the desk passes."
+     "the comb standing on it": "unchecked: qualitative, for the Sponsor: \"the comb stands on the desk\"; within.z bounds it only from below (Z at least -0.1), so a comb floating above the desk passes."
     }
    },
    {
@@ -11538,14 +12364,18 @@
     "at": "comb on x = 0",
     "value": 0,
     "for": {
-     "the comb's centre along X": "unchecked: held only loosely: within.x keeps it inside X = -30 to 30, and the two lines at X = 0 need material there."
+     "the comb's centre along X": [
+      "part/centre.x"
+     ]
     }
    },
    {
     "at": "and y = 0.",
     "value": 0,
     "for": {
-     "the comb's centre along Y": "unchecked: held only loosely: within.y keeps it inside Y = -60 to 60, and the lines count the slots anywhere along that; six slots off-centre by up to about 20 mm pass."
+     "the comb's centre along Y": [
+      "part/centre.y"
+     ]
     }
    }
   ]
@@ -11644,6 +12474,16 @@
     "values": [
      4
     ]
+   },
+   "part/centre.x": {
+    "class": "stated",
+    "quotes": [
+     "centre the clip on x = 0"
+    ],
+    "values": [
+     0
+    ],
+    "says": "The part's box centre within its tolerance of it (`Member.centred`): the size is the model's to choose, so only its middle is held."
    }
   },
   "stated": [
@@ -11713,7 +12553,9 @@
     "at": "centre the clip on x = 0",
     "value": 0,
     "for": {
-     "the clip's centre along X": "unchecked: held only loosely: within.x keeps it inside X = -30 to 30, and the rings and on_desk need material at X = 0; a clip off-centre by up to about half its length passes."
+     "the clip's centre along X": [
+      "part/centre.x"
+     ]
     }
    }
   ]
@@ -12648,35 +13490,35 @@
     "at": "# raspberry pi 5 case",
     "value": 5,
     "for": {
-     "the board's name": "unchecked: part of the board's name, Raspberry Pi 5: nothing to hold."
+     "the board's name": "unchecked: a name, not a dimension: part of the board's name, Raspberry Pi 5."
     }
    },
    {
     "at": "for my raspberry pi 5?",
     "value": 5,
     "for": {
-     "the board's name": "unchecked: part of the board's name, Raspberry Pi 5: nothing to hold."
+     "the board's name": "unchecked: a name, not a dimension: part of the board's name, Raspberry Pi 5."
     }
    },
    {
     "at": "two 2280 ssds",
     "value": 2280,
     "for": {
-     "the SSDs' size, 22 by 80 mm": "unchecked: the SSDs aren't modelled: they sit in the gap the Pi's keep-out covers (86 by 57, from 13 mm under its top: gap.pi5.interference), so they're kept clear only as far as they lie within the Pi's outline, as a 2280 on the Base does."
+     "the SSDs' size, 22 by 80 mm": "unchecked: the SSDs are the kit's, not the model's, and aren't modelled: they sit in the gap the Pi's keep-out covers (86 by 57, from 13 mm under its top: gap.pi5.interference), so they're kept clear only as far as they lie within the Pi's outline, as a 2280 on the Base does."
     }
    },
    {
     "at": "drawing of the pi 5,",
     "value": 5,
     "for": {
-     "the board's name": "unchecked: part of the board's name, Raspberry Pi 5: nothing to hold."
+     "the board's name": "unchecked: a name, not a dimension: part of the board's name, Raspberry Pi 5."
     }
    },
    {
     "at": "the pi 5: 85",
     "value": 5,
     "for": {
-     "the board's name": "unchecked: part of the board's name, Raspberry Pi 5: nothing to hold."
+     "the board's name": "unchecked: a name, not a dimension: part of the board's name, Raspberry Pi 5."
     }
    },
    {
@@ -12703,7 +13545,7 @@
     "at": "holes are 2.7 mm across",
     "value": 2.7,
     "for": {
-     "the mounting holes' diameter": "unchecked: no check: the case's screws or inserts are its own choice; columns r = 3 round the holes are left out of the Pi's keep-out for the standoffs, and the bosses (share.boss_*) take an insert's hole up to 4.5 across."
+     "the mounting holes' diameter": "unchecked: the Pi's holes, not the model's: the case's screws or inserts are its own choice; columns r = 3 round the holes are left out of the Pi's keep-out for the standoffs, and the bosses (share.boss_*) take an insert's hole up to 4.5 across."
     }
    },
    {

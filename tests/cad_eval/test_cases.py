@@ -34,6 +34,11 @@ def measured(m: Member, **override: Any) -> dict[str, Any]:
         "inside": inside,
         "mesh": {"watertight": True, "winding_consistent": True, "is_volume": True},
     }
+    if m.section_spans:
+        found["sections"] = [
+            {"area": 1.0, "bbox": [[0.0, sum(s.span) / 2 if a == s.across else 0.0] for a in "xyz"]}
+            for s in m.section_spans
+        ]
     if m.cylinders:
         found["cylinders"] = [
             {
@@ -472,3 +477,12 @@ def test_a_cylinder_holds_every_face_near_its_radius() -> None:
     assert all(c.ok for c in checks.cylinder(hole, [face(2.65), face(2.66)]))
     assert not checks.cylinder(hole, [face(2.65), face(2.75)])[0].ok
     assert not checks.cylinder(hole, [face(2.65), face(2.65, z=0.2)])[1].ok
+
+
+def test_a_centred_member_holds_its_middle_whatever_its_size() -> None:
+    """A worded case's "centred on Y = 0", where the size is the model's (round 2 of the
+    audit of #41: only `within` bounded it, so an off-centre part passed)."""
+    m = Member("m", within=((-50, 50), (-50, 50), (0, 40)), centred=(("y", 0.0),))
+    assert all(c.ok for c in checks.member(m, measured(m, bbox=[[0, 10], [-7, 7], [0, 5]])))
+    off = checks.member(m, measured(m, bbox=[[0, 10], [-6, 8], [0, 5]]))
+    assert [c.name for c in off if not c.ok] == ["centre.y"]

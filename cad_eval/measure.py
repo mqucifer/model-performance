@@ -191,6 +191,14 @@ def section(shape, request: dict) -> dict:  # noqa: ANN001
     origin[index] = float(request["at"])
     plane = cq.Face.makePlane(10_000, 10_000, cq.Vector(*origin), cq.Vector(*normal))
     cut = shape.intersect(plane)
+    if request.get("clip"):
+        # Only the cut within `span` along `axis`: one of two cheeks a plane cuts both of.
+        clip_axis, (low, high) = request["clip"]["axis"], request["clip"]["span"]
+        corner = [-5_000.0, -5_000.0, -5_000.0]
+        size = [10_000.0, 10_000.0, 10_000.0]
+        k = "xyz".index(clip_axis)
+        corner[k], size[k] = float(low), float(high) - float(low)
+        cut = cut.intersect(cq.Solid.makeBox(*size, pnt=cq.Vector(*corner)))
     props = GProp_GProps()
     BRepGProp.SurfaceProperties_s(cut.wrapped, props)
     area = props.Mass()

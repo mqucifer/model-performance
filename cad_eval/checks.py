@@ -82,6 +82,10 @@ def member(m: Member, measured: dict[str, Any]) -> list[Check]:
             # (the second review of #41).
             size, wanted = round(got[1] - got[0], 4), round(want[1] - want[0], 4)
             found.append(Check(f"size.{axis}", abs(size - wanted) <= m.tol, wanted, size))
+    for axis, at in m.centred:
+        got_low, got_high = box["xyz".index(axis)]
+        middle = round((got_low + got_high) / 2, 4)
+        found.append(Check(f"centre.{axis}", abs(middle - at) <= m.tol, at, middle))
     if m.within is not None:
         for axis, (low, high), (got_low, got_high) in zip("xyz", m.within, box, strict=True):
             ok = got_low >= low - m.tol and got_high <= high + m.tol

@@ -99,3 +99,13 @@ def test_no_hole_names_the_cylinders_there_are(tools: PartTools) -> None:
     error = json.loads(found.reply)["error"]
     assert "no hole" in error and "Ø5.1" in error and "`diameter x,y,z`" in error
     assert "no cylindrical face" not in error
+
+
+def test_a_section_clipped_to_a_span_reads_only_its_part(tools: PartTools) -> None:
+    """A clevis's cheek, of the two a plane cuts (round 2 of #41's audit): the base here,
+    30 mm along X, cut at Z = 3, and only its half at X >= 0."""
+    whole = {"axis": "z", "at": 3}
+    half = {**whole, "clip": {"axis": "x", "span": [0, 100]}}
+    found = tools.measure_request({"path": "part.step", "sections": [whole, half]})["sections"]
+    assert found[0]["bbox"][0] == [-15.0, 15.0]
+    assert found[1]["bbox"][0] == [0.0, 15.0]

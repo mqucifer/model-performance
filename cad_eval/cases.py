@@ -244,6 +244,9 @@ class SectionSpan:
     at: float
     across: str
     span: Span
+    # The cut only within this span along this axis, when the plane cuts two features
+    # and one is held: a clevis's cheek, of the two (round 2 of #41's audit).
+    clip: tuple[str, Span] | None = None
 
 
 @dataclass(frozen=True)
@@ -292,6 +295,9 @@ class Member:
     section_spans: tuple[SectionSpan, ...] = ()
     slopes: tuple[Slope, ...] = ()
     cylinders: tuple[Cylinder, ...] = ()
+    # Where the part's middle must be, by axis, when its size is the model's to choose
+    # ("centred on Y = 0"): its box's centre within `tol` of it (round 2 of #41's audit).
+    centred: tuple[tuple[str, float], ...] = ()
 
     def probes(self) -> list[Point]:
         found = [*self.inside.values(), *self.outside.values()]
@@ -432,71 +438,79 @@ CHAMFER_OUT = {
     "chamfer_top_high_out": (0, 2.47, 15.7),
 }
 # snap-enclosure, held on both ends to its stated ±0.05 (arms, hooks) and ±0.1 (the rest)
-# (#40: most were held to 0.6-1.1 mm, and only on +X). Each probe sits about 0.07 inside
-# or outside its face, which is at its nominal place.
+# (#40: most were held to 0.6-1.1 mm, and only on +X). Each probe sits its tolerance
+# inside or outside its face, which is at its nominal place: 0.1 on the box, 0.05 on the
+# arms and hooks (#40 round 2: they sat 0.12 and 0.07 off).
 SNAP_BOX_IN = {
     **mirrored(
         {
-            "over_window": (29, 0, 25.12),
-            "under_window": (29, 0, 20.88),
+            "over_window": (29, 0, 25.1),
+            "under_window": (29, 0, 20.9),
             "past_window_+y": (29, 6.1, 23),
             "past_window_-y": (29, -6.1, 23),
-            "end_wall": (28.12, 10, 15),
+            "end_wall": (28.1, 10, 15),
         }
     ),
-    "side_+y": (0, 18.12, 15),
-    "side_-y": (0, -18.12, 15),
-    "floor": (0, 0, 1.88),
+    "side_+y": (0, 18.1, 15),
+    "side_-y": (0, -18.1, 15),
+    "floor": (0, 0, 1.9),
 }
 SNAP_BOX_OUT = {
     **mirrored(
         {
             "window": (29, 0, 23),
-            "window_top": (29, 0, 24.88),
-            "window_bottom": (29, 0, 21.12),
+            "window_top": (29, 0, 24.9),
+            "window_bottom": (29, 0, 21.1),
             "window_+y_edge": (29, 5.9, 23),
             "window_-y_edge": (29, -5.9, 23),
-            "end_wall_inside": (27.88, 10, 15),
+            "end_wall_inside": (27.9, 10, 15),
         }
     ),
-    "side_+y_inside": (0, 17.88, 15),
-    "side_-y_inside": (0, -17.88, 15),
-    "over_floor": (0, 0, 2.12),
+    "side_+y_inside": (0, 17.9, 15),
+    "side_-y_inside": (0, -17.9, 15),
+    "over_floor": (0, 0, 2.1),
     "inside": (0, 0, 15),
 }
 SNAP_LID_IN = {
     **mirrored(
         {
             "arm": (31, 0, 25),
-            "arm_inner_face": (30.27, 0, 27),
-            "arm_outer_face": (31.73, 0, 27),
-            "arm_+y": (31, 4.93, 27),
-            "arm_-y": (31, -4.93, 27),
-            "arm_bottom": (31, 0, 20.07),
+            "arm_inner_face": (30.25, 0, 27),
+            "arm_outer_face": (31.75, 0, 27),
+            "arm_+y": (31, 4.95, 27),
+            "arm_-y": (31, -4.95, 27),
+            "arm_bottom": (31, 0, 20.05),
+            # Up to the plate's underside, Z = 30.
+            "arm_top": (31, 0, 29.95),
             "hook_holds": (29.6, 0, 24.75),
-            # At Z = 24.7 the ramp's face is at 29.233; ±0.05 is 29.183 to 29.283.
-            "hook_tip": (29.3, 0, 24.7),
-            "hook_ramp": (29.76, 0, 23.3),
-            # Near the ramp's foot, Z = 22.3: its face at 30.033, ±0.05.
-            "ramp_foot": (30.1, 0, 22.3),
+            # At Z = 24.7 a hook d deep has its ramp's face at 30.2 - 0.9667·d: for d of
+            # 0.95 to 1.05, 29.185 to 29.282.
+            "hook_tip": (29.281, 0, 24.7),
+            # The ramp's face at Z = 23.3 is at 29.7, and at Z = 22.3, near its foot, at
+            # 30.033: each ±0.05.
+            "hook_ramp": (29.75, 0, 23.3),
+            "ramp_foot": (30.083, 0, 22.3),
         }
     ),
     "plate": (0, 0, 31),
+    # The plate's underside, Z = 30, at ±0.1.
+    "plate_underside": (0, 0, 30.1),
 }
 SNAP_LID_OUT = {
     **mirrored(
         {
-            "arm_clear": (30.13, 0, 27),
-            "past_arm": (31.87, 0, 27),
-            "past_arm_+y": (31, 5.07, 27),
-            "past_arm_-y": (31, -5.07, 27),
-            "under_arm": (31, 0, 19.93),
+            "arm_clear": (30.15, 0, 27),
+            "past_arm": (31.85, 0, 27),
+            "past_arm_+y": (31, 5.05, 27),
+            "past_arm_-y": (31, -5.05, 27),
+            "under_arm": (31, 0, 19.95),
             "over_hook": (29.6, 0, 24.85),
-            "past_hook": (29.163, 0, 24.7),
-            "past_ramp": (29.64, 0, 23.3),
-            "past_ramp_foot": (29.96, 0, 22.3),
+            "past_hook": (29.186, 0, 24.7),
+            "past_ramp": (29.65, 0, 23.3),
+            "past_ramp_foot": (29.984, 0, 22.3),
         }
     ),
+    "under_plate": (0, 0, 29.9),
 }
 
 CASES: dict[str, Case] = {
@@ -787,15 +801,58 @@ CASES: dict[str, Case] = {
                     "clevis",
                     # Both cheeks' holes: each is held (`checks.cylinder`).
                     cylinders=(Cylinder("holes", "y", (0, 0, 18), (3.125, 3.175)),),
+                    # The stated sizes themselves, each to ±0.1: probes on a size's two faces
+                    # hold it only to ±0.2 (round 2 of #41's audit). A plane at Z = 24 cuts
+                    # both cheeks, so each is clipped to its own side.
+                    section_spans=(
+                        SectionSpan("base_x", "z", 3, "x", (15.9, 16.1)),
+                        SectionSpan("base_y", "z", 3, "y", (17.9, 18.1)),
+                        SectionSpan("base_height", "y", 0, "z", (5.9, 6.1)),
+                        SectionSpan("cheeks_x", "z", 24, "x", (15.9, 16.1)),
+                        SectionSpan("cheek_+y", "z", 24, "y", (3.9, 4.1), clip=("y", (0, 20))),
+                        SectionSpan("cheek_-y", "z", 24, "y", (3.9, 4.1), clip=("y", (-20, 0))),
+                    ),
                     bbox=((-8, 8), (-9, 9), (0, 26)),
                     volume=16 * 18 * 6 + 2 * 16 * 4 * 20 - 2 * math.pi * 3.15**2 * 4,
                     volume_rel=0.04,  # every stated tolerance at its limit (#40 V2)
                     # The holes' radius 3.15 ± 0.025: in past it, out short of it.
-                    inside={"base": (0, 0, 3), "cheek": (0, 7, 10), "hole_at_most": (3.19, -7, 18)},
+                    inside={
+                        "base": (0, 0, 3),
+                        "cheek": (0, 7, 10),
+                        "hole_at_most": (3.19, -7, 18),
+                        # Each face of the base and the cheeks 0.1 inside it, at ±0.1 (#40
+                        # round 2: the base's top, the cheeks' inner faces, ends and tops weren't
+                        # probed): the base at Z = 3, the cheeks at Z = 24, over the holes.
+                        "base_top": (0, 0, 5.9),
+                        **mirrored({"base_end": (7.9, 0, 3)}),
+                        "base_side_+y": (0, 8.9, 3),
+                        "base_side_-y": (0, -8.9, 3),
+                        **mirrored({"cheek_+y_end": (7.9, 7, 24), "cheek_-y_end": (7.9, -7, 24)}),
+                        "cheek_+y_inner": (0, 5.1, 24),
+                        "cheek_-y_inner": (0, -5.1, 24),
+                        "cheek_+y_outer": (0, 8.9, 24),
+                        "cheek_-y_outer": (0, -8.9, 24),
+                        "cheek_+y_top": (0, 7, 25.9),
+                        "cheek_-y_top": (0, -7, 25.9),
+                    },
                     outside={
                         "hole": (0, -7, 18),
                         "hole_at_least": (0, 7, 21.11),
                         "between_cheeks": (0, 0, 15),
+                        # And 0.1 outside it.
+                        "over_base": (0, 0, 6.1),
+                        **mirrored({"past_base_end": (8.1, 0, 3)}),
+                        "past_base_+y": (0, 9.1, 3),
+                        "past_base_-y": (0, -9.1, 3),
+                        **mirrored(
+                            {"past_cheek_+y_end": (8.1, 7, 24), "past_cheek_-y_end": (8.1, -7, 24)}
+                        ),
+                        "inside_cheek_+y": (0, 4.9, 24),
+                        "inside_cheek_-y": (0, -4.9, 24),
+                        "past_cheek_+y": (0, 9.1, 24),
+                        "past_cheek_-y": (0, -9.1, 24),
+                        "over_cheek_+y": (0, 7, 26.1),
+                        "over_cheek_-y": (0, -7, 26.1),
                     },
                 ),
                 Member(
@@ -810,14 +867,25 @@ CASES: dict[str, Case] = {
                 ),
                 Member(
                     "pin",
+                    # The head's 2 mm itself, at X = 4: off the pin, through the head.
+                    section_spans=(SectionSpan("head", "x", 4, "y", (1.9, 2.1)),),
                     # ±0.05 on the pin's and the holes' diameters, each on its axis at ±0.1
                     # (the second review of #41: probes held them to ±0.06 or ±0.08).
                     cylinders=(Cylinder("pin", "y", (0, 0, 18), (2.975, 3.025), kind="outer"),),
                     bbox=((-5, 5), (-12, 10), (13, 23)),
                     volume=math.pi * 3**2 * 20 + math.pi * 5**2 * 2,
                     volume_rel=0.04,  # every stated tolerance at its limit (#40 V2)
-                    inside={"pin_at_least": (2.97, 0, 18), "head": (4.9, -11, 18)},
-                    outside={"pin_at_most": (0, 0, 21.03), "past_head": (0, -12.1, 18)},
+                    # The head's inner face (Y = -10) at ±0.1, beside the shank (#40 round 2).
+                    inside={
+                        "pin_at_least": (2.97, 0, 18),
+                        "head": (4.9, -11, 18),
+                        "head_inner": (4, -10.1, 18),
+                    },
+                    outside={
+                        "pin_at_most": (0, 0, 21.03),
+                        "past_head": (0, -12.1, 18),
+                        "past_head_inner": (4, -9.9, 18),
+                    },
                     gaps=(
                         Gap("clevis", distance=(0.1, 0.2)),
                         Gap("tongue", distance=(0.1, 0.2)),
@@ -1131,7 +1199,11 @@ CASES: dict[str, Case] = {
                     # Each hook in its window's wall, under the window's top: it holds.
                     inside=SNAP_LID_IN,
                     outside=SNAP_LID_OUT,
-                    gaps=(Gap("box"),),
+                    # The plate 2 mm thick, ±0.1: its section at X = 0, clear of the arms.
+                    section_spans=(SectionSpan("plate", "x", 0, "z", (1.9, 2.1)),),
+                    # It rests on the rim: touching it, within the ±0.1 (#40 round 2: a lid
+                    # floating over the box passed).
+                    gaps=(Gap("box", distance=(0.0, 0.1)),),
                 ),
             ),
         ),
@@ -1205,6 +1277,7 @@ CASES: dict[str, Case] = {
                 Member(
                     "part",
                     within=((0, 150), (-30, 30), (-200, 0)),
+                    centred=(("y", 0.0),),  # "centre it on …" (round 2 of the audit)
                     samples=(
                         # Its top carries the shelf from the wall to 100 mm out.
                         line("carries_shelf", (2, 0, -0.3), (100, 0, -0.3), share=(0.99, 1.0)),
@@ -1225,6 +1298,7 @@ CASES: dict[str, Case] = {
                 Member(
                     "part",
                     within=((-30, 30), (-30, 30), (-45, 0)),
+                    centred=(("x", 0.0),),  # "centre it on …" (round 2 of the audit)
                     samples=(
                         # It wraps more than half the tube, so it snaps on, and leaves an
                         # opening; its bore takes the tube and grips it.
@@ -1293,6 +1367,7 @@ CASES: dict[str, Case] = {
                 Member(
                     "part",
                     within=((-30, 30), (-60, 60), (0, 40)),
+                    centred=(("x", 0.0), ("y", 0.0)),  # "centre it on …" (round 2 of the audit)
                     spans=(None, None, (12, 40)),
                     samples=(
                         # Six slots across the cables' centres: in, then out and in for

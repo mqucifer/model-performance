@@ -67,6 +67,8 @@ def checks(case: Case) -> list[dict[str, Any]]:
                 add(m.name, f"gaps.{sample.name}", list(sample.gaps))
             if sample.period is not None:
                 add(m.name, f"period.{sample.name}", list(sample.period), half(sample.period))
+        for axis, at in m.centred:
+            add(m.name, f"centre.{axis}", at, m.tol)
         for spec in m.cylinders:
             # On the diameter: twice the radius's half-width.
             diameter = round(spec.radius[1] - spec.radius[0], 4)

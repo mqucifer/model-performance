@@ -99,7 +99,11 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
         if m.load is not None:
             request["section"] = {"axis": m.load.axis, "at": m.load.at}
         if m.section_spans:
-            request["sections"] = [{"axis": s.axis, "at": s.at} for s in m.section_spans]
+            request["sections"] = [
+                {"axis": s.axis, "at": s.at}
+                | ({"clip": {"axis": s.clip[0], "span": list(s.clip[1])}} if s.clip else {})
+                for s in m.section_spans
+            ]
         if m.vents is not None:
             request["rays"] = {"axis": m.vents.axis, "points": m.vents.points()}
         found[m.name] = request
