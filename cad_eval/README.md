@@ -827,3 +827,9 @@ directory, such as the harness's own `cases.py`. Now:
 - **The records copy** (`run.keep`) never follows a link, to a file or into a folder.
 - **Tested both directions** on the host (`test_sandbox_paths.py`), and with links
   made in the container itself (`test_sandbox_paths_in_image.py`).
+
+**Only a whole read is a file's full text.** A `read` of part of a file (`start`,
+`end`, or a later page of a file over 400 lines) was taken for the whole by
+compaction, which then dropped the script but for the lines read. Now a `read` counts
+only when it covers line 1 to the end, and otherwise the file's last `write` and later
+edits stay whole.

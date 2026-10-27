@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 
 from cad_eval import run as cad
 from cad_eval import transcript
@@ -290,3 +291,43 @@ def test_a_pictures_base64_isnt_counted_as_text(tmp_path: Path) -> None:
     )
     # About 600 tokens for the picture, not 60,000 characters' worth (22k "tokens").
     assert 500 < s.estimate() - without < 1000
+
+
+@pytest.mark.parametrize(
+    "read_args",
+    [{"start": 10, "end": 12}, {"start": 30}, {"end": 5}],
+    ids=["lines 10-12", "from line 30", "to line 5"],
+)
+def test_a_partial_read_isnt_the_files_full_text(tmp_path: Path, read_args: dict) -> None:
+    """The second review of #41: a read of lines 10-12 left only those lines once
+    compacted, the write's full text gone."""
+    (tmp_path / "make.py").write_text(SCRIPT)
+    replies = [
+        turn(1, "write", {"path": "make.py", "content": SCRIPT}),
+        turn(2, "read", {"path": "make.py", **read_args}),
+        turn(3, "blocked", {"reason": "x"}),
+    ]
+    _, last = compacted(tmp_path, replies)
+    sent = text_of(last)
+    for k in range(40):
+        assert f"line_{k} = {k}" in sent
+
+
+def test_a_files_second_page_isnt_its_full_text(tmp_path: Path) -> None:
+    long = "".join(f"line_{k} = {k}\n" for k in range(500))
+    (tmp_path / "make.py").write_text(long)
+    replies = [
+        turn(1, "write", {"path": "make.py", "content": long}),
+        turn(2, "read", {"path": "make.py"}),
+        turn(3, "read", {"path": "make.py", "start": 401}),
+        turn(4, "blocked", {"reason": "x"}),
+    ]
+    _, last = compacted(tmp_path, replies)
+    writes = [
+        json.loads(c["function"]["arguments"])
+        for m in last
+        for c in m.get("tool_calls") or []
+        if c["function"]["name"] == "write"
+    ]
+    # Neither page is the whole file, so the write stays whole.
+    assert writes[0]["content"] == long

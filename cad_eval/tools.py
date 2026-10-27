@@ -640,7 +640,9 @@ class PartTools:
         shown = "\n".join(numbered(lines, start - 1, end))
         head = f"`{args['path']}`, lines {start}-{end} of {len(lines)}:"
         more = f"\n(more: `start` {end + 1})" if end < len(lines) else ""
-        return Judged("read", "ok", f"{head}\n{shown}{more}")
+        # Whether it's the whole file: only then is it the file's full text to compaction.
+        whole = start == 1 and end >= len(lines)
+        return Judged("read", "ok", f"{head}\n{shown}{more}", detail={"whole": whole})
 
     def _edit(self, args: dict[str, Any]) -> Judged:
         """crew's `replace_text`, as `edit`: each refusal its own rule, and nothing run."""

@@ -273,7 +273,7 @@ class Session:
                 elif function.get("name") == "edit":
                     full.setdefault(path, set()).add(("call", i, k))
             info = self.replies.get(i)
-            if info and info["ok"] and info["name"] == "read":
+            if info and info["ok"] and info["name"] == "read" and info["whole"]:
                 full[str(info["path"])] = {("reply", i, -1)}
             elif info and info["ok"] and info["name"] == "edit":
                 full.setdefault(str(info["path"]), set()).add(("reply", i, -1))
@@ -428,6 +428,8 @@ class Session:
                 "ok": judged.outcome == "ok",
                 "ran": judged.outcome == "ok"
                 and (name == "run" or "\n\nRan " in str(judged.reply or "")),
+                # A read of the whole file, not part of it (the second review of #41).
+                "whole": bool((judged.detail or {}).get("whole")) if name == "read" else False,
             }
             self.messages.append(reply)
             if judged.image:
