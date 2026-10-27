@@ -86,11 +86,19 @@ def test_assemblies_have_two_to_five_members_and_the_others_one() -> None:
             assert case.outputs() == ["part.step"]
 
 
-@pytest.mark.parametrize("name", list(CASES))
-def test_each_measure_request_fits_on_the_command_line(name: str) -> None:
-    # Linux takes one argument of at most 128 KiB.
-    for request in cad.requests(CASES[name]).values():
-        assert len(json.dumps(request)) < 120_000
+def test_a_measure_request_goes_on_stdin_whatever_its_size(tmp_path) -> None:
+    """Linux takes one argument of at most 128 KiB, and gear-pair's request is 107: the
+    request goes after the source on stdin, never as an argument (the operator)."""
+    from cad_eval.tools import PartTools  # noqa: PLC0415
+    from tests.cad_eval.fakes import FakeWorkspace  # noqa: PLC0415
+
+    (tmp_path / "part.step").write_text("step")
+    t = PartTools(tmp_path, FakeWorkspace(directory=tmp_path, measured={"valid": True}))
+    big = {"path": "part.step", "probes": [[k * 0.001, 0.0, 0.0] for k in range(20_000)]}
+    assert len(json.dumps(big)) > 128 * 1024
+    t.measure_request(big)
+    assert t.workspace.commands[-1] == ["python", "-I", "-"]
+    assert t.workspace.requests[-1] == big
 
 
 def test_a_request_asks_only_for_what_the_members_checks_need() -> None:

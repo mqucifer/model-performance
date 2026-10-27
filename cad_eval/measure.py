@@ -507,9 +507,11 @@ def measure(request: dict) -> dict:
     return out
 
 
-def main() -> None:
-    print(MARK + json.dumps(measure(json.loads(sys.argv[1]))))
+def main(raw: str | None = None) -> None:
+    """The request from the harness, appended to this source on stdin as `main(...)`:
+    a request can outgrow one argument's 128 KiB. By hand, from the first argument."""
+    print(MARK + json.dumps(measure(json.loads(raw if raw is not None else sys.argv[1]))))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and len(sys.argv) > 1:
     main()

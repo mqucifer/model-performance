@@ -50,6 +50,14 @@ MAX_PATH = 200
 # What the script the session names at `done` must write: the part, as STEP.
 OUTPUT = "part.step"
 MEASURE_SOURCE = Path(measure.__file__).read_text(encoding="utf-8")
+
+
+def measure_stdin(request: dict[str, Any]) -> str:
+    """`measure.py` and its request, on stdin: the request as a call after the source,
+    never an argument, since Linux takes one of at most 128 KiB (gear-pair's is 107)."""
+    return f"{MEASURE_SOURCE}\nmain({json.dumps(request)!r})\n"
+
+
 LOOKUP_SOURCE = Path(lookup_module.__file__).read_text(encoding="utf-8")
 LOOKUP_TIMEOUT = 60
 HINT_SOURCE = Path(hint_module.__file__).read_text(encoding="utf-8")
@@ -831,9 +839,7 @@ class PartTools:
     ) -> dict[str, Any]:
         """What `measure.py` finds, run from stdin in the container, never from /work."""
         request = {"path": path, "probes": probes or [], "mate": mate}
-        done = self.execute(
-            ["python", "-I", "-", json.dumps(request)], timeout, stdin=MEASURE_SOURCE
-        )
+        done = self.execute(["python", "-I", "-"], timeout, stdin=measure_stdin(request))
         for line in reversed(done.output.splitlines()):
             if line.startswith(measure.MARK):
                 return json.loads(line[len(measure.MARK) :])
@@ -845,9 +851,7 @@ class PartTools:
     ) -> dict[str, Any]:
         """`measure.py` on a whole request: the harder cases' `against`, `self`,
         `cylinders` and `section` beside the probes."""
-        done = self.execute(
-            ["python", "-I", "-", json.dumps(request)], timeout, stdin=MEASURE_SOURCE
-        )
+        done = self.execute(["python", "-I", "-"], timeout, stdin=measure_stdin(request))
         for line in reversed(done.output.splitlines()):
             if line.startswith(measure.MARK):
                 return json.loads(line[len(measure.MARK) :])

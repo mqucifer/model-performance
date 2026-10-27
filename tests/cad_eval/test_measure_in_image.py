@@ -135,3 +135,10 @@ def test_a_gap_within_a_box_and_between_a_parts_own_solids(tools: PartTools) -> 
         }
     )["regions"]
     assert abs(own["g"]["distance"] - 0.5) < 1e-3
+
+
+def test_a_request_over_an_arguments_limit_is_measured(tools: PartTools) -> None:
+    """Linux takes one argument of at most 128 KiB: the request goes on stdin (the
+    operator, before the baseline). A key the measure doesn't read pads it past that."""
+    request = {"path": "part.step", "probes": [[0, 0, 3], [0, 0, 50]], "pad": "x" * 200_000}
+    assert tools.measure_request(request)["inside"] == [True, False]

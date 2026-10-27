@@ -76,10 +76,15 @@ class FakeWorkspace:
 
             found = {"query": command[3], "matches": 1, "found": [{"name": "cq.Wire.makeHelix"}]}
             return Ran("lookup", 0, "CAD_EVAL_LOOKUP " + json.dumps(found))
-        if command[:3] == ["python", "-I", "-"]:
+        if command == ["python", "-I", "-"] and stdin and measure.MARK in stdin:
+            import ast  # noqa: PLC0415
             import json  # noqa: PLC0415
 
-            path = json.loads(command[3])["path"]
+            # The request, as the call after the source (`tools.measure_stdin`).
+            call = stdin.rstrip().rsplit("\n", 1)[-1]
+            asked = json.loads(ast.literal_eval(call[len("main(") : -1]))
+            self.requests = [*getattr(self, "requests", []), asked]
+            path = asked["path"]
             found = self.measured_by.get(path, self.measured)
             return Ran("measure", 0, measure.MARK + json.dumps({"path": path, **found}))
         code = self.exits.pop(0) if self.exits else 0

@@ -2693,6 +2693,9 @@
      ]
     }
    }
+  ],
+  "limits": [
+   "A region gap holds each face pair's closest distance in its box, not its farthest: a face leaning or bowing inside its box can open past the upper limit at its far end, bounded there only by the ±0.1 face probes."
   ]
  },
  "print-in-place-hinge": {
@@ -3917,6 +3920,9 @@
      ]
     }
    }
+  ],
+  "limits": [
+   "A region gap holds each face pair's closest distance in its box, not its farthest: a face leaning or bowing inside its box can open past the upper limit at its far end, bounded there only by the ±0.1 face probes."
   ]
  },
  "spur-gear": {
@@ -9125,6 +9131,9 @@
      ]
     }
    }
+  ],
+  "limits": [
+   "A region gap holds each face pair's closest distance in its box, not its farthest: a face leaning or bowing inside its box can open past the upper limit at its far end, bounded there only by the ±0.1 face probes."
   ]
  },
  "gear-pair": {
@@ -10513,6 +10522,9 @@
      ]
     }
    }
+  ],
+  "limits": [
+   "A region gap holds each face pair's closest distance in its box, not its farthest: a face leaning or bowing inside its box can open past the upper limit at its far end, bounded there only by the ±0.1 face probes."
   ]
  },
  "bolt-nut": {
@@ -13074,6 +13086,9 @@
      ]
     }
    }
+  ],
+  "limits": [
+   "The ramp's foot at Z = 21.8 is unchecked: on a 1-in-3 ramp the arm face's own ±0.05 moves any probe's reading of the foot by ±0.15, so only an edge check, which doesn't exist, would hold it."
   ]
  },
  "caster-wheel": {

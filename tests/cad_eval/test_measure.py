@@ -22,7 +22,8 @@ def test_the_measure_request_carries_only_the_path_and_the_query(tmp_path: Path)
     t = tools(tmp_path, {"hole": {"diameter": 4.5}})
     found = t.call("measure", '{"path": "part.step", "query": "hole 0,0,5"}')
     assert found.outcome == "ok" and json.loads(found.reply)["hole"]["diameter"] == 4.5
-    request = json.loads(t.workspace.commands[-1][3])
+    assert t.workspace.commands[-1] == ["python", "-I", "-"]
+    request = t.workspace.requests[-1]
     # The guard against teaching to the test: no probes, bounds, volumes or mates.
     assert request == {"path": "part.step", "query": "hole 0,0,5"}
 

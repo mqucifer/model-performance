@@ -923,3 +923,17 @@ the wrong solutions fail. New kinds of check:
 - **The qualitative items**, which are for the Sponsor.
 - **snap-enclosure's ramp foot.** On a 1-in-3 ramp, the arm face's own ±0.05 moves any
   probe's reading of the foot by ±0.15, so only an edge check would hold it.
+
+**Known limits** (the operator: recorded, no new measure before the baseline). Each is
+also in its case's `limits` in `audit.json`.
+- **A region gap holds a face pair's closest distance in its box, not the farthest.**
+  A face that leans or bows inside its box can open past the upper limit at its far
+  end. Only the ±0.1 face probes bound it there. This affects dovetail-slider,
+  drawer-cabinet, print-in-place-hinge and gear-pair.
+- **snap-enclosure's ramp foot (Z = 21.8) is unchecked.** On a 1-in-3 ramp, the arm
+  face's own ±0.05 moves any probe's reading of the foot by ±0.15. Holding it needs an
+  edge check, which doesn't exist.
+
+**The measure request goes on stdin**, as a call after `measure.py`'s source, never as
+an argument. Linux takes one argument of at most 128 KiB, and gear-pair's request is
+about 107 KiB. A test sends 200 KB in the image.
