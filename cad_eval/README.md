@@ -606,3 +606,27 @@ silently drop everything before it. `python -m cad_eval.probe --go` asks:
 **The cap is 50 in the base arm** (`CAP_BASE`). The model isn't told it, so a run
 says what a lower cap would have done. It's lowered from the calls each run took to
 its first clean run, which the row records.
+
+## A tool smoke test (mqucifer/model-performance#40, V3)
+
+`tests/cad_eval/test_smoke_in_image.py`: a scripted fake model drives a real session,
+in a real v2 container, through every tool of the base arm, error paths included.
+- **The script, 20 steps:** a plan that misses, then a write the gate refuses, then a
+  plan that holds; then:
+  - `lookup` and a page out of range;
+  - `docs`;
+  - a skill and an unknown one;
+  - a write whose run raises AttributeError (the hint must name `cq.Shape`);
+  - an edit that fixes it and runs, and an edit refused;
+  - a run of a missing file;
+  - `inspect`;
+  - `measure` and a query it can't read;
+  - `view` and a view it can't draw;
+  - an unknown tool (malformed) and a wrong type (ill-typed);
+  - `done`.
+  Before the first step, a reply with no tool call is nudged.
+- **What it asserts:** each call comes to the outcome and rule it should. The picture
+  is kept, the reasoning goes back, and every request rebuilds from the records.
+- **The part:** press-fit-pin's reference solution, which passes every check of the
+  case.
+- **No model is called.**
