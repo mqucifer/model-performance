@@ -266,6 +266,8 @@ def evaluate(
         "served_model": None,
         "served_models": None,
         "served_changed": None,
+        "served_mismatch": None,
+        "served_unverified": None,
         "ending": None,
         "stop": None,
         "compiles": None,
@@ -327,6 +329,7 @@ def evaluate(
             backstop_s=math.inf if case else BACKSTOP_S,
         )
         session.keep_reasoning = arm == "base"
+        session.serving_record = serving_start
         ending = session.run()
         row["ending"], row["stop"] = ending.how, ending.stop or None
         row["calls_to_done"] = session.calls if ending.how == "done" else None
@@ -380,6 +383,9 @@ def evaluate(
         row["served_model"] = served[0] if served else None
         row["served_models"] = len(served)
         row["served_changed"] = len(served) > 1
+        found = session.mismatches if session else []
+        row["served_mismatch"] = any(m and m != ["unverified"] for m in found)
+        row["served_unverified"] = any(m == ["unverified"] for m in found)
         serving_end = serving_record()
         kept["serving_end"] = serving_end
         row["serving_record_changed"] = identity.changed(serving_start, serving_end)

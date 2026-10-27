@@ -133,12 +133,14 @@ def test_the_serving_record_is_read_from_infras_inventory() -> None:
         "serving_image": "lmsysorg/sglang:v0.5.22-cu130",
         "serving_digest": "sha256:e3a4f060...eae4a1ae",
         "serving_model": "RadixArk/Qwen3.8-27B-NVFP4-BF16-LMHead",
+        "serving_port": None,
     }
     # A record that doesn't say is none, never a guess.
     assert identity.serving_from("name: sglang\n") == {
         "serving_image": None,
         "serving_digest": None,
         "serving_model": None,
+        "serving_port": None,
     }
 
 
@@ -250,3 +252,43 @@ def test_a_failed_call_keeps_its_http_status(tmp_path: Path) -> None:
     kept = json.loads((r.records(row) / "result.json").read_text())
     assert row["stop"] == "call_failed"
     assert kept["said"]["status"] == 400
+
+
+def test_each_calls_serving_is_compared_with_infras_record() -> None:
+    """What's readable in LiteLLM's headers, against infra's record (the second review
+    of #41): the model group is the alias asked for, and the api base reaches SGLang on
+    the port infra records. A call without the headers is unverified, not a match."""
+    record = {"serving_port": "8888"}
+    good = {
+        "x-litellm-model-group": "crew-code-think",
+        "x-litellm-model-api-base": "http://a:8888/v1",
+    }
+    assert identity.mismatch(good, "crew-code-think", record) == []
+    wrong_group = {**good, "x-litellm-model-group": "crew-candidate"}
+    assert identity.mismatch(wrong_group, "crew-code-think", record) == ["model_group"]
+    wrong_port = {**good, "x-litellm-model-api-base": "http://a:9999/v1"}
+    assert identity.mismatch(wrong_port, "crew-code-think", record) == ["api_base"]
+    assert identity.mismatch({}, "crew-code-think", record) == ["unverified"]
+    assert (
+        identity.serving_from(SGLANG + "ports:\n  api: 8888, on every interface\n")["serving_port"]
+        == "8888"
+    )
+
+
+def test_the_row_flags_a_served_mismatch(tmp_path: Path) -> None:
+    replies = [
+        {
+            **a,
+            "served": {
+                "x-litellm-model-id": "d",
+                "x-litellm-model-group": "crew-candidate",
+                "x-litellm-model-api-base": "http://a:8888/v1",
+            },
+        }
+        for a in GOOD
+    ]
+    r = Run(tmp_path, replies, measured=measured("spacer"))
+    row = r.go(serving_record=lambda: {"serving_port": "8888"})
+    assert row["served_mismatch"] is True and row["served_unverified"] is False
+    events = [json.loads(x) for x in (r.records(row) / "events.jsonl").open()]
+    assert [e["served_mismatch"] for e in events if e["kind"] == "call"][0] == ["model_group"]

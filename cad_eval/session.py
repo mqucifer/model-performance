@@ -156,6 +156,9 @@ class Session:
     last_chars: int = 0
     # The reasoning's size over the run, in characters: each call's is in its event.
     reasoning_chars: int = 0
+    # infra's record of production's serving, each call's headers compared with it.
+    serving_record: dict[str, Any] = field(default_factory=dict)
+    mismatches: list[list[str]] = field(default_factory=list)
     # Each tool reply's tool, by its message's index, and what compaction needs of it:
     # the file it was about, whether it ran something, and whether it was done.
     answered_by: dict[int, str] = field(default_factory=dict)
@@ -369,6 +372,10 @@ class Session:
         served = headers.get("x-litellm-model-id") or None
         if served:
             self.served.append(served)
+        from cad_eval import identity  # noqa: PLC0415
+
+        differs = identity.mismatch(headers, self.alias, self.serving_record)
+        self.mismatches.append(differs)
         self.usage.update(usage(answer))
         choices = answer.get("choices") if isinstance(answer, dict) else None
         if not choices:
@@ -390,6 +397,7 @@ class Session:
             reasoning_chars=thought,
             served_model=served,
             served=headers,
+            served_mismatch=differs,
             finish=choices[0].get("finish_reason"),
             message=choices[0].get("message"),
             usage=usage(answer),

@@ -61,10 +61,12 @@ def serving_from(text: str) -> dict[str, str | None]:
     image = re.search(r"\bimage (\S+?),", text)
     digest = re.search(r"pinned by digest (sha256:\S+?),", text)
     model = re.search(r"the model, (\S+)", text)
+    port = re.search(r"\bapi: (\d+)", text)
     return {
         "serving_image": image.group(1) if image else None,
         "serving_digest": digest.group(1) if digest else None,
         "serving_model": model.group(1) if model else None,
+        "serving_port": port.group(1) if port else None,
     }
 
 
@@ -109,6 +111,30 @@ def serving(alias: str = "crew-code-think", fetch: Any = gh) -> dict[str, Any]:
         "serving_route": route,
         "serving_route_matches": bool(route and container and route == container.group(1)),
     }
+
+
+def mismatch(headers: dict[str, str], alias: str, record: dict[str, Any]) -> list[str]:
+    """How a call's serving, as LiteLLM's headers say it, differs from infra's record:
+    the model group isn't the alias asked for, or the api base isn't on the port infra
+    records for SGLang. With neither header, `unverified`, never a match.
+
+    LiteLLM's deployment id is a hash of its parameters, not compared (the operator:
+    fragile, version-coupled). A model swapped under the same served name wouldn't show
+    here: nothing probes SGLang, by the rules.
+    """
+    from urllib.parse import urlparse  # noqa: PLC0415
+
+    group = headers.get("x-litellm-model-group")
+    base = headers.get("x-litellm-model-api-base")
+    if not group and not base:
+        return ["unverified"]
+    found = []
+    if group and group != alias:
+        found.append("model_group")
+    port = record.get("serving_port")
+    if base and port and urlparse(base).port != int(port):
+        found.append("api_base")
+    return found
 
 
 def changed(start: dict[str, Any], end: dict[str, Any]) -> bool:

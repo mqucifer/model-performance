@@ -833,3 +833,18 @@ directory, such as the harness's own `cases.py`. Now:
 compaction, which then dropped the script but for the lines read. Now a `read` counts
 only when it covers line 1 to the end, and otherwise the file's last `write` and later
 edits stay whole.
+
+**Each call's serving is compared with infra's record**, by what LiteLLM's headers
+make readable (the operator: not its deployment-id hash, which is fragile and tied to
+LiteLLM's version):
+- **The model group** (`x-litellm-model-group`) must be the alias asked for.
+- **The api base** (`x-litellm-model-api-base`) must be on the port infra records for
+  SGLang's api (`serving_port`, 8888). The address itself stays in the records: rows
+  hold no address.
+- **What's flagged:** each call's differences go into its event (`served_mismatch`).
+  The row's `served_mismatch` is set if any call differed, and `served_unverified` if
+  any call's headers said neither.
+- **Not caught:** a model swapped under the same served name, since nothing probes
+  SGLang.
+- **Not yet proved live:** that LiteLLM sends these headers. V5's first call will show
+  it.
