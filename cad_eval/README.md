@@ -508,3 +508,29 @@ sends its parts and files, interfaces, sizes and fits.
   don't.
 - **The records:** each check goes to the events, each miss with its entry. The row
   records `plans`, `plan_passed` and `plan_misses`.
+
+## API grounding that transfers (mqucifer/model-performance#40, A2)
+
+The base arm finds CadQuery's names in what's installed, never in a list anyone wrote.
+There are no curated call lists anywhere.
+- **`lookup`** searches the image's index (`search.py` over `lookup.json`).
+  - **Matching:** a member matches by any class it's on, so `Solid.fuse` finds
+    `cq.Shape.fuse` (defined there, on Solid too). Each function appears once with every
+    class it's on, exact names first, 15 to a `page`.
+  - **No match:** the nearest names. v1 returned nothing for 28% of its lookups, some
+    of them real inherited names.
+  - **OCP:** every name in every module. A class named exactly also lists its
+    members, read live.
+  - **v1's arms** keep v1's `lookup.py`.
+- **`docs`** searches CadQuery's own 2.8.0 documentation and examples by words, three
+  sections to a page, with their code. A section whose code calls `show_object`, or
+  didn't run on its own at the image's build, says so.
+- **The orientation** is the base arm's system prompt (`SYSTEM_BASE`):
+  - the version (CadQuery 2.8.0, OCP 7.9.3) and what's installed, exactly;
+  - the two layers of the API (the Workplane chain and the shapes it holds), and to
+    check a name before using it;
+  - each tool named once for what it's for. v1's prompt named three different ways to
+    check a fit.
+- **Coverage, tested in the image:** every CadQuery name the reference solutions call
+  resolves in the index. The references are a corpus to check `lookup` against, never
+  shown to the model.

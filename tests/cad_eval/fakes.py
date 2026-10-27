@@ -57,6 +57,12 @@ class FakeWorkspace:
 
             found = {"cadquery": "2.8.0", "ocp": "7.9.3.1.1"}
             return Ran("versions", 0, "CAD_EVAL_VERSIONS " + json.dumps(found))
+        if command[:3] == ["python", "-I", "-"] and stdin and "CAD_EVAL_SEARCH" in stdin:
+            import json  # noqa: PLC0415
+
+            asked = json.loads(command[3])
+            found = {"query": asked["query"], "matches": 0, "page": 1, "pages": 1, "found": []}
+            return Ran("search", 0, "CAD_EVAL_SEARCH " + json.dumps(found))
         if command[:3] == ["python", "-I", "-"] and stdin and "CAD_EVAL_HINT" in stdin:
             import json  # noqa: PLC0415
 

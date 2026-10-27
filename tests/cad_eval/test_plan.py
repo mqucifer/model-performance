@@ -163,7 +163,6 @@ def test_there_is_no_per_case_answer_key() -> None:
 def test_a_base_arm_run_records_its_plan_on_the_row(tmp_path: Path) -> None:
     from cad_eval import container
     from tests.cad_eval.test_cases import go
-    from tests.cad_eval.test_checks import measured as part_measured  # noqa: F401
     from tests.cad_eval.test_run import Run, answer, call
 
     replies = [

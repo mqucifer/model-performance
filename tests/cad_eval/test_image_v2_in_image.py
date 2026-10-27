@@ -121,3 +121,63 @@ def test_a_hint_names_where_a_real_name_is_and_what_is_near_a_made_up_one() -> N
     assert "cq.Workplane" not in found["on"]
     assert "cq.Shape" in hint("Workplane", "fuse")["on"]
     assert "makeFromWires" in hint("Face", "makeFace")["near"]
+
+
+def search(tool: str, query: str, page: int = 1) -> dict:
+    from cad_eval import search as search_module  # noqa: PLC0415
+
+    done = subprocess.run(
+        ["docker", "run", "--rm", "-i", "--network", "none", container.IMAGE_V2]
+        + ["python", "-I", "-", json.dumps({"tool": tool, "query": query, "page": page})],
+        input=Path(search_module.__file__).read_text(),
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=120,
+    )
+    line = next(x for x in done.stdout.splitlines() if x.startswith(search_module.MARK))
+    return json.loads(line[len(search_module.MARK) :])
+
+
+def test_lookup_finds_what_v1s_missed() -> None:
+    """v1's lookup said these didn't exist (the red-team review, rt_ocp.py)."""
+    for query, owner in (
+        ("Solid.fuse", "cq.Shape.fuse"),
+        ("Solid.Volume", "cq.Shape.Volume"),
+        ("Compound.BoundingBox", "cq.Shape.BoundingBox"),
+    ):
+        names = [f["name"] for f in search("lookup", query)["found"]]
+        assert owner in names, (query, names)
+    assert search("lookup", "func.fuse")["matches"] >= 1
+    assert search("lookup", "BRepExtrema_DistShapeShape")["matches"] >= 1
+    assert search("lookup", "Workplane.isValid")["matches"] == 0
+    members = search("lookup", "OCP.BRepExtrema.BRepExtrema_DistShapeShape")["members"]
+    assert any(m.startswith("Value(") for m in members)
+
+
+def test_lookup_resolves_every_name_the_reference_solutions_call() -> None:
+    """A coverage test: the references are a corpus to check lookup against, never a
+    list for the model."""
+    import ast  # noqa: PLC0415
+
+    index = json.loads(inside(container.IMAGE_V2, "cat", container.LOOKUP_INDEX))
+    members = {e["name"].rpartition(".")[2] for e in index["entries"]}
+    used: set[str] = set()
+    for script in (Path(__file__).parent / "reference").glob("*.py"):
+        for node in ast.walk(ast.parse(script.read_text())):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                used.add(node.func.attr)
+    # Python's own (list.append, math.cos, str.format…) aren't CadQuery's.
+    python = {"append", "extend", "format", "join", "items", "cos", "sin", "tan", "radians"}
+    python |= {"sqrt", "atan2", "acos", "asin", "atan", "degrees", "hypot", "pi", "range", "floor"}
+    python |= {"get", "keys", "values", "pop", "insert", "sort", "reverse", "copy", "update"}
+    missing = sorted(used - members - python)
+    assert missing == [], missing
+
+
+def test_docs_finds_cadquerys_own_pages_and_says_what_wont_run_here() -> None:
+    found = search("docs", "sweep helix thread")
+    assert found["matches"] > 0
+    assert any("elix" in f["title"] or "elix" in f["text"] for f in found["found"])
+    notes = " ".join(f["note"] for p in (1, 2, 3) for f in search("docs", "box", p)["found"])
+    assert "show_object" in notes

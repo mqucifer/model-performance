@@ -36,6 +36,7 @@ from cad_eval import hint as hint_module
 from cad_eval import lookup as lookup_module
 from cad_eval import measure, plan, skills
 from cad_eval import render as render_module
+from cad_eval import search as search_module
 
 RUN_TIMEOUT = 120
 MEASURE_TIMEOUT = 180
@@ -49,6 +50,7 @@ LOOKUP_SOURCE = Path(lookup_module.__file__).read_text(encoding="utf-8")
 LOOKUP_TIMEOUT = 60
 HINT_SOURCE = Path(hint_module.__file__).read_text(encoding="utf-8")
 RENDER_SOURCE = Path(render_module.__file__).read_text(encoding="utf-8")
+SEARCH_SOURCE = Path(search_module.__file__).read_text(encoding="utf-8")
 RENDER_TIMEOUT = 180
 VIEWS = ("top", "front", "side", "iso", "exploded", "section")
 # A measure the tool itself failed: not the model's query, not its part.
@@ -245,6 +247,29 @@ VIEW = _spec(
     files="Your STEP files to draw, separated by spaces, such as `base.step lid.step`.",
     view="The view: `iso`, `top`, `front`, `side`, `exploded` or `section x=40`.",
 )
+PAGE = {
+    "page": {
+        "type": "integer",
+        "description": "Which page of the matches, from 1. Optional: the first.",
+    }
+}
+# `lookup` and `docs` over the v2 image's indexes (#40, A2): `search.py`.
+LOOKUP = _spec(
+    "lookup",
+    "Look up names in the installed CadQuery 2.8.0 and OCP 7.9: every name that holds the "
+    "query, each with its signature, its docstring's start, and every class it's on "
+    "(inherited members included). Nearest names when nothing matches; an OCP class "
+    "named exactly lists its members.",
+    PAGE,
+    query="A name or a fragment of one, such as `Solid.fuse`, `makeHelix` or `OCP.BRepExtrema`.",
+)
+DOCS = _spec(
+    "docs",
+    "Search CadQuery's own 2.8.0 documentation and examples by words, such as "
+    "`sweep helix` or `workplane on a face`: the best sections, with their code.",
+    PAGE,
+    query="What to find, in words.",
+)
 PLAN = _spec(
     "plan",
     "Your dimensioned plan, before any code. Each size says where it comes from: "
@@ -265,6 +290,8 @@ def base_specs(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for spec in specs:
         if spec["function"]["name"] == "write":
             found += [WRITE_BASE, EDIT]
+        elif spec["function"]["name"] == "lookup":
+            found += [LOOKUP, DOCS]
         else:
             found.append(spec)
     return [*found, MEASURE, VIEW, PLAN]
@@ -654,8 +681,34 @@ class PartTools:
             return self._failed("skill", "unknown", f"No skill `{args['name']}`: {named}.", args)
         return Judged("skill", "ok", found.body())
 
+    def _docs(self, args: dict[str, Any]) -> Judged:
+        return self._search("docs", args)
+
+    def _search(self, name: str, args: dict[str, Any]) -> Judged:
+        """`lookup` or `docs` in the base arm: `search.py` over the image's indexes."""
+        if not args["query"].strip() or len(args["query"]) > MAX_PATH:
+            reply = f"`query` is a name or some words, of at most {MAX_PATH} characters."
+            return self._failed(name, "not_a_query", reply, args)
+        page = args.get("page", 1)
+        if page < 1:
+            return self._failed(name, "not_a_page", "`page` is a page number, from 1.", args)
+        request = {"tool": name, "query": args["query"], "page": page}
+        done = self.execute(
+            ["python", "-I", "-", json.dumps(request)], LOOKUP_TIMEOUT, stdin=SEARCH_SOURCE
+        )
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(search_module.MARK):
+                return Judged(name, "ok", line[len(search_module.MARK) :])
+        self.troubles[f"{name}_unfinished"] = self.troubles.get(f"{name}_unfinished", 0) + 1
+        return self._failed(
+            name, "unfinished", f"The {name} didn't finish (exit {done.code}).", args
+        )
+
     def _lookup(self, args: dict[str, Any]) -> Judged:
-        """`lookup.py` on the query, run from stdin in the container, as the measure is."""
+        """`lookup.py` on the query, run from stdin in the container, as the measure is.
+        The base arm's searches the v2 image's index instead (`_search`)."""
+        if self.arm == BASE:
+            return self._search("lookup", args)
         if not args["query"].strip() or len(args["query"]) > MAX_PATH:
             reply = f"`query` is a name or a fragment, of at most {MAX_PATH} characters."
             return self._failed("lookup", "not_a_query", reply, args)

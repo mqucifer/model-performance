@@ -64,14 +64,39 @@ a clean start and checked. If the spec can't be made, call `blocked` and say why
 spec says. There's no network, and only CadQuery and its dependencies are installed."""
 
 
-def system_for(outputs: list[str]) -> str:
+# The base arm's (mqucifer/model-performance#40): each tool named once for what it's
+# for, so there's one way to check a fit, not three; what's installed, exactly; and the
+# orientation: the version, the two layers of the API, and to check a name first.
+SYSTEM_BASE = """You make 3D-printable parts in CadQuery 2.8.0 (Python), from a spec, \
+with tools, in a directory of your own.
+
+- Save {saves}, with `cq.exporters.export(part, "<file>")`. Units are millimetres.
+- First send your plan with `plan`. Then write a script with `write`, change it with \
+`edit`, and run it with `run` (or `run: true` on `write` or `edit`).
+- Check what it made against the spec: `inspect` (whether it's a valid closed solid, \
+its bounding box and volume), `measure` (holes, distances, the gap between your files, \
+where faces are) and `view` (a picture).
+- When it matches the spec, call `done` with the script's path. It's run again from \
+a clean start and checked. If the spec can't be made, call `blocked` and say why.
+- Each part must be closed solids, as many as the spec says, placed exactly as the \
+spec says.
+
+Installed: CadQuery 2.8.0 and OCP 7.9.3 (its binding of the OCCT kernel), with numpy, \
+scipy and trimesh. There's no network. CadQuery has two layers, each with its own \
+methods: the Workplane chain (`cq.Workplane`, whose methods return a new Workplane) and \
+the shapes it holds (`cq.Solid`, `cq.Face`, `cq.Wire` and the rest; `.val()` takes one \
+from a Workplane). Check a name before you use it: `lookup` finds names in the \
+installed library, and `docs` searches CadQuery's own 2.8.0 documentation."""
+
+
+def system_for(outputs: list[str], base: bool = False) -> str:
     """A harder case's prompt, naming the STEP file each of its parts is saved to."""
     if len(outputs) == 1:
         saves = f"the part as STEP to `{outputs[0]}` in the directory"
     else:
         named = ", ".join(f"`{o}`" for o in outputs)
         saves = f"each part the spec names as STEP, to its own file in the directory: {named}"
-    return SYSTEM_CASE.format(saves=saves)
+    return (SYSTEM_BASE if base else SYSTEM_CASE).format(saves=saves)
 
 
 @dataclass
