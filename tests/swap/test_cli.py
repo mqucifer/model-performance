@@ -124,7 +124,7 @@ def test_dry_run_with_hold_prints_the_held_path_too(
     assert cli.main(argv) == 0
     err = capsys.readouterr().err
     restored = err.find("the 27B answers again; exiting 0")
-    held = err.find("with --hold, if the candidate doesn't answer or the command fails")
+    held = err.find("with --hold, if the candidate doesn't start or answer, or the command fails")
     assert 0 <= restored < held
     tail = err[held:]
     assert "hold 1/2: what runs on the Spark" in tail and "docker ps -a" in tail

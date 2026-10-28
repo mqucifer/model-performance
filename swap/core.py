@@ -14,7 +14,7 @@ The steps, in order (mqucifer/model-performance#2, ADR 0004 in mqucifer/project-
               it's gone, bring the 27B back on its own engine, and wait until
               it answers through LiteLLM again
   hold        with --hold, instead of the restore when the candidate doesn't
-              answer or the command fails: leave the candidate as it is, say
+              start or answer, or the command fails: leave the candidate as it is, say
               what failed and what runs on the Spark, show the candidate's
               last log lines, and print the command that restores. Success
               and signals still restore (mqucifer/model-performance#35)
@@ -153,6 +153,11 @@ def containers() -> str:
     """Every container on the Spark, running or not: what a hold leaves there."""
     fmt = shlex.quote("{{.Names}}\t{{.Status}}\t{{.Image}}")
     return f"docker ps -a --format {fmt}"
+
+
+def exists(container: str) -> str:
+    """Succeeds when the container exists, running or not."""
+    return f"docker container inspect {shlex.quote(container)} >/dev/null 2>&1"
 
 
 def candidate_logs(config: Config) -> str:
@@ -368,8 +373,11 @@ def hold(runner: Runner, config: Config, failure: str, restore_command: str) -> 
     code, listed = runner.remote_output(containers())
     runner.say(listed.rstrip() if code == 0 else f"swap: docker ps failed ({code})")
     runner.say(f"hold 2/2: the last {LOG_LINES} lines of {config.candidate_container}'s log")
-    code, logs = runner.remote_output(candidate_logs(config))
-    runner.say(redact(logs) if code == 0 else f"swap: docker logs failed ({code})")
+    if runner.remote(exists(config.candidate_container)) != 0:
+        runner.say(f"swap: no container {config.candidate_container} was created; no log to show")
+    else:
+        code, logs = runner.remote_output(candidate_logs(config))
+        runner.say(redact(logs) if code == 0 else f"swap: docker logs failed ({code})")
     runner.say(f"swap: held, exiting {HELD}. To bring the 27B back: {restore_command}")
 
 
@@ -410,8 +418,8 @@ def swap(
 ) -> int:
     """Run `command` with `model` on `engine` on the Spark, and put the 27B back.
 
-    With `hold_on_failure`, a candidate that doesn't answer or a command that
-    fails is held for the Sponsor instead: nothing is restored.
+    With `hold_on_failure`, a candidate that doesn't start or answer, or a
+    command that fails, is held for the Sponsor instead: nothing is restored.
     """
     reason = preflight(runner, config, engine, model, launch_text, baseline_text)
     if reason:
@@ -433,9 +441,14 @@ def swap(
                     f"swap 2/3: start {model} on {engine.name}, from infra's recorded launch"
                 )
                 start = start_candidate(config, engine, model)
-                if runner.remote(start, stdin=launch_text.encode()) != 0:
+                started = runner.remote(start, stdin=launch_text.encode())
+                if started != 0:
                     runner.say("swap: the candidate didn't start")
                     outcome = CANDIDATE_FAILED
+                    failure = (
+                        f"the candidate's start on {engine.name} exited {started}"
+                        f" (docker compose up)"
+                    )
                 else:
                     runner.say(
                         f"swap 3/3: wait until {config.candidate_alias} answers through LiteLLM"

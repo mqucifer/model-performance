@@ -48,7 +48,7 @@ def parse(argv: list[str] | None = None) -> argparse.Namespace:
         "--hold",
         action="store_true",
         help=(
-            "if the candidate doesn't answer or COMMAND fails, leave the candidate up and"
+            "if the candidate doesn't start or answer, or COMMAND fails, leave it as it is and"
             " don't restore; success and signals still restore"
         ),
     )
@@ -187,7 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.dry_run and args.hold and outcome == 0:
         say(
-            "[dry-run] with --hold, if the candidate doesn't answer or the command fails,"
+            "[dry-run] with --hold, if the candidate doesn't start or answer, or the command fails,"
             " the restore above doesn't run; instead:"
         )
         core.hold(runner, config, "(what failed)", hint)

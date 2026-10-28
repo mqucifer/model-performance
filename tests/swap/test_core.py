@@ -52,6 +52,7 @@ COMPOSE_RESTORE = (
 
 HOLD = [
     "ssh-out docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Image}}'",
+    "ssh docker container inspect spark-candidate >/dev/null 2>&1",
     "ssh-out docker logs --tail 80 spark-candidate 2>&1",
 ]
 
@@ -388,7 +389,7 @@ def test_hold_keeps_a_candidate_that_never_answers(config: Config) -> None:
     assert swap(runner, config, hold=True) == core.HELD
     assert not any(step.startswith("run ") for step in runner.steps)
     assert not any("down --timeout" in step or "docker start" in step for step in runner.steps)
-    assert runner.steps[-2:] == HOLD
+    assert runner.steps[-3:] == HOLD
     assert any(
         "HOLDING" in m and "crew-candidate didn't answer through LiteLLM in 1200s" in m
         for m in runner.messages
@@ -402,7 +403,7 @@ def test_hold_keeps_a_candidate_that_exited_for_its_logs(config: Config) -> None
         never_answers={"crew-candidate"}, exited={"spark-candidate"}, logs="CUDA out of memory\n"
     )
     assert swap(runner, config, engine="tensorfold", hold=True) == core.HELD
-    assert runner.steps[-2:] == HOLD
+    assert runner.steps[-3:] == HOLD
     assert any("spark-candidate isn't running" in m and "HOLDING" in m for m in runner.messages)
     assert "CUDA out of memory" in runner.messages
     assert any("spark-candidate\tExited (1)" in m for m in runner.messages)
@@ -411,7 +412,7 @@ def test_hold_keeps_a_candidate_that_exited_for_its_logs(config: Config) -> None
 def test_hold_keeps_the_candidate_when_the_command_fails(config: Config) -> None:
     runner = FakeRunner(command_result=7)
     assert swap(runner, config, hold=True) == core.HELD
-    assert runner.steps[-3:] == ["run uv run bench --case one", *HOLD]
+    assert runner.steps[-4:] == ["run uv run bench --case one", *HOLD]
     assert any("the command exited 7: uv run bench --case one" in m for m in runner.messages)
 
 
@@ -447,12 +448,34 @@ def test_sigterm_with_hold_while_the_candidate_starts_restores(config: Config) -
     assert runner.steps[-3:] == RESTORE
 
 
-@pytest.mark.parametrize("failing", ["docker stop", "spark-candidate -f - up -d"])
-def test_hold_restores_after_a_failed_stop_or_start(config: Config, failing: str) -> None:
-    """A hold is for a candidate that came up and failed, not one that never started."""
-    runner = FakeRunner(remote_fails={failing})
+def test_hold_restores_after_a_failed_stop(config: Config) -> None:
+    """The 27B didn't stop: nothing else has changed yet, so there's nothing to hold."""
+    runner = FakeRunner(remote_fails={"docker stop"})
     assert swap(runner, config, hold=True) == core.CANDIDATE_FAILED
     assert runner.steps[-3:] == RESTORE
+
+
+def test_hold_keeps_a_failed_start_and_its_container(config: Config) -> None:
+    runner = FakeRunner(remote_fails={"spark-candidate -f - up -d"}, logs="OOM on load\n")
+    assert swap(runner, config, hold=True) == core.HELD
+    assert runner.steps[-4:] == [
+        f"ssh {ENV} docker compose -p spark-candidate -f - up -d <sglang",
+        *HOLD,
+    ]
+    assert not any("down --timeout" in step or "docker start" in step for step in runner.steps)
+    assert any(
+        "HOLDING" in m and "the candidate's start on sglang exited 1" in m for m in runner.messages
+    )
+    assert "OOM on load" in runner.messages
+    assert runner.messages[-1].endswith("To bring the 27B back: uv run swap --restore")
+
+
+def test_hold_on_a_failed_start_says_when_no_container_was_created(config: Config) -> None:
+    runner = FakeRunner(remote_fails={"spark-candidate -f - up -d", "docker container inspect"})
+    assert swap(runner, config, hold=True) == core.HELD
+    assert runner.steps[-2:] == HOLD[:2]  # no docker logs
+    assert "swap: no container spark-candidate was created; no log to show" in runner.messages
+    assert not any("down --timeout" in step or "docker start" in step for step in runner.steps)
 
 
 def test_restore_alone_runs_the_restore_steps_and_checks_crew_local(config: Config) -> None:

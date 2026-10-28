@@ -60,10 +60,11 @@ setup problems with it still up (mqucifer/model-performance#35). With `--hold`:
 | Ending | What happens |
 |---|---|
 | the candidate doesn't answer through LiteLLM in time, or its container exits while waited on | **held** |
+| the candidate's start (`docker compose up`) fails: its image, arguments, memory, or a crash on load | **held**: whatever container was created is kept, with its log |
 | the command after `--` exits non-zero | **held** |
 | success | restored, as without `--hold` |
 | Ctrl-C, SIGTERM, SIGHUP | restored, as without `--hold`: holding is only for a failure the swap itself saw |
-| the 27B doesn't stop, or the candidate's start fails | restored: there's no running candidate to work on |
+| the 27B doesn't stop | restored: nothing else has changed yet |
 
 Held, the swap leaves the candidate as it is (running, or its stopped container
 kept for its logs), and prints:
@@ -72,7 +73,8 @@ kept for its logs), and prints:
 2. what runs on the Spark (`docker ps -a`). The 27B is stopped, so `crew-local`
    doesn't answer until the restore;
 3. the last 80 lines of the candidate's log (`docker logs --tail 80`, over the
-   same ssh), with any line that looks like a token or key redacted;
+   same ssh), with any line that looks like a token or key redacted, or that
+   no candidate container was created;
 4. the one command that restores, `uv run swap --restore`, with the run's own
    `--config`, `--infra-dir` and `--hosts` when they aren't the defaults.
 
