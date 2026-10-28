@@ -142,3 +142,19 @@ def test_a_request_over_an_arguments_limit_is_measured(tools: PartTools) -> None
     operator, before the baseline). A key the measure doesn't read pads it past that."""
     request = {"path": "part.step", "probes": [[0, 0, 3], [0, 0, 50]], "pad": "x" * 200_000}
     assert tools.measure_request(request)["inside"] == [True, False]
+
+
+def test_a_distance_says_between_which_faces_and_where(tools: PartTools) -> None:
+    """V5 at 3706cd8: `distance >Z <Z` read 12.06 on a part 32 tall, and the model gave
+    up on it. The reply names the two closest faces and their closest points, and
+    every face a selector picked when it picked more than one."""
+    found = ask(tools, "distance >Z <Z")
+    assert found["distance"] == 16.0
+    assert [p[2] for p in found["points"]] == [16.0, 0.0]
+    assert found["between"][">Z"]["type"] == "PLANE" and found["between"][">Z"]["centre"][2] == 16
+    assert found["between"]["<Z"]["centre"][2] == 0
+    assert "closest distance" in found["measured"]
+    # A selector naming several faces: each is listed, with the count.
+    several = ask(tools, "distance %PLANE <Z")
+    assert several["picked"]["%PLANE"]["count"] > 1
+    assert several["distance"] == 0.0

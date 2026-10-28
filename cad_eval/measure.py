@@ -367,6 +367,12 @@ def _none_found(what: str, shape, cylinders: list, holes: list) -> str:  # noqa:
     return f"no cylindrical face in the part. Its faces: {faces}."
 
 
+def _brief(face) -> dict:  # noqa: ANN001
+    """A face in a few words: its kind, centre and normal or diameter."""
+    found = _describe(face)
+    return {k: found[k] for k in ("type", "centre", "normal", "diameter") if k in found}
+
+
 def _describe(face) -> dict:  # noqa: ANN001
     from OCP.BRepAdaptor import BRepAdaptor_Surface  # noqa: PLC0415
     from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane  # noqa: PLC0415
@@ -435,9 +441,37 @@ def gauge(shape, query: str) -> dict:  # noqa: ANN001
             if not a or not b:
                 return {"error": f"no faces for {args[0] if not a else args[1]}"}
             ca, cb = cq.Compound.makeCompound(a), cq.Compound.makeCompound(b)
-            out: dict = {
-                "distance": round(BRepExtrema_DistShapeShape(ca.wrapped, cb.wrapped).Value(), 4)
-            }
+            between = BRepExtrema_DistShapeShape(ca.wrapped, cb.wrapped)
+            out: dict = {"distance": round(between.Value(), 4)}
+            # What it measured (V5 at 3706cd8: `distance >Z <Z` read 12.06 on a part 32
+            # tall, and the model took it for wrong): the closest distance between which
+            # two faces, at which two points, and every face a selector picked.
+            if between.IsDone() and between.NbSolution() > 0:
+                pa, pb = between.PointOnShape1(1), between.PointOnShape2(1)
+                out["points"] = [
+                    [round(pa.X(), 4), round(pa.Y(), 4), round(pa.Z(), 4)],
+                    [round(pb.X(), 4), round(pb.Y(), 4), round(pb.Z(), 4)],
+                ]
+                out["measured"] = (
+                    "the closest distance between the faces A and B name, at these two "
+                    "points: not a part's size unless A and B are its two ends"
+                )
+                closest = []
+                for faces, compound in ((a, cb), (b, ca)):
+                    near = min(
+                        faces,
+                        key=lambda f: BRepExtrema_DistShapeShape(
+                            f.wrapped, compound.wrapped
+                        ).Value(),
+                    )
+                    closest.append(_brief(near))
+                out["between"] = {args[0]: closest[0], args[1]: closest[1]}
+            for name, faces in ((args[0], a), (args[1], b)):
+                if len(faces) > 1:
+                    out.setdefault("picked", {})[name] = {
+                        "count": len(faces),
+                        "faces": [_brief(f) for f in faces[:8]],
+                    }
             if len(a) == 1 and len(b) == 1 and a[0].geomType() == "PLANE" == b[0].geomType():
                 na, nb = a[0].normalAt(a[0].Center()), b[0].normalAt(b[0].Center())
                 if abs(abs(na.dot(nb)) - 1) < 1e-6:
