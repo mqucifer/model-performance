@@ -15626,7 +15626,7 @@
    "part/within.x": {
     "class": "judgment",
     "quotes": [
-     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre it on Y = 0 and Z = 0"
+     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre the whole hook, plate and arm together, on Y = 0 and Z = 0"
     ],
     "says": "From the wall to at most 100 mm out: any hall hook is shorter. It doesn't hold the hook on the wall (X min 0): one floating off it passes (open finding).",
     "values": [
@@ -15636,14 +15636,14 @@
    "part/within.y": {
     "class": "judgment",
     "quotes": [
-     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre it on Y = 0 and Z = 0"
+     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre the whole hook, plate and arm together, on Y = 0 and Z = 0"
     ],
     "says": "Centred on Y = 0, at most 80 wide."
    },
    "part/within.z": {
     "class": "judgment",
     "quotes": [
-     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre it on Y = 0 and Z = 0"
+     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre the whole hook, plate and arm together, on Y = 0 and Z = 0"
     ],
     "says": "Centred on Z = 0, at most 120 tall."
    },
@@ -15682,8 +15682,8 @@
    "part/centre.y": {
     "class": "frame",
     "quotes": [
-     "centre it on y = 0",
-     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre it on Y = 0 and Z = 0"
+     "centre the whole hook, plate and arm together, on y = 0",
+     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre the whole hook, plate and arm together, on Y = 0 and Z = 0"
     ],
     "says": "The part's box centre on Y = 0 within its tolerance (`Member.centred`): the size is the model's to choose, so only its middle is held. The strap's width lies along Y, so the hook is symmetrical about it.",
     "values": [
@@ -15694,9 +15694,9 @@
     "class": "frame",
     "quotes": [
      "and z = 0",
-     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre it on Y = 0 and Z = 0"
+     "the wall is the plane X = 0, and the hook is on the room's side of it (X from 0). The strap hangs over the hook with its width along Y. Centre the whole hook, plate and arm together, on Y = 0 and Z = 0"
     ],
-    "says": "The part's box centre on Z = 0 within its tolerance (`Member.centred`): \"centre it\" read as the whole hook's extent, the box the check has; a hook drawn about its wall plate with a lip above the plate's top would be off by the lip's overreach (the reference's lip, to Z = 12, is inside its plate's ±40).",
+    "says": "The part's box centre on Z = 0 within its tolerance (`Member.centred`): \"centre it\" read as the whole hook's extent, the box the check has; a hook drawn about its wall plate with a lip above the plate's top would be off by the lip's overreach (the reference's lip, to Z = 12, is inside its plate's ±40). The text says the whole hook, plate and arm together (the baseline at 1eed467: both runs centred the plate alone on \"Centre it on Y = 0 and Z = 0\").",
     "values": [
      0
     ]
@@ -15747,7 +15747,7 @@
     }
    },
    {
-    "at": "centre it on y = 0",
+    "at": "centre the whole hook, plate and arm together, on y = 0",
     "value": 0,
     "for": {
      "centred on Y = 0": [
