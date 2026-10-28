@@ -24,6 +24,7 @@ class FakeRunner:
     command_result: int | BaseException = 0
     on_remote: Callable[[str], None] | None = None
     command_env: dict[str, str] = field(default_factory=dict)
+    logs: str = "loading weights\n"  # what `docker logs` shows of the candidate
     steps: list[str] = field(default_factory=list)
     messages: list[str] = field(default_factory=list)
     now: float = 0.0
@@ -51,6 +52,12 @@ class FakeRunner:
         if self.on_remote:
             self.on_remote(command)
         return 1 if any(part in command for part in self.remote_fails) else 0
+
+    def remote_output(self, command: str) -> tuple[int, str]:
+        self.steps.append(f"ssh-out {command}")
+        if "docker logs" in command:
+            return 0, self.logs
+        return 0, "spark-candidate\tExited (1)\tlmsysorg/sglang\n"
 
     def answers(self, alias: str, seed: bool) -> bool:
         self.steps.append(f"answers? {alias}" + (" seeded" if seed else ""))

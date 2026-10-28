@@ -7,6 +7,8 @@ back (mqucifer/model-performance#2, ADR 0004 in mqucifer/project-print).
 uv run swap <model> --dry-run -- <command>                    # prints every step, changes nothing
 uv run swap <model> --engine tensorfold --dry-run -- <command>
 uv run swap <model> -- <command>                              # the Sponsor's step: it stops the 27B
+uv run swap <model> --hold -- <command>                       # attended: a failure keeps the candidate up
+uv run swap --restore                                         # brings the 27B back after a hold
 ```
 
 `<model>` is the candidate's hub id, such as `Qwen/Qwen3.8-8B`. A path is
@@ -39,9 +41,9 @@ Each engine serves an OpenAI-compatible API on the 27B's port, so LiteLLM's
 | restore 3/3 | the health wait for `crew-local` | no |
 | prune list | print the candidate's image (when it isn't the 27B's) and its weights in the cache, to prune once unused | no: nothing is deleted |
 
-**The restore always runs** once the 27B was touched: after success, a failed
-command, a candidate that never answered, a failed stop or start, Ctrl-C,
-SIGTERM or SIGHUP. While it runs, those signals are ignored, so a second Ctrl-C
+**The restore always runs** once the 27B was touched, unless `--hold` holds
+(below): after success, a failed command, a candidate that never answered, a
+failed stop or start, Ctrl-C, SIGTERM or SIGHUP. While it runs, those signals are ignored, so a second Ctrl-C
 can't stop it half-way. If the 27B doesn't answer afterwards, the swap exits 3
 and prints the steps to run by hand.
 
@@ -49,6 +51,40 @@ and prints the steps to run by hand.
 other `base_url`, and nothing here knows the engine's port. The candidate serves
 on the 27B's port as `crew-candidate`, which LiteLLM's `crew-candidate` alias
 points at, so a swap never edits LiteLLM's config.
+
+## Holding the candidate (`--hold`)
+
+For an attended run, where the Sponsor wants to work through a candidate's
+setup problems with it still up (mqucifer/model-performance#35). With `--hold`:
+
+| Ending | What happens |
+|---|---|
+| the candidate doesn't answer through LiteLLM in time, or its container exits while waited on | **held** |
+| the candidate's start (`docker compose up`) fails: its image, arguments, memory, or a crash on load | **held**: whatever container was created is kept, with its log |
+| the command after `--` exits non-zero | **held** |
+| success | restored, as without `--hold` |
+| Ctrl-C, SIGTERM, SIGHUP | restored, as without `--hold`: holding is only for a failure the swap itself saw |
+| the 27B doesn't stop | restored: nothing else has changed yet |
+
+Held, the swap leaves the candidate as it is (running, or its stopped container
+kept for its logs), and prints:
+
+1. what failed;
+2. what runs on the Spark (`docker ps -a`). The 27B is stopped, so `crew-local`
+   doesn't answer until the restore;
+3. the last 80 lines of the candidate's log (`docker logs --tail 80`, over the
+   same ssh), with any line that looks like a token or key redacted, or that
+   no candidate container was created;
+4. the one command that restores, `uv run swap --restore`, with the run's own
+   `--config`, `--infra-dir` and `--hosts` when they aren't the defaults.
+
+It then exits 5. `--dry-run --hold` prints the run as usual, then the held path's steps.
+
+**`swap --restore`** runs the swap's own restore and nothing else: remove the
+candidate and check it's gone, bring the 27B back on its own engine, and wait
+until `crew-local` answers through LiteLLM. It takes no model and no command,
+and doesn't refuse while a tick runs, since production is down while held. It
+exits 0, or 3 with the steps to run by hand.
 
 ## Containers only
 
@@ -114,7 +150,8 @@ for the candidate's engine and for SGLang's, which the 27B comes back on.
 
 The command's own code, or one of the swap's: 2 refused (nothing touched),
 3 the 27B didn't come back, 4 the 27B didn't stop or the candidate didn't start
-or answer, 130 interrupted. Every ending prints a last line saying which.
+or answer, 5 held (`--hold`: the candidate is still there, the 27B isn't back),
+130 interrupted. Every ending prints a last line saying which.
 
 ## Settings and secrets
 
@@ -128,5 +165,5 @@ never exported or printed: messages name the Spark as `$SPARK_ADDR`.
 ## Tests
 
 `uv run pytest tests/swap`: every ending above against a fake runner, for an
-SGLang candidate and a TensorFold arm, the dry run end to end for both, and the
-tick pattern. No test starts ssh, a request or the command.
+SGLang candidate and a TensorFold arm, with and without `--hold`, `--restore`,
+the log redaction, the dry run end to end, and the tick pattern. No test starts ssh, a request or the command.

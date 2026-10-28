@@ -50,7 +50,20 @@ COMPOSE_RESTORE = (
 )
 
 
-def swap(runner: FakeRunner, config: Config, engine: str = "sglang", model: str = MODEL) -> int:
+HOLD = [
+    "ssh-out docker ps -a --format '{{.Names}}\t{{.Status}}\t{{.Image}}'",
+    "ssh docker container inspect spark-candidate >/dev/null 2>&1",
+    "ssh-out docker logs --tail 80 spark-candidate 2>&1",
+]
+
+
+def swap(
+    runner: FakeRunner,
+    config: Config,
+    engine: str = "sglang",
+    model: str = MODEL,
+    hold: bool = False,
+) -> int:
     chosen = config.engine(engine)
     return core.swap(
         runner,
@@ -60,6 +73,7 @@ def swap(runner: FakeRunner, config: Config, engine: str = "sglang", model: str 
         COMMAND,
         launch(config, chosen),
         launch(config, config.baseline),
+        hold_on_failure=hold,
     )
 
 
@@ -368,3 +382,138 @@ def test_another_engines_image_is_listed_for_pruning(config: Config) -> None:
 def test_the_weights_cache_stays_under_the_sparks_home(config: Config, cache: str) -> None:
     with pytest.raises(ConfigError, match="weights_cache"):
         check(replace(config, weights_cache=cache))
+
+
+def test_hold_keeps_a_candidate_that_never_answers(config: Config) -> None:
+    runner = FakeRunner(never_answers={"crew-candidate"})
+    assert swap(runner, config, hold=True) == core.HELD
+    assert not any(step.startswith("run ") for step in runner.steps)
+    assert not any("down --timeout" in step or "docker start" in step for step in runner.steps)
+    assert runner.steps[-3:] == HOLD
+    assert any(
+        "HOLDING" in m and "crew-candidate didn't answer through LiteLLM in 1200s" in m
+        for m in runner.messages
+    )
+    assert runner.messages[-1].endswith("To bring the 27B back: uv run swap --restore")
+    assert core.HELD not in (0, core.REFUSED, core.RESTORE_FAILED, core.CANDIDATE_FAILED)
+
+
+def test_hold_keeps_a_candidate_that_exited_for_its_logs(config: Config) -> None:
+    runner = FakeRunner(
+        never_answers={"crew-candidate"}, exited={"spark-candidate"}, logs="CUDA out of memory\n"
+    )
+    assert swap(runner, config, engine="tensorfold", hold=True) == core.HELD
+    assert runner.steps[-3:] == HOLD
+    assert any("spark-candidate isn't running" in m and "HOLDING" in m for m in runner.messages)
+    assert "CUDA out of memory" in runner.messages
+    assert any("spark-candidate\tExited (1)" in m for m in runner.messages)
+
+
+def test_hold_keeps_the_candidate_when_the_command_fails(config: Config) -> None:
+    runner = FakeRunner(command_result=7)
+    assert swap(runner, config, hold=True) == core.HELD
+    assert runner.steps[-4:] == ["run uv run bench --case one", *HOLD]
+    assert any("the command exited 7: uv run bench --case one" in m for m in runner.messages)
+
+
+def test_hold_redacts_the_candidates_log(config: Config) -> None:
+    secret = "hf_" + "aB3" * 12
+    runner = FakeRunner(command_result=1, logs=f"started\nHF_TOKEN={secret}\nready\n")
+    swap(runner, config, hold=True)
+    assert not any(secret in m for m in runner.messages)
+    assert f"started\n{core.REDACTED}\nready" in runner.messages
+
+
+def test_success_with_hold_still_restores(config: Config) -> None:
+    runner = FakeRunner()
+    assert swap(runner, config, hold=True) == 0
+    assert runner.steps == PREFLIGHT + SWAP + ["run uv run bench --case one"] + RESTORE
+
+
+@pytest.mark.parametrize("interrupt", [KeyboardInterrupt(), core.Interrupted("SIGHUP")])
+def test_a_signal_with_hold_still_restores(config: Config, interrupt: BaseException) -> None:
+    runner = FakeRunner(command_result=interrupt)
+    assert swap(runner, config, hold=True) == core.INTERRUPTED
+    assert runner.steps[-3:] == RESTORE
+    assert not any(step.startswith("ssh-out") for step in runner.steps)
+
+
+def test_sigterm_with_hold_while_the_candidate_starts_restores(config: Config) -> None:
+    def terminate(command: str) -> None:
+        if "up -d" in command and "MODEL_PATH" in command:
+            os.kill(os.getpid(), signal.SIGTERM)
+
+    runner = FakeRunner(on_remote=terminate, never_answers={"crew-candidate"})
+    assert swap(runner, config, hold=True) == core.INTERRUPTED
+    assert runner.steps[-3:] == RESTORE
+
+
+def test_hold_restores_after_a_failed_stop(config: Config) -> None:
+    """The 27B didn't stop: nothing else has changed yet, so there's nothing to hold."""
+    runner = FakeRunner(remote_fails={"docker stop"})
+    assert swap(runner, config, hold=True) == core.CANDIDATE_FAILED
+    assert runner.steps[-3:] == RESTORE
+
+
+def test_hold_keeps_a_failed_start_and_its_container(config: Config) -> None:
+    runner = FakeRunner(remote_fails={"spark-candidate -f - up -d"}, logs="OOM on load\n")
+    assert swap(runner, config, hold=True) == core.HELD
+    assert runner.steps[-4:] == [
+        f"ssh {ENV} docker compose -p spark-candidate -f - up -d <sglang",
+        *HOLD,
+    ]
+    assert not any("down --timeout" in step or "docker start" in step for step in runner.steps)
+    assert any(
+        "HOLDING" in m and "the candidate's start on sglang exited 1" in m for m in runner.messages
+    )
+    assert "OOM on load" in runner.messages
+    assert runner.messages[-1].endswith("To bring the 27B back: uv run swap --restore")
+
+
+def test_hold_on_a_failed_start_says_when_no_container_was_created(config: Config) -> None:
+    runner = FakeRunner(remote_fails={"spark-candidate -f - up -d", "docker container inspect"})
+    assert swap(runner, config, hold=True) == core.HELD
+    assert runner.steps[-2:] == HOLD[:2]  # no docker logs
+    assert "swap: no container spark-candidate was created; no log to show" in runner.messages
+    assert not any("down --timeout" in step or "docker start" in step for step in runner.steps)
+
+
+def test_restore_alone_runs_the_restore_steps_and_checks_crew_local(config: Config) -> None:
+    runner = FakeRunner(ticks=True)  # production is down while held: a tick doesn't refuse it
+    assert core.restore_only(runner, config, "") == 0
+    assert runner.steps == RESTORE
+    assert runner.messages[-1] == "swap: the 27B answers again; exiting 0"
+
+
+def test_restore_alone_that_never_answers_gives_the_manual_steps(config: Config) -> None:
+    runner = FakeRunner(never_answers={"crew-local"}, exited={"qwen3.8-27b-sglang"})
+    assert core.restore_only(runner, config, "") == core.RESTORE_FAILED
+    assert runner.steps == [*RESTORE, "running? qwen3.8-27b-sglang"]
+    assert any("THE 27B DID NOT COME BACK" in m for m in runner.messages)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "HF_TOKEN=hf_abcdefgh12345678",
+        "api_key: sk-proj-abcdef123456",
+        "Authorization: Bearer abcdefghij",
+        "password = hunter22",
+        "loaded aB3dE5gH7jK9mN1pQ3sT5vW7yZ9bC1dE3fG",
+    ],
+)
+def test_lines_that_look_like_a_token_or_key_are_redacted(line: str) -> None:
+    assert core.redact(f"before\n{line}\nafter") == f"before\n{core.REDACTED}\nafter"
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "Decode batch. #running-req: 1, #token: 512, gen throughput (token/s): 38.2",
+        "max_total_num_tokens=262144, chunked_prefill_size=8192",
+        "Downloading nvidia/Nemotron-3.5-Bolt-Instruct-FP8-Dynamic-120B-A12B",
+        "image sha256:" + "0123456789abcdef" * 4,
+    ],
+)
+def test_an_engines_ordinary_lines_stay(line: str) -> None:
+    assert core.redact(line) == line
