@@ -1,0 +1,17 @@
+# A test fixture, not a recorded launch: the shape of infra's Flash-Next record
+# (compose/spark/tensorfold/flashnext.yaml), TensorFold with no drafter.
+name: tensorfold-flashnext
+
+services:
+  tensorfold:
+    image: tensorfold:test
+    container_name: ${CONTAINER_NAME:-tensorfold-flashnext}
+    network_mode: host
+    volumes:
+      - ${WEIGHTS_CACHE:-/cache}:/models
+    command: >-
+      serve ${MODEL_PATH:-Vontra/Qwen3.8-Flash-Next-MLX-4bit-MTP}
+      --name ${SERVED_MODEL_NAME:-qwen3.8-flash-next-tensorfold}
+      --port 8888
+      --context 131072
+      --parallel 4

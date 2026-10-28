@@ -15,7 +15,8 @@ dir = "~/Documents/git/infra"
 # (mqucifer/infra#40). Each serves an OpenAI-compatible API on the 27B's port,
 # so LiteLLM's SGLANG_BASE_URL never changes. `variables` are the ones its
 # launch takes, so a candidate differs only in its model; `seed` says whether
-# every request needs one (TensorFold is deterministic without it).
+# every request needs one. TensorFold isn't deterministic without one: since
+# 1.1.4 an unseeded sampled request draws a fresh seed.
 [engines.sglang]
 compose = "compose/spark/sglang/compose.yaml"
 variables = ["MODEL_PATH", "SERVED_MODEL_NAME", "SPECULATIVE_ARGS", "CONTAINER_NAME", "WEIGHTS_CACHE"]
@@ -27,6 +28,14 @@ seed = false
 compose = "compose/spark/tensorfold/compose.yaml"
 variables = ["MODEL_PATH", "SERVED_MODEL_NAME", "CONTAINER_NAME", "WEIGHTS_CACHE"]
 seed = true
+
+# Flash-Next on the same TensorFold (mqucifer/model-performance#36). 1.1.6
+# refuses the 27B's --drafter and --kv-cache fp8 for it, so it has its own
+# launch, at 4 streams of 131,072. Its checks need no seed.
+[engines.tensorfold-flashnext]
+compose = "compose/spark/tensorfold/flashnext.yaml"
+variables = ["MODEL_PATH", "SERVED_MODEL_NAME", "CONTAINER_NAME", "WEIGHTS_CACHE"]
+seed = false
 
 [serving]
 # The 27B's engine. The restore always starts the 27B on it, whatever the candidate ran on.

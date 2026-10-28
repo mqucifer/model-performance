@@ -22,6 +22,8 @@ def infra(tmp_path: Path) -> Path:
         launch = tmp_path / f"compose/spark/{engine}/compose.yaml"
         launch.parent.mkdir(parents=True)
         launch.write_text((FIXTURES / f"{engine}.yaml").read_text())
+    flashnext = tmp_path / "compose/spark/tensorfold/flashnext.yaml"
+    flashnext.write_text((FIXTURES / "tensorfold-flashnext.yaml").read_text())
     return tmp_path
 
 
@@ -81,6 +83,34 @@ def test_dry_run_of_a_tensorfold_arm(infra: Path, capsys: pytest.CaptureFixture[
     assert "model=crew-candidate with a seed" in err
     assert "SWAP_ENGINE=tensorfold" in err and "SWAP_SEED_REQUIRED=1" in err
     assert "restore 2/3: bring the 27B back on sglang" in err
+    assert "8888" not in err
+
+
+def test_dry_run_of_flash_next(infra: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    model = "Vontra/Qwen3.8-Flash-Next-MLX-4bit-MTP"
+    argv = [model, "--engine", "tensorfold-flashnext", "--dry-run", "--infra-dir", str(infra)]
+    assert cli.main([*argv, "--", "bench"]) == 0
+    err = capsys.readouterr().err
+    variables = (
+        f"MODEL_PATH={model} SERVED_MODEL_NAME=crew-candidate CONTAINER_NAME=spark-candidate"
+    )
+    expected = [
+        "config -q   < compose/spark/tensorfold/flashnext.yaml",
+        "swap 2/3: start Vontra/Qwen3.8-Flash-Next-MLX-4bit-MTP on tensorfold-flashnext",
+        variables,
+        "up -d   < compose/spark/tensorfold/flashnext.yaml",
+        "model=crew-candidate\n",
+        "SWAP_ENGINE=tensorfold-flashnext",
+        "restore 2/3: bring the 27B back on sglang",
+    ]
+    position = 0
+    for line in expected:
+        found = err.find(line, position)
+        assert found >= 0, f"missing, or out of order: {line}"
+        position = found + len(line)
+    assert "compose/spark/tensorfold/compose.yaml" not in err
+    assert "SPECULATIVE_ARGS" not in err and "with a seed" not in err
+    assert "SWAP_SEED_REQUIRED=0" in err
     assert "8888" not in err
 
 

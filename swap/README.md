@@ -21,7 +21,8 @@ Everything after `--` is the command, with its own options untouched.
 | Engine | For | Its launch in infra | Seed on each request |
 |---|---|---|---|
 | `sglang` | the 27B, and candidates such as Ornith | `compose/spark/sglang/compose.yaml` | no |
-| `tensorfold` | the comparison arm on mqucifer/model-performance#4, such as Nemotron Bolt | `compose/spark/tensorfold/compose.yaml` | yes: it's deterministic without one |
+| `tensorfold` | the comparison arm on mqucifer/model-performance#4, such as Nemotron Bolt | `compose/spark/tensorfold/compose.yaml` | yes, as its arm was set up; since 1.1.4 an unseeded request draws a fresh seed, so TensorFold isn't deterministic without one |
+| `tensorfold-flashnext` | Qwen3.8 Flash-Next on TensorFold 1.1.6 (mqucifer/model-performance#36): no drafter or fp8 cache, 4 streams of 131,072 | `compose/spark/tensorfold/flashnext.yaml` | no |
 
 Each engine serves an OpenAI-compatible API on the 27B's port, so LiteLLM's
 `SGLANG_BASE_URL` never changes. **The restore always starts the 27B on SGLang**
@@ -127,7 +128,7 @@ Nothing makes a request to the engine's port, `/health` included. Each poll:
 ## What the command is told
 
 The command runs with `SWAP_MODEL`, `SWAP_ENGINE`, `SWAP_ALIAS`
-(`crew-candidate`) and `SWAP_SEED_REQUIRED` (`1` for TensorFold) set, so a
+(`crew-candidate`) and `SWAP_SEED_REQUIRED` (`1` for `tensorfold`) set, so a
 harness sends a seed on each request when the engine needs one.
 
 ## What infra's launches must take
