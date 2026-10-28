@@ -322,11 +322,11 @@ def test_the_host_is_read_by_the_name_infra_records_never_kept(tmp_path: Path) -
         return frozenset({"addr-one"})
 
     def ssh(name: str) -> str | None:
-        return "alias-target.example" if name == "a.example" else None
+        return "alias-host.example" if name == "a.example" else None
 
     # A name DNS knows is the host; an SSH alias it doesn't is the host its config names.
     assert identity.reached_host(record, hosts, resolve=known, alias=ssh) == "a.example"
-    assert identity.reached_host(record, hosts, resolve=nowhere, alias=ssh) == "alias-target.example"
+    assert identity.reached_host(record, hosts, resolve=nowhere, alias=ssh) == "alias-host.example"
     hosts.write_text("SPARK_ADDR=other\n")
     assert identity.reached_host(record, hosts, resolve=nowhere, alias=ssh) == "other"
     hosts.write_text("SPARK_ADDR=a.example\n")
@@ -335,9 +335,11 @@ def test_the_host_is_read_by_the_name_infra_records_never_kept(tmp_path: Path) -
     assert (
         identity.ssh_hostname(
             "spark",
-            run=lambda *a, **k: type("R", (), {"stdout": "user q\nhostname alias-target.example\n"})(),
+            run=lambda *a, **k: type(
+                "R", (), {"stdout": "user q\nhostname alias-host.example\n"}
+            )(),
         )
-        == "alias-target.example"
+        == "alias-host.example"
     )
     assert (
         identity.ssh_hostname("x", run=lambda *a, **k: type("R", (), {"stdout": "hostname x\n"})())
