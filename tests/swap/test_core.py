@@ -9,7 +9,7 @@ from dataclasses import replace
 import pytest
 
 from swap import core
-from swap.config import Config, ConfigError, check
+from swap.config import Config, ConfigError, check, load
 
 from .conftest import FakeRunner, launch
 
@@ -25,6 +25,12 @@ TENSORFOLD_ENV = (
     "env MODEL_PATH=nvidia/Nemotron-3.5-Bolt SERVED_MODEL_NAME=crew-candidate "
     f"CONTAINER_NAME=spark-candidate WEIGHTS_CACHE={CACHE}"
 )
+FLASHNEXT = "Vontra/Qwen3.8-Flash-Next-MLX-4bit-MTP"
+FLASHNEXT_ENV = (
+    f"env MODEL_PATH={FLASHNEXT} SERVED_MODEL_NAME=crew-candidate "
+    f"CONTAINER_NAME=spark-candidate WEIGHTS_CACHE={CACHE}"
+)
+CANDIDATE = "docker compose -p spark-candidate -f -"
 PREFLIGHT = [
     "ticks?",
     "ssh true",
@@ -109,6 +115,34 @@ def test_tensorfold_arm_starts_its_own_launch_seeds_its_checks_and_restores_sgla
     )
     assert runner.command_env["SWAP_ENGINE"] == "tensorfold"
     assert runner.command_env["SWAP_SEED_REQUIRED"] == "1"
+
+
+def test_the_config_loads_both_tensorfold_engines() -> None:
+    engines = load().engines
+    assert str(engines["tensorfold"].compose) == "compose/spark/tensorfold/compose.yaml"
+    flashnext = engines["tensorfold-flashnext"]
+    assert str(flashnext.compose) == "compose/spark/tensorfold/flashnext.yaml"
+    assert flashnext.variables == engines["tensorfold"].variables
+    assert flashnext.seed is False
+
+
+def test_flashnext_starts_its_own_launch_unseeded_and_restores_sglang(config: Config) -> None:
+    runner = FakeRunner()
+    assert swap(runner, config, engine="tensorfold-flashnext", model=FLASHNEXT) == 0
+    assert (
+        runner.steps
+        == PREFLIGHT[:-1]
+        + [
+            f"ssh {FLASHNEXT_ENV} {CANDIDATE} config -q <tensorfold-flashnext",
+            "ssh docker stop qwen3.8-27b-sglang",
+            f"ssh {FLASHNEXT_ENV} {CANDIDATE} up -d <tensorfold-flashnext",
+            "answers? crew-candidate",
+            "run uv run bench --case one",
+        ]
+        + RESTORE
+    )
+    assert runner.command_env["SWAP_ENGINE"] == "tensorfold-flashnext"
+    assert runner.command_env["SWAP_SEED_REQUIRED"] == "0"
 
 
 def test_tensorfold_arm_restores_with_sglangs_record(config: Config) -> None:
@@ -302,7 +336,7 @@ def test_checks_never_reach_around_the_proxy(config: Config, url: str) -> None:
         check(replace(config, base_url=url))
 
 
-@pytest.mark.parametrize("engine", ["sglang", "tensorfold"])
+@pytest.mark.parametrize("engine", ["sglang", "tensorfold", "tensorfold-flashnext"])
 def test_no_step_names_the_engines_port(config: Config, engine: str) -> None:
     runner = FakeRunner(command_result=1, answers_after={"crew-candidate": 2})
     swap(runner, config, engine=engine)
