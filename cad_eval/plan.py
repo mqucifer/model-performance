@@ -42,13 +42,32 @@ def normal(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().casefold()
 
 
+# How a quote is matched to the spec: as `normal`, and a symbol however it's written,
+# so "45 degree", "45 deg" and "45°", and "0.5 mm by 45" and "0.5 mm × 45", are one
+# (V5 at 3706cd8: six of 31 calls went on the spelling of a degree). The audit keeps
+# `normal`, which places a number by its position in the spec.
+DEGREES = re.compile(r"(\d)\s*(?:°|degrees?\b|deg\b)")
+TIMES = re.compile(r"(\d(?:\s*mm)?)\s*(?:x|by)\s*(?=-?\.?\d)")
+UNIT = re.compile(r"\s*(?:mm|°|degrees?|deg)\s*$")
+
+
+MM = re.compile(r"(\d)\s*mm\b")
+
+
+def loose(text: str) -> str:
+    text = MM.sub(r"\1 mm", normal(text))
+    text = TIMES.sub(r"\1 x ", DEGREES.sub(r"\1 deg", text))
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def number(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, int | float):
         return float(value)
     if isinstance(value, str):
-        found = NUMBER.fullmatch(value.strip().removesuffix("mm").removesuffix("°").strip())
+        # A length in mm, or an angle in degrees however it's written.
+        found = NUMBER.fullmatch(UNIT.sub("", value.strip().casefold()).strip())
         return float(found.group(0)) if found else None
     return None
 
@@ -119,7 +138,7 @@ def read(text: Any) -> tuple[dict[str, Any] | None, list[str]]:
 
 def references() -> str:
     """Every skill and reference file the session can read, as quotes are compared."""
-    return normal("\n".join(p.read_text(encoding="utf-8") for p in skills.files(skills.SETS)))
+    return loose("\n".join(p.read_text(encoding="utf-8") for p in skills.files(skills.SETS)))
 
 
 def check(spec: str, outputs: list[str], text: Any) -> Checked:
@@ -131,12 +150,12 @@ def check(spec: str, outputs: list[str], text: Any) -> Checked:
     if files != sorted(outputs):
         given = ", ".join(files) or "none"
         wrong.append(f"the spec asks for {', '.join(outputs)}: your plan's files are {given}")
-    in_spec, in_refs = normal(spec), None
+    in_spec, in_refs = loose(spec), None
     misses = []
     for size in found["sizes"]:
         if size["source"] not in QUOTED:
             continue
-        quote = normal(str(size["quote"]))
+        quote = loose(str(size["quote"]))
         if size["source"] == "spec" and quote not in in_spec:
             misses.append(Miss(size, "not_in_spec"))
             continue

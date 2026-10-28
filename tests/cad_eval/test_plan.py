@@ -176,3 +176,37 @@ def test_a_base_arm_run_records_its_plan_on_the_row(tmp_path: Path) -> None:
     assert (row["plans"], row["plan_passed"], row["plan_misses"]) == (1, True, 0)
     assert (row["views"], row["image_tokens"]) == (0, 0)
     assert row["calls_to_first_compile"] == 2
+
+
+def test_an_angle_and_a_symbol_are_matched_however_theyre_written() -> None:
+    """V5 at 3706cd8: "45 deg" wasn't a value, and "45 degree" didn't match the spec's
+    45°, costing press-fit-pin 4 of its 13 calls and tube-clip 2."""
+    spec = CASES["press-fit-pin"].spec()
+    chamfer = {"part": "pin", "name": "chamfer", "source": "spec"}
+
+    def passes(value: Any, quote: str) -> bool:
+        p = {
+            "parts": [{"name": "pin", "file": "part.step", "what": "a pin"}],
+            "interfaces": [],
+            "sizes": [{**chamfer, "value": value, "quote": quote}],
+            "fits": [],
+        }
+        checked = plan.check(spec, ["part.step"], p)
+        return not checked.misses and not checked.wrong
+
+    for value in ("45°", "45 deg", "45 degrees", "45 degree", 45):
+        assert passes(value, "a 0.5 mm by 45° chamfer at each end"), value
+    for quote in (
+        "a 0.5 mm by 45 degree chamfer at each end",
+        "a 0.5 mm x 45 deg chamfer at each end",
+        "A 0.5mm × 45°  CHAMFER at each end",
+        "a 0.5 mm by 45 degrees chamfer",
+    ):
+        assert passes(0.5, quote), quote
+    # Still the spec's own words: a quote it doesn't say is a miss, and two numbers in
+    # one value are still not a value.
+    assert not passes(0.5, "a 0.5 mm by 30 degree chamfer at each end")
+    assert not passes(0.5, "a 0.5 mm fillet at each end")
+    assert not passes("0.5 mm x 45 deg", "a 0.5 mm by 45° chamfer at each end")
+    assert plan.number("270 degrees") == 270.0 and plan.number("45°") == 45.0
+    assert plan.number("4 mm") == 4.0 and plan.number("45 bananas") is None
