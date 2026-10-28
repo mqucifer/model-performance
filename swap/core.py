@@ -13,6 +13,11 @@ The steps, in order (mqucifer/model-performance#2, ADR 0004 in mqucifer/project-
   restore     always, once the 27B was touched: remove the candidate and check
               it's gone, bring the 27B back on its own engine, and wait until
               it answers through LiteLLM again
+  hold        with --hold, instead of the restore when the candidate doesn't
+              answer or the command fails: leave the candidate as it is, say
+              what failed and what runs on the Spark, show the candidate's
+              last log lines, and print the command that restores. Success
+              and signals still restore (mqucifer/model-performance#35)
   prune list  the candidate's image and weights, to prune once unused; nothing
               is deleted
 
@@ -47,7 +52,11 @@ from swap.config import Config, Engine
 REFUSED = 2
 RESTORE_FAILED = 3
 CANDIDATE_FAILED = 4
+HELD = 5
 INTERRUPTED = 130
+
+LOG_LINES = 80
+RESTORE_COMMAND = "uv run swap --restore"
 
 SHIELDED = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
 
@@ -60,6 +69,7 @@ class Runner(Protocol):
     def say(self, message: str) -> None: ...
     def ticks_running(self) -> bool: ...
     def remote(self, command: str, stdin: bytes | None = None) -> int: ...
+    def remote_output(self, command: str) -> tuple[int, str]: ...
     def answers(self, alias: str, seed: bool) -> bool: ...
     def lists(self, alias: str) -> bool: ...
     def run(self, argv: Sequence[str], env: Mapping[str, str]) -> int: ...
@@ -137,6 +147,48 @@ def restore_baseline(config: Config) -> str:
         container = shlex.quote(config.baseline_container)
         return f"{{ docker rm {container} >/dev/null 2>&1 || true; }} && docker compose -f - up -d"
     return config.start_dflash
+
+
+def containers() -> str:
+    """Every container on the Spark, running or not: what a hold leaves there."""
+    fmt = shlex.quote("{{.Names}}\t{{.Status}}\t{{.Image}}")
+    return f"docker ps -a --format {fmt}"
+
+
+def candidate_logs(config: Config) -> str:
+    return f"docker logs --tail {LOG_LINES} {shlex.quote(config.candidate_container)} 2>&1"
+
+
+# A line that looks like it carries a token or key: a credential's name with a
+# value after it, a bearer header, a known token's shape, or a long run of
+# letters and digits in both cases, as keys are (hex digests are one case).
+# Engines log "token" in counts and throughputs, so the word alone doesn't
+# redact a line.
+SECRET_LINE = re.compile(
+    r"(?i)("
+    r"\b(api|access|secret|private|auth|hf|hub|refresh|session|bearer)[_-]?(key|token)s?\b"
+    r"\W{0,3}[:=]"
+    r"|\b(secret|password|passwd|credentials?|authorization)\b\W{0,3}[:=]"
+    r"|\bbearer\s+\S{8,}"
+    r"|\b(hf_|sk-|ghp_|gho_|github_pat_|xox[abp]-)[A-Za-z0-9_-]{8,}"
+    r")"
+)
+OPAQUE = re.compile(r"[A-Za-z0-9]{32,}")
+REDACTED = "[redacted: looks like a token or key]"
+
+
+def looks_secret(line: str) -> bool:
+    if SECRET_LINE.search(line):
+        return True
+    return any(
+        re.search("[a-z]", run) and re.search("[A-Z]", run) and re.search("[0-9]", run)
+        for run in OPAQUE.findall(line)
+    )
+
+
+def redact(text: str) -> str:
+    """The lines as they are, but any that looks like a token or key replaced."""
+    return "\n".join(REDACTED if looks_secret(line) else line for line in text.splitlines())
 
 
 HUB_ID = re.compile(r"[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*")
@@ -228,18 +280,21 @@ def _handlers(handlers: dict[signal.Signals, object]) -> Iterator[None]:
 
 def wait_until_answers(
     runner: Runner, config: Config, alias: str, seed: bool, container: str
-) -> bool:
-    """Poll the alias through LiteLLM until it answers, the container exits, or time runs out."""
+) -> str | None:
+    """Poll the alias through LiteLLM until it answers, the container exits, or time runs out.
+
+    None once it answers; otherwise why it didn't.
+    """
     deadline = runner.clock() + config.ready_timeout_s
     while True:
         if runner.answers(alias, seed):
-            return True
+            return None
         if runner.remote(still_running(container)) != 0:
             runner.say(f"swap: {container} isn't running; not waiting for it")
-            return False
+            return f"{alias} didn't answer through LiteLLM, and {container} isn't running"
         if runner.clock() + config.poll_s > deadline:
             runner.say(f"swap: {alias} didn't answer in {config.ready_timeout_s:.0f}s")
-            return False
+            return f"{alias} didn't answer through LiteLLM in {config.ready_timeout_s:.0f}s"
         runner.sleep(config.poll_s)
 
 
@@ -297,9 +352,39 @@ def restore(runner: Runner, config: Config, baseline_text: str) -> bool:
     if runner.remote(restore_baseline(config), stdin=stdin) != 0:
         runner.say("swap: the 27B's start command failed; checking whether it answers anyway")
     runner.say(f"restore 3/3: wait until {config.baseline_alias} answers through LiteLLM")
-    return wait_until_answers(
+    problem = wait_until_answers(
         runner, config, config.baseline_alias, config.baseline.seed, config.baseline_container
     )
+    return problem is None
+
+
+def hold(runner: Runner, config: Config, failure: str, restore_command: str) -> None:
+    """Leave the candidate as it is, and say what's on the Spark and how to restore."""
+    runner.say(f"swap: HOLDING, the 27B is NOT restored: {failure}")
+    runner.say(
+        f"hold 1/2: what runs on the Spark (the 27B, {config.baseline_container}, is stopped;"
+        f" {config.baseline_alias} doesn't answer until the restore)"
+    )
+    code, listed = runner.remote_output(containers())
+    runner.say(listed.rstrip() if code == 0 else f"swap: docker ps failed ({code})")
+    runner.say(f"hold 2/2: the last {LOG_LINES} lines of {config.candidate_container}'s log")
+    code, logs = runner.remote_output(candidate_logs(config))
+    runner.say(redact(logs) if code == 0 else f"swap: docker logs failed ({code})")
+    runner.say(f"swap: held, exiting {HELD}. To bring the 27B back: {restore_command}")
+
+
+def restore_only(runner: Runner, config: Config, baseline_text: str) -> int:
+    """`swap --restore`: the swap's own restore, after a hold.
+
+    It refuses nothing about ticks: production is down while the candidate is held.
+    """
+    with interrupts_shielded(runner):
+        restored = restore(runner, config, baseline_text)
+    if not restored:
+        runner.say(f"swap: THE 27B DID NOT COME BACK.\n{manual_steps(config)}")
+        return RESTORE_FAILED
+    runner.say("swap: the 27B answers again; exiting 0")
+    return 0
 
 
 def command_env(config: Config, engine: Engine, model: str) -> dict[str, str]:
@@ -320,8 +405,14 @@ def swap(
     command: Sequence[str],
     launch_text: str,
     baseline_text: str,
+    hold_on_failure: bool = False,
+    restore_command: str = RESTORE_COMMAND,
 ) -> int:
-    """Run `command` with `model` on `engine` on the Spark, and always put the 27B back."""
+    """Run `command` with `model` on `engine` on the Spark, and put the 27B back.
+
+    With `hold_on_failure`, a candidate that doesn't answer or a command that
+    fails is held for the Sponsor instead: nothing is restored.
+    """
     reason = preflight(runner, config, engine, model, launch_text, baseline_text)
     if reason:
         runner.say(f"swap: refused: {reason}")
@@ -329,6 +420,7 @@ def swap(
 
     touched = False
     outcome = 0
+    failure = None  # what failed, when a hold may keep the candidate
     try:
         with interrupts_raise():
             runner.say(f"swap 1/3: stop the 27B ({config.baseline_container})")
@@ -348,24 +440,30 @@ def swap(
                     runner.say(
                         f"swap 3/3: wait until {config.candidate_alias} answers through LiteLLM"
                     )
-                    answered = wait_until_answers(
+                    failure = wait_until_answers(
                         runner,
                         config,
                         config.candidate_alias,
                         engine.seed,
                         config.candidate_container,
                     )
-                    if not answered:
+                    if failure:
                         outcome = CANDIDATE_FAILED
                     else:
                         runner.say(f"run: {shlex.join(command)}")
                         outcome = runner.run(command, command_env(config, engine, model))
                         runner.say(f"run: exited {outcome}")
+                        if outcome != 0:
+                            failure = f"the command exited {outcome}: {shlex.join(command)}"
     except (KeyboardInterrupt, Interrupted) as interrupt:
         runner.say(f"swap: interrupted ({type(interrupt).__name__} {interrupt}); restoring")
         outcome = INTERRUPTED
+        failure = None  # a signal always restores, held or not
     finally:
-        if touched:
+        if touched and hold_on_failure and failure:
+            hold(runner, config, failure, restore_command)
+            outcome = HELD
+        elif touched:
             with interrupts_shielded(runner):
                 restored = restore(runner, config, baseline_text)
             pruning = prune_list(config, engine, model, launch_text, baseline_text)

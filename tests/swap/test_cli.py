@@ -117,6 +117,57 @@ def test_real_run_without_the_spark_address_is_refused(
     assert "SPARK_ADDR not set" in err and "SPARK_USER" not in err
 
 
+def test_dry_run_with_hold_prints_the_held_path_too(
+    infra: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = ["Qwen/Qwen3.8-8B", "--hold", "--dry-run", "--infra-dir", str(infra), "--", "bench"]
+    assert cli.main(argv) == 0
+    err = capsys.readouterr().err
+    restored = err.find("the 27B answers again; exiting 0")
+    held = err.find("with --hold, if the candidate doesn't answer or the command fails")
+    assert 0 <= restored < held
+    tail = err[held:]
+    assert "hold 1/2: what runs on the Spark" in tail and "docker ps -a" in tail
+    assert "hold 2/2" in tail and "docker logs --tail 80 spark-candidate" in tail
+    assert f"uv run swap --restore --infra-dir {infra}" in tail
+
+
+def test_dry_run_of_the_restore(infra: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(["--restore", "--dry-run", "--infra-dir", str(infra)]) == 0
+    err = capsys.readouterr().err
+    expected = [
+        "restore 1/3: remove the candidate",
+        "docker compose -p spark-candidate down",
+        "restore 2/3: bring the 27B back on sglang (container)",
+        "docker start qwen3.8-27b-sglang",
+        "restore 3/3: wait until crew-local answers",
+        "model=crew-local",
+        "the 27B answers again; exiting 0",
+    ]
+    position = 0
+    for line in expected:
+        found = err.find(line, position)
+        assert found >= 0, f"missing, or out of order: {line}"
+        position = found + len(line)
+
+
+def test_restore_without_the_spark_address_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    hosts = tmp_path / "hosts.env"
+    hosts.write_text("# no values yet\n")
+    assert cli.main(["--restore", "--hosts", str(hosts)]) == core.REFUSED
+    assert "SPARK_ADDR not set" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "argv", [["--restore", "m"], ["--restore", "--", "x"], ["--restore", "--hold"], ["--hold"]]
+)
+def test_restore_takes_no_model_command_or_hold(argv: list[str]) -> None:
+    with pytest.raises(SystemExit):
+        cli.parse(argv)
+
+
 def test_the_commands_own_options_stay_its_own() -> None:
     args = cli.parse(["m", "--dry-run", "--", "bench", "--dry-run", "--", "-x"])
     assert args.dry_run is True

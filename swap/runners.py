@@ -68,6 +68,22 @@ class RealRunner:
             return 124
         return done.returncode
 
+    def remote_output(self, command: str) -> tuple[int, str]:
+        """A remote command's code, and its stdout and stderr together, for the swap to show."""
+        say(f"  ssh ${self.config.addr_key}: {command}")
+        try:
+            done = subprocess.run(
+                ["ssh", *SSH_OPTIONS, self.target, command],
+                input=b"",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=CHECK_TIMEOUT_S,
+            )
+        except subprocess.TimeoutExpired:
+            say(f"  timed out after {CHECK_TIMEOUT_S}s")
+            return 124, ""
+        return done.returncode, done.stdout.decode(errors="replace")
+
     def answers(self, alias: str, seed: bool) -> bool:
         """One short completion through LiteLLM, seeded when the engine needs it.
 
@@ -149,6 +165,10 @@ class DryRunner:
         fed = f"   < {self.launches.get(stdin.decode(), '?')}" if stdin is not None else ""
         say(f"  [dry-run] ssh ${self.config.addr_key}: {command}{fed}")
         return 0
+
+    def remote_output(self, command: str) -> tuple[int, str]:
+        say(f"  [dry-run] ssh ${self.config.addr_key}: {command}")
+        return 0, "  [dry-run] (its output)"
 
     def answers(self, alias: str, seed: bool) -> bool:
         seeded = " with a seed" if seed else ""
