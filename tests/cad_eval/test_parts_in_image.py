@@ -80,6 +80,10 @@ def test_an_open_shell_isnt_a_closed_mesh(tools: PartTools) -> None:
 
 def test_inspect_measures_in_the_container_and_refuses_a_missing_file(tools: PartTools) -> None:
     final(tools, HERE / "reference" / "spacer.py", "spacer")
+    # The judging re-runs in a fresh container and leaves the part's directory as it
+    # was (the race review of #41): the model's own run makes the file it inspects.
+    tools.plan_passed = True
+    assert tools.call("run", '{"path": "part.py"}').outcome == "ok"
     seen = tools.call("inspect", '{"path": "part.step"}')
     assert seen.outcome == "ok"
     assert '"watertight": true' in seen.reply
