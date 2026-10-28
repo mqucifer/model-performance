@@ -98,7 +98,44 @@ SUITES: dict[str, set[str]] = {
         "runaway_reasoning_tokens",
         "runaway_content_tokens",
         "sample",  # which of a `--repeat` run's samples, 1 to N, or null for a single run
-        "serving",  # the Spark's serving engine and version, as given: sglang-0.5.22
+        "serving",  # production's serving image tag, from infra's record (was as typed)
+        # What the run ran on, read rather than typed (mqucifer/model-performance#40, V4).
+        "harness_commit",  # this repository's commit
+        "harness_dirty",  # whether its tracked files differed (refused to run, so false)
+        "skills_sha",  # sha256 over every skill and reference file the session could read
+        "image_id",  # the CadQuery image's digest
+        "cadquery_version",  # read in the run's own container
+        "ocp_version",
+        # infra's record of production's serving (`inventory/services/sglang.yaml`), as
+        # the batch started, and whether it differed as the run ended.
+        "serving_infra_commit",
+        "serving_image",
+        "serving_digest",
+        "serving_model",
+        "serving_record_changed",
+        "serving_route",  # the model LiteLLM's config sends the alias to, as SGLang serves it
+        "serving_route_matches",  # whether that names the container infra records
+        "serving_port",  # the port infra records SGLang's api on
+        "serving_reached_by",  # the name of the address it's reached by, never the address
+        # Any call whose headers differ from infra's record (model group, api base's port),
+        # and any call whose headers said nothing to compare.
+        "served_mismatch",
+        "served_unverified",
+        "reaped",  # processes a run left in its container, killed after it
+        # LiteLLM's deployment id for each call (`x-litellm-model-id`), not the alias.
+        # The model each call's response named: the first, how many, and whether it changed.
+        "served_model",
+        "served_models",
+        "served_changed",
+        # The base arm's tools (#40, A1): `view`'s pictures and what they cost in the
+        # prompt, and the plan stage's plans, whether one held, and the misses over them.
+        "views",
+        "image_tokens",
+        "plans",
+        "plan_passed",
+        "plan_misses",
+        "compactions",  # the base arm's: times the prompt was compacted at crew's 125k
+        "reasoning_chars",  # the reasoning's size over the run, beside its tokens
     },
     "role_fit": {
         "stop",  # what ended it, when it isn't `done`: no_request, call_cap, call_failed

@@ -46,6 +46,8 @@ class Sender:
         self.alias = alias
         self.calls = 0
         self.models: set[str] = set()
+        # The last call's LiteLLM deployment headers (`x-litellm-*`, none of the key's).
+        self.served: dict[str, str] = {}
         self._tick = tick
         # Calls made while a tick ran, and whether one was seen at all.
         self.tick_calls = 0
@@ -60,8 +62,7 @@ class Sender:
     def __call__(self, body: dict[str, Any]) -> dict[str, Any]:
         if self.calls >= self.cap:
             raise CallCapReached(f"the run's cap of {self.cap} calls is reached")
-        if self.alias:
-            body = {**body, "model": self.alias}
+        body = self.wire(body)
         self.models.add(str(body.get("model")))
         self.calls += 1
         if self.ticking():
@@ -74,8 +75,20 @@ class Sender:
                 request=response.request,
                 response=response,
             )
+        # Which deployment served it, as LiteLLM's headers name it: kept beside the
+        # response, which stays as the proxy sent it (`cad_eval/session.py` reads it).
+        self.served = {
+            k.lower(): str(v)
+            for k, v in response.headers.items()
+            if k.lower().startswith("x-litellm-")
+            and not any(p in k.lower() for p in ("key", "spend", "cost", "budget", "user", "team"))
+        }
         result: dict[str, Any] = response.json()
         return result
+
+    def wire(self, body: dict[str, Any]) -> dict[str, Any]:
+        """The body as it's sent: the candidate's alias in place of the role's."""
+        return {**body, "model": self.alias} if self.alias else body
 
     def ticking(self) -> bool:
         """Whether a `crew tick` runs now; remembered once seen."""

@@ -13,7 +13,7 @@ SINK = 0.1  # the profile reaches this far into the core, so the fuse is clean
 
 def thread(length: float) -> cq.Solid:
     h = R_MAJOR - R_MINOR + SINK
-    root = P / 8 + h * T30
+    root = P / 16 + h * T30  # the crest's half-flat, P/16, and the 60° flank below it
     profile = (
         cq.Workplane("XZ")
         .polyline(

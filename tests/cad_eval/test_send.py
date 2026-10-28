@@ -112,3 +112,27 @@ def test_a_case_without_a_runaway_says_none(tmp_path: Path) -> None:
     r.send = sender(tmp_path, [stream] * 3, r.bodies)
     row = go(r, "living-hinge")
     assert row["runaways"] == 0 and row["runaway_reasoning_tokens"] is None
+
+
+def test_a_streamed_answer_names_the_model_that_served_it(tmp_path: Path) -> None:
+    seen: list[dict[str, Any]] = []
+    served = {**delta(content="ok"), "model": "RadixArk/Qwen3.8-27B"}
+    send = sender(tmp_path, [sse(served, delta("stop"))], seen)
+    body = {"model": "crew-code-think", "messages": [], "tools": []}
+    got = send(body)
+    assert got["model"] == "RadixArk/Qwen3.8-27B"
+    # What the session records as the request is what went over the wire.
+    assert send.wire(body) == seen[0]
+
+
+def test_a_streamed_answer_keeps_litellms_deployment_headers(tmp_path: Path) -> None:
+    def reply(request: httpx.Request) -> httpx.Response:
+        headers = {"x-litellm-model-id": "dep-a", "x-litellm-key-spend": "0.2"}
+        return httpx.Response(200, content=sse(delta(content="ok"), delta("stop")), headers=headers)
+
+    send = StreamingSender(
+        load(home=tmp_path), "k", cap=5, transport=httpx.MockTransport(reply), tick=lambda: False
+    )
+    got = send({"model": "crew-code-think", "messages": [], "tools": []})
+    assert send.served == {"x-litellm-model-id": "dep-a"}
+    assert "served" not in got  # the response stays as the proxy sent it

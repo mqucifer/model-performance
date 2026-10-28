@@ -70,8 +70,8 @@ def test_every_skill_file_has_a_name_and_a_line_and_skill_md_names_each_topic() 
             assert f"`{name}`" in guide
     for path in skills.files():
         text = path.read_text(encoding="utf-8")
-        # Each file links the CadQuery pages it was distilled from.
-        assert "https://cadquery.readthedocs.io/" in text, path.name
+        # Each file links the CadQuery pages it was distilled from, at its own version.
+        assert "https://github.com/CadQuery/cadquery/blob/v2.8.0/doc/" in text, path.name
     line = skills.start_line()
     assert line.startswith("Skills for this part: `cadquery`,")
     assert "Read one with `skill` when you need it." in line

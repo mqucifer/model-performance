@@ -38,7 +38,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from cad_eval import cases, checks, container, skills
+from cad_eval import cases, checks, container, identity, skills
 from cad_eval.cases import CASES, Case
 from cad_eval.parts import FIRST, PARTS, Part, UnknownPart, part
 from cad_eval.send import StreamingSender
@@ -54,6 +54,9 @@ RESULTS_LOCK = threading.Lock()
 # A part's calls (the operator, 2026-10-25): 20 ended two of the first run's five, so it
 # starts high and comes down from each part's `calls_to_done`.
 CAP_PER_PART = 40
+# The base arm's (#40, A6): high, so a run tells what a lower cap would have done; it's
+# lowered from the calls each run took to its first clean run. The model isn't told it.
+CAP_BASE = 50
 
 
 class Refused(Exception):
@@ -91,10 +94,29 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
             ]
         if m.own_gap is not None:
             request["self"] = True
-        if m.holes:
+        if m.region_gaps:
+            request["regions"] = [
+                {
+                    "name": g.name,
+                    "box": [list(axis) for axis in g.box],
+                    "other": "self"
+                    if g.other == "self"
+                    else {"name": g.other, "path": f"{g.other}.step"}
+                    if g.other in members
+                    else {"name": g.other, "source": case.mates[g.other]},
+                }
+                for g in m.region_gaps
+            ]
+        if m.holes or m.cylinders:
             request["cylinders"] = True
         if m.load is not None:
             request["section"] = {"axis": m.load.axis, "at": m.load.at}
+        if m.section_spans:
+            request["sections"] = [
+                {"axis": s.axis, "at": s.at}
+                | ({"clip": {"axis": s.clip[0], "span": list(s.clip[1])}} if s.clip else {})
+                for s in m.section_spans
+            ]
         if m.vents is not None:
             request["rays"] = {"axis": m.vents.axis, "points": m.vents.points()}
         found[m.name] = request
@@ -106,7 +128,9 @@ def requests(case: Case) -> dict[str, dict[str, Any]]:
 # proxy, the model's server: nothing about the case), or the budget's (the call cap
 # or a backstop ended it before an answer: no verdict on the design).
 INFRA_STOPS = {"call_failed", "workspace_gone", "no_image", "container_start"}
-TOOL_ERRORS = ("the measure didn't finish", "it loads but can't be measured")
+TOOL_ERRORS = ("it loads but can't be measured",)
+# The judging's measure cut off, by its time or its memory: the infrastructure's.
+INFRA_ERRORS = ("the measure didn't finish",)
 
 
 def fault(row: dict[str, Any], measured: dict[str, Any], troubles: dict[str, int]) -> str | None:
@@ -116,14 +140,16 @@ def fault(row: dict[str, Any], measured: dict[str, Any], troubles: dict[str, int
     records, is read by hand in the write-up, since a missing tool may be what it
     says (`cad_eval/README.md`).
     """
-    if row["ending"] == "crashed":
+    if row["ending"] == "crashed" or row["stop"] == "harness_fault":
         return "tool"
     if row["ending"] == "refused" or row["stop"] in INFRA_STOPS:
         return "infra"
-    if row["stop"] in ("call_cap", "backstop"):
+    if row["stop"] in ("call_cap", "backstop", "context_full"):
         return "budget"
     if row["ending"] == "done":
         errors = [str(m.get("error", "")) for m in measured.values()]
+        if any(e.startswith(INFRA_ERRORS) for e in errors):
+            return "infra"
         if any(e.startswith(TOOL_ERRORS) for e in errors):
             return "tool"
         if row["compiles"] and row["closed_mesh"] and row["within_tolerance"]:
@@ -173,13 +199,21 @@ def directory(settings: Settings, p: Part | Case, run: str) -> Path:
 
 
 def keep(source: Path, out: Path) -> None:
-    """The files the session left, into its records: they're the model's answers."""
-    for found in source.rglob("*"):
-        relative = found.relative_to(source)
-        if found.is_file() and relative.parts[0] != ".crew-home":
+    """The files the session left, into its records: they're the model's answers. A link
+    is never followed, to a file or into a folder: it could reach any file on the host."""
+    import os  # noqa: PLC0415
+
+    for root, folders, files in os.walk(source, followlinks=False):
+        here = Path(root)
+        folders[:] = [f for f in folders if not (here / f).is_symlink()]
+        for name in files:
+            found = here / name
+            relative = found.relative_to(source)
+            if found.is_symlink() or relative.parts[0] == ".crew-home":
+                continue
             target = out / "files" / relative
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(found, target)
+            shutil.copy2(found, target, follow_symlinks=False)
 
 
 def own_calls(events: Path) -> set[str]:
@@ -218,19 +252,45 @@ def evaluate(
     arm: str | None = None,
     concurrency: int = 1,
     sample: int | None = None,
-    serving: str | None = None,
+    serving_record: Callable[[], dict[str, Any]] = identity.serving,
+    reached_host: Callable[[dict[str, Any]], str | None] = identity.reached_host,
+    batch_serving: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """One part end to end: its row, written to the results once the run has ended."""
+    """One part end to end: its row, written to the results once the run has ended.
+
+    `batch_serving` is infra's record of production's serving as the batch started;
+    it's read again as the run ends, and a difference is flagged.
+    """
     started_at = datetime.now(UTC)
     run, out = fresh_run(settings, p.name)
+    harness = identity.harness()
+    serving_start = batch_serving if batch_serving is not None else serving_record()
     row: dict[str, Any] = {
         "case": p.name,
         "tier": p.tier,
         "run": run,
         "at": started_at.isoformat(timespec="seconds"),
         "crew_commit": crew.commit(),
+        # This checkout and what the session read (`identity.py`, #40 V4).
+        "harness_commit": harness["commit"],
+        "harness_dirty": harness["dirty"],
+        "skills_sha": identity.texts_sha(skills.files(skills.SETS)),
         "model_alias": alias,
-        "image": container.IMAGE,
+        "image": container.IMAGE_V2 if arm == "base" else container.IMAGE,
+        "image_id": None,
+        "cadquery_version": None,
+        "ocp_version": None,
+        **serving_start,
+        # The serving's image tag, as infra records it: read, never typed.
+        "serving": serving_start.get("serving_image"),
+        "serving_record_changed": None,
+        "serving_route_matches": serving_start.get("serving_route_matches"),
+        "served_model": None,
+        "served_models": None,
+        "served_changed": None,
+        "served_mismatch": None,
+        "served_unverified": None,
+        "reaped": None,
         "ending": None,
         "stop": None,
         "compiles": None,
@@ -249,10 +309,10 @@ def evaluate(
         row.update(arm=arm, concurrency=concurrency, calls_to_first_compile=None)
         # Which of a `--repeat` run's samples this is (mqucifer/model-performance#27).
         row["sample"] = sample
-        # The Spark's serving engine and version, as the operator states it: nothing
-        # here may probe SGLang directly (null on rows from before 2026-10-26).
-        row["serving"] = serving
         row.update(runaways=None, runaway_reasoning_tokens=None, runaway_content_tokens=None)
+        row.update(views=None, image_tokens=None, plans=None, plan_passed=None, compactions=None)
+        row["reasoning_chars"] = None
+        row["plan_misses"] = None
     kept: dict[str, Any] = {}
     send.ticking()
     began = time.monotonic()
@@ -261,15 +321,22 @@ def evaluate(
     tools: PartTools | None = None
     session: Session | None = None
     try:
-        kept["image_id"] = image_id()
-        if kept["image_id"] is None:
-            raise Refused("no_image", f"{container.IMAGE} isn't built: cad_eval/image/build.sh")
+        image = row["image"]
+        # The base arm's image is the v2 image (#40): the same CadQuery, plus OSMesa.
+        row["image_id"] = image_id() if image_id is not container.image_id else image_id(image)
+        if row["image_id"] is None:
+            raise Refused("no_image", f"{image} isn't built: cad_eval/image/build.sh")
         root = directory(settings, p, run)
-        workspace = workspace_for(root, f"cad-{p.name}-{run}")
+        if workspace_for is container.held:
+            workspace = container.held(root, f"cad-{p.name}-{run}", image=image)
+        else:
+            workspace = workspace_for(root, f"cad-{p.name}-{run}")
         started = workspace.start()
         if not started.ok:
             raise Refused("container_start", started.output[-3000:])
-        tools = PartTools(root, workspace, case.outputs() if case else None, arm=arm)
+        tools = PartTools(root, workspace, case.outputs() if case else None, arm=arm, spec=p.spec())
+        found = tools.versions()
+        row["cadquery_version"], row["ocp_version"] = found["cadquery"], found["ocp"]
         session = Session(
             p.spec(),
             tools,
@@ -277,19 +344,29 @@ def evaluate(
             alias,
             out / "events.jsonl",
             max_tokens=max_tokens,
-            system=system_for(case.outputs()) if case else SYSTEM,
+            system=system_for(case.outputs(), base=arm == "base") if case else SYSTEM,
             start=skills.start_line(skills.for_arm(arm)) if arm else "",
             # A harder case is capped by its calls alone, never by time, so its result
             # doesn't depend on the Spark's load (the operator, 2026-10-25): under
             # load an hour of model time is a handful of calls.
             backstop_s=math.inf if case else BACKSTOP_S,
         )
+        session.keep_reasoning = arm == "base"
+        session.serving_record = serving_start
+        session.serving_host = reached_host(serving_start)
         ending = session.run()
         row["ending"], row["stop"] = ending.how, ending.stop or None
         row["calls_to_done"] = session.calls if ending.how == "done" else None
         if case is not None:
             row["calls_to_first_compile"] = session.first_compile
             row["runaways"] = len(session.runaways)
+            row["views"] = session.views
+            row["reasoning_chars"] = session.reasoning_chars
+            row["compactions"] = session.compactions if arm == "base" else None
+            row["image_tokens"] = session.usage.get("image_tokens", 0)
+            if tools.planned:
+                row["plans"], row["plan_passed"] = tools.plans, tools.plan_passed
+                row["plan_misses"] = tools.plan_misses
             if session.runaways:
                 row["runaway_reasoning_tokens"] = sum(r["reasoning"] for r in session.runaways)
                 row["runaway_content_tokens"] = sum(r["content"] for r in session.runaways)
@@ -325,6 +402,22 @@ def evaluate(
             keep(root, out)
             shutil.rmtree(root, ignore_errors=True)
         row.update(counts(session))
+        served = list(dict.fromkeys(session.served)) if session else []
+        kept["served"] = served
+        row["served_model"] = served[0] if served else None
+        row["served_models"] = len(served)
+        row["served_changed"] = len(served) > 1
+        found = session.mismatches if session else []
+        row["served_mismatch"] = any(set(m) & set(identity.MISMATCHES) for m in found)
+        # A run with no calls has nothing that says what served it.
+        row["served_unverified"] = not found or any(
+            set(m) & set(identity.UNVERIFIED) for m in found
+        )
+        # Every process the runs left, killed after each (the final review of #41).
+        row["reaped"] = sum(max(0, n) for n in tools.reaped) if tools is not None else None
+        serving_end = serving_record()
+        kept["serving_end"] = serving_end
+        row["serving_record_changed"] = identity.changed(serving_start, serving_end)
         # Every other call through the proxy while this one ran (`common/spend.py`).
         overlapped = spend.others(
             started_at, datetime.now(UTC), own_calls(out / "events.jsonl"), read_spend
@@ -453,10 +546,6 @@ def main(argv: list[str] | None = None) -> int:
         "--arm", choices=ARMS, help="what the session is given besides the baseline's tools"
     )
     parser.add_argument(
-        "--serving",
-        help="the Spark's serving engine and version, as the operator gives it: sglang-0.5.22",
-    )
-    parser.add_argument(
         "--repeat",
         type=int,
         default=1,
@@ -468,13 +557,24 @@ def main(argv: list[str] | None = None) -> int:
         default=1,
         help="harder cases run at once: at most what the operator gives, and Docker's memory holds",
     )
-    parser.add_argument("--cap", type=int, default=CAP_PER_PART, help="calls a part may make")
+    parser.add_argument(
+        "--cap",
+        type=int,
+        help=f"calls a part may make (default {CAP_PER_PART}, or {CAP_BASE} in the base arm)",
+    )
     parser.add_argument(
         "--total", type=int, help="calls the whole run may make (default: the cap for each part)"
     )
     args = parser.parse_args(argv)
+    if args.cap is None:
+        args.cap = CAP_BASE if args.arm == "base" else CAP_PER_PART
     if bool(args.parts) == (args.first or args.all or args.hard or args.hard_first):
         parser.error("name the parts, or --first, --all, --hard or --hard-first")
+    harness = identity.harness()
+    if harness["dirty"]:
+        # A row names the harness commit it ran: refused, so that commit is the code.
+        print("refused: the harness has uncommitted changes: commit them first", file=sys.stderr)
+        return 2
     try:
         names = (
             list(PARTS)
@@ -543,6 +643,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    # What production serves as the batch starts, from infra's record (`identity.py`).
+    batch_serving = identity.serving(alias)
     settings.work_dir.mkdir(parents=True, exist_ok=True)
     stop = settings.work_dir / STOP_FILE
     stop.unlink(missing_ok=True)
@@ -572,7 +674,7 @@ def main(argv: list[str] | None = None) -> int:
                 arm=args.arm,
                 concurrency=args.parallel,
                 sample=sample,
-                serving=args.serving,
+                batch_serving=batch_serving,
             )
         finally:
             with lock:
@@ -580,7 +682,12 @@ def main(argv: list[str] | None = None) -> int:
             send.close()
         with lock:
             budget["failed"] += row["ending"] in ("refused", "crashed")
+            budget["failed"] += row["stop"] == "harness_fault"
             print(summary(p, row, settings), flush=True)
+            if row["stop"] == "harness_fault":
+                # A reap that couldn't finish: nothing more starts (the race review of #41).
+                stop.write_text(f"{p.name}: a harness fault, the reap couldn't finish\n")
+                print(f"{p.name}: a harness fault; the batch stops", flush=True)
 
     # The crew's sandbox keeps its uv cache under the current directory: the work's.
     with contextlib.chdir(settings.work_dir), ThreadPoolExecutor(args.parallel) as pool:

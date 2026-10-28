@@ -24,29 +24,79 @@ Everything else is `ok`. The reliability of a run is its `ok` calls over all of 
 
 from __future__ import annotations
 
+import ast
+import difflib
+import errno
 import json
+import os
+import re
+import shutil
+import stat
+import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from cad_eval import hint as hint_module
 from cad_eval import lookup as lookup_module
-from cad_eval import measure, skills
+from cad_eval import measure, plan, skills
+from cad_eval import render as render_module
+from cad_eval import search as search_module
 
 RUN_TIMEOUT = 120
-MEASURE_TIMEOUT = 180
+MEASURE_TIMEOUT = 180  # the model's `measure` and `inspect`
+# The final judging's, after `done`: high, as a timeout there is the infrastructure's
+# fault, never the model's (the operator, the second review of #41).
+JUDGE_TIMEOUT = 600
 TAIL = 4000
 MAX_CONTENT = 200_000
 MAX_PATH = 200
 # What the script the session names at `done` must write: the part, as STEP.
 OUTPUT = "part.step"
 MEASURE_SOURCE = Path(measure.__file__).read_text(encoding="utf-8")
+
+
+def measure_stdin(request: dict[str, Any]) -> str:
+    """`measure.py` and its request, on stdin: the request as a call after the source,
+    never an argument, since Linux takes one of at most 128 KiB (gear-pair's is 107)."""
+    return f"{MEASURE_SOURCE}\nmain({json.dumps(request)!r})\n"
+
+
 LOOKUP_SOURCE = Path(lookup_module.__file__).read_text(encoding="utf-8")
 LOOKUP_TIMEOUT = 60
+HINT_SOURCE = Path(hint_module.__file__).read_text(encoding="utf-8")
+RENDER_SOURCE = Path(render_module.__file__).read_text(encoding="utf-8")
+SEARCH_SOURCE = Path(search_module.__file__).read_text(encoding="utf-8")
+RENDER_TIMEOUT = 180
+VIEWS = ("top", "front", "side", "iso", "exploded", "section")
+# A measure the tool itself failed: not the model's query, not its part.
+TOOL_FAILURES = ("the measure didn't finish", "it loads but can't be measured")
+# v2's base arm (mqucifer/model-performance#40): the full toolset.
+BASE = "base"
+# An AttributeError's owner and name, as Python 3.12 says them.
+NO_ATTRIBUTE = re.compile(
+    r"AttributeError: (?:'(\w+)' object|type object '(\w+)'|module '([\w.]+)') "
+    r"has no attribute '(\w+)'"
+)
+# What `edit` shows around a closest block, and how close it must be: crew's.
+NEAR_CONTEXT = 5
+NEAR_RATIO = 0.6
+# The library a run's scripts ran against, read in its own container.
+VERSIONS_MARK = "CAD_EVAL_VERSIONS "
+VERSIONS = (
+    "import json, cadquery, OCP; from importlib.metadata import version; "
+    f"print({VERSIONS_MARK!r} + json.dumps({{'cadquery': cadquery.__version__, "
+    "'ocp': version('cadquery-ocp')}))"
+)
 # The arms (mqucifer/model-performance#21): what each adds to the session's tools.
 ARMS = tuple(skills.ARMS)
 
 
-def _spec(name: str, description: str, **properties: str) -> dict[str, Any]:
+def _spec(
+    name: str, description: str, optional: dict[str, Any] | None = None, **properties: str
+) -> dict[str, Any]:
+    """A tool's spec: its string arguments, all required, and any `optional` ones."""
     return {
         "type": "function",
         "function": {
@@ -55,7 +105,8 @@ def _spec(name: str, description: str, **properties: str) -> dict[str, Any]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    k: {"type": "string", "description": v} for k, v in properties.items()
+                    **{k: {"type": "string", "description": v} for k, v in properties.items()},
+                    **(optional or {}),
                 },
                 "required": list(properties),
             },
@@ -95,6 +146,40 @@ SPECS = [
     ),
 ]
 ACCEPTED = {s["function"]["name"]: s["function"]["parameters"] for s in SPECS}
+# `run` on `write` and `edit` (#40, A1): one call to change a file and run a script.
+RUN_AFTER = {
+    "run": {
+        "type": "boolean",
+        "description": "true to run this file after, as `run` does. Optional.",
+    },
+    "run_script": {
+        "type": "string",
+        "description": "Another script to run after, such as `make.py` when this file is "
+        "one it imports. Optional.",
+    },
+}
+# `run` sent as text, as V5's model sent it ("true"): read as the boolean it names.
+BOOLEAN_TEXT = {"true": True, "false": False}
+WRITE_BASE = _spec(
+    "write",
+    "Write a text file in the part's directory, replacing it if it exists. With `run`, "
+    "a script is run after, as `run` does.",
+    RUN_AFTER,
+    path="The file's path, relative to the part's directory, such as `make.py`.",
+    content="The whole file.",
+)
+# crew's `replace_text`, behaviour and all (crew_org/session/tools.py, crew#778).
+EDIT = _spec(
+    "edit",
+    "Replace one or more whole lines that occur exactly once in a file, quoted as the "
+    "file has them, with enough lines to be unique. Applied at once, unless it would stop "
+    "a Python file parsing; the reply shows the edited lines, numbered. With `run`, a "
+    "script is run after, as `run` does.",
+    RUN_AFTER,
+    path="The file's path, relative to the part's directory.",
+    old="The whole lines to replace, exactly as the file has them.",
+    new="The lines to put in their place (empty to delete them).",
+)
 
 
 def specs_for(outputs: list[str]) -> list[dict[str, Any]]:
@@ -115,6 +200,12 @@ def specs_for(outputs: list[str]) -> list[dict[str, Any]]:
 TYPES = {"string": str, "number": (int, float), "integer": int, "boolean": bool, "object": dict}
 
 
+class Tampered(RuntimeError):
+    """A reap that couldn't finish: something a run left can't be stopped, so nothing the
+    session goes on to measure can be trusted. The run ends as the harness's fault, and
+    the batch stops (the race review of #41)."""
+
+
 class Gone(RuntimeError):
     """The part's container stopped answering: the infrastructure's failure, not the model's."""
 
@@ -128,6 +219,12 @@ class Judged:
     reply: str
     why: str = ""  # the rule or reason, in a word, when it isn't ok
     args: Any = None
+    # A `view`'s picture, as base64 PNG: sent to the model in a message of its own.
+    image: str | None = None
+    painted: float | None = None  # the picture's share that isn't background
+    # What the run's events keep beside the call: a plan's check, each miss with the
+    # entry it was checked against.
+    detail: Any = None
 
 
 def parse(raw: Any) -> Any:
@@ -153,6 +250,157 @@ def arm_specs(arm: str) -> list[dict[str, Any]]:
         query="A name or a fragment of one, such as `makeHelix` or `Workplane.sweep`.",
     )
     return [SKILL_SPEC, found] if skills.ARMS[arm][1] else [SKILL_SPEC]
+
+
+# The most lines one `read` shows; the rest are a `start` away.
+READ_LINES = 400
+READ = _spec(
+    "read",
+    f"Read a text file in the part's directory, its lines numbered, at most {READ_LINES} "
+    "at a time.",
+    {
+        "start": {"type": "integer", "description": "The first line to show, from 1. Optional."},
+        "end": {"type": "integer", "description": "The last line to show. Optional."},
+    },
+    path="The file's path, relative to the part's directory.",
+)
+MEASURE = _spec(
+    "measure",
+    "Measure your part, in the container: `diameter x,y,z` (the cylindrical face nearest "
+    "a point, a hole or an outer one such as a pin: its diameter and axis), `hole x,y,z` "
+    "(the nearest hole), `distance A B` (between two faces), `clearance FILE` (to "
+    "another of your STEP files: overlap and gap), or `position A` (where faces are). "
+    "A face is a selector such as `>Z`, `<X`, `%CYLINDER`, or a point `x,y,z`.",
+    path="The STEP file to measure, relative to the part's directory.",
+    query="What to measure, such as `diameter 0,0,5` or `distance >Z <Z`.",
+)
+VIEW = _spec(
+    "view",
+    "Render your STEP files to a picture: `top`, `front`, `side`, `iso`, `exploded`, or a "
+    "section such as `section x=40` (looking at the cut, the cut face in dark grey). Only "
+    "the latest picture is kept in the conversation.",
+    {
+        "keepouts": {
+            "type": "string",
+            "description": "More of your own STEP files to draw translucent red, such as a "
+            "board or a mating part you modelled from the spec. Optional.",
+        }
+    },
+    files="Your STEP files to draw, separated by spaces, such as `base.step lid.step`.",
+    view="The view: `iso`, `top`, `front`, `side`, `exploded` or `section x=40`.",
+)
+PAGE = {
+    "page": {
+        "type": "integer",
+        "description": "Which page of the matches, from 1. Optional: the first.",
+    }
+}
+# `lookup` and `docs` over the v2 image's indexes (#40, A2): `search.py`.
+LOOKUP = _spec(
+    "lookup",
+    "Look up names in the installed CadQuery 2.8.0 and OCP 7.9: every name that holds the "
+    "query, each with its signature, its docstring's start, and every class it's on "
+    "(inherited members included). Nearest names when nothing matches; an OCP class "
+    "named exactly lists its members.",
+    PAGE,
+    query="A name or a fragment of one, such as `Solid.fuse`, `polarArray` or `OCP.BRepExtrema`.",
+)
+DOCS = _spec(
+    "docs",
+    "Search CadQuery's own 2.8.0 documentation and examples by words, such as "
+    "`fillet edges` or `workplane on a face`: the best sections, with their code.",
+    PAGE,
+    query="What to find, in words.",
+)
+PLAN = _spec(
+    "plan",
+    "Your dimensioned plan, before any code. Each size says where it comes from: "
+    "`spec`, quoting the spec's words that give it; `reference`, quoting the table it "
+    "came from; `derived` or `chosen`. A quote is checked against the spec or the "
+    "references; `write`, `edit` and `run` open once the plan holds.",
+    plan='A JSON object: `parts` ([{"name", "file", "what"}]), `interfaces` ([{"between": '
+    '[part, part], "what"}]), `sizes` ([{"part", "name", "value" (mm or degrees), '
+    '"source", "quote"}]), and `fits` ([{"between", "kind": "clearance", "interference" '
+    'or "contact", "value"}]).',
+)
+
+
+def base_specs(specs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The base arm's tools: `write` that may run and `edit` after it, then the rest,
+    then `measure`, `view` and `plan`."""
+    found = []
+    for spec in specs:
+        if spec["function"]["name"] == "write":
+            found += [WRITE_BASE, EDIT, READ]
+        elif spec["function"]["name"] == "lookup":
+            found += [LOOKUP, DOCS]
+        else:
+            found.append(spec)
+    return [*found, MEASURE, VIEW, PLAN]
+
+
+def _trim(text: str) -> str:
+    """One leading and one trailing newline off, so quoting whole lines is forgiving."""
+    text = text[1:] if text.startswith("\n") else text
+    return text[:-1] if text.endswith("\n") else text
+
+
+def _parse_error(source: str) -> tuple[str, int | None] | None:
+    try:
+        ast.parse(source)
+    except SyntaxError as exc:
+        return exc.msg, exc.lineno
+    return None
+
+
+def _refusal(path: str, text: str, old: str, new: str) -> tuple[str, str] | None:
+    """Why `old` can't be replaced in `text`, as crew's `replace_text` says it, or None."""
+    from crew_org.session.tools import numbered  # noqa: PLC0415
+
+    if not old.strip():
+        return "edit.empty", "Quote the lines to replace."
+    if old == new:
+        return "edit.same", "`old` and `new` are the same: nothing to change."
+    lines = text.splitlines()
+    want = old.split("\n")
+    at = [i for i in range(len(lines) - len(want) + 1) if lines[i : i + len(want)] == want]
+    if len(at) > 1:
+        where = ", ".join(str(i + 1) for i in at)
+        return "edit.twice", (
+            f"Those lines occur {len(at)} times in `{path}`, at lines {where}: quote more "
+            "lines around the one you mean."
+        )
+    if at:
+        return None
+    if old in text:
+        first = old.split("\n")[0]
+        where = [n for n, line in enumerate(lines) if first in line]
+        shown = "; ".join(f"line {n + 1}: `{lines[n].strip()}`" for n in where[:3])
+        return "edit.part_of_a_line", (
+            f"`old` matches only part of a line, not whole lines: {shown}. Quote whole lines."
+        )
+    if new and new in text:
+        return (
+            "edit.already",
+            f"`old` isn't in `{path}`, and `new` already is: the change may be made.",
+        )
+    size = len(want)
+    best, best_at = 0.0, -1
+    for i in range(max(1, len(lines) - size + 1)):
+        ratio = difflib.SequenceMatcher(
+            a=old, b="\n".join(lines[i : i + size]), autojunk=False
+        ).ratio()
+        if ratio > best:
+            best, best_at = ratio, i
+    if best < NEAR_RATIO:
+        return (
+            "edit.not_found",
+            f"Those lines aren't in `{path}`, and nothing close is: read it with `read` first.",
+        )
+    shown = "\n".join(numbered(lines, best_at - NEAR_CONTEXT, best_at + size + NEAR_CONTEXT))
+    return "edit.closest", (
+        f"Those lines aren't in `{path}`. The closest block starts at line {best_at + 1}:\n{shown}"
+    )
 
 
 def well_formed(name: str, args: Any, accepted: dict[str, Any] = ACCEPTED) -> Judged | None:
@@ -183,11 +431,185 @@ def a_path(path: str) -> bool:
 
 
 def inside(directory: Path, path: str) -> Path | None:
-    """`path` in the part's directory, or None for one that leads out of it."""
+    """`path` in the part's directory, or None for one that leads out of it, by its
+    name or through a link.
+
+    A symlink the model makes from a `run`, in the container, resolves on the host, where
+    these tools read and write (the second review of #41: `read` and `write` went out
+    through one). So no part of the path may be a link, and what it resolves to must
+    be in the directory.
+    """
     pure = PurePosixPath(path)
-    if not path or pure.is_absolute() or ".." in pure.parts or pure.parts[0] == ".crew-home":
+    # `.` has no parts (the final review of #41: an IndexError ended the run), and a
+    # case-insensitive file system takes `.CREW-HOME` for `.crew-home`.
+    if not path or not pure.parts or pure.is_absolute() or ".." in pure.parts:
         return None
-    return directory / pure
+    if pure.parts[0].lower() == ".crew-home":
+        return None
+    step = directory
+    target = directory / pure
+    try:
+        for part in pure.parts:
+            step = step / part
+            if step.is_symlink():
+                return None
+        if not target.resolve().is_relative_to(directory.resolve()):
+            return None
+    except OSError:
+        # A folder taken away mid-check, by a process racing it: refused, not a crash.
+        return None
+    return target
+
+
+class Outside(OSError):
+    """A path that went through a link, or to what isn't a regular file, when opened."""
+
+
+def open_inside(directory: Path, path: str, flags: int, make_dirs: bool = False) -> int:
+    """A file descriptor for `path`, opened one component at a time from the part's
+    directory, never following a link (`O_NOFOLLOW` on each, from its parent's fd).
+
+    `inside()` checks the name, but a process left by a `run` can swap a file for a link
+    between that check and the use (the final review of #41: `read` leaked a host file,
+    and `write` overwrote one). Opened this way, what's read or written is what was
+    opened, and a link anywhere is `Outside`. Not blocking, so a FIFO can't hang the
+    harness, and only a regular file is taken.
+    """
+    parts = PurePosixPath(path).parts
+    folder = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in parts[:-1]:
+            try:
+                nested = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=folder)
+            except FileNotFoundError:
+                if not make_dirs:
+                    raise
+                os.mkdir(part, 0o755, dir_fd=folder)
+                nested = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=folder)
+            except OSError as exc:
+                if exc.errno in (errno.ELOOP, errno.ENOTDIR):
+                    raise Outside(f"{part} is a link or isn't a folder") from exc
+                raise
+            os.close(folder)
+            folder = nested
+        try:
+            found = os.open(parts[-1], flags | os.O_NOFOLLOW | os.O_NONBLOCK, 0o644, dir_fd=folder)
+        except OSError as exc:
+            if exc.errno == errno.ELOOP:
+                raise Outside(f"{parts[-1]} is a link") from exc
+            raise
+        if not stat.S_ISREG(os.fstat(found).st_mode):
+            os.close(found)
+            raise Outside(f"{parts[-1]} isn't a regular file")
+        return found
+    finally:
+        os.close(folder)
+
+
+def read_inside(directory: Path, path: str) -> str:
+    with os.fdopen(open_inside(directory, path, os.O_RDONLY), encoding="utf-8") as fh:
+        return fh.read()
+
+
+def write_inside(directory: Path, path: str, text: str) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    with os.fdopen(
+        open_inside(directory, path, flags, make_dirs=True), "w", encoding="utf-8"
+    ) as fh:
+        fh.write(text)
+
+
+# Run in the container after every `run`: every process killed, until none is left, but
+# PID 1 (docker-init), the container's own `sleep` (PID 1's oldest child, started before
+# any run; a daemon left by one is PID 1's child too, but later, and may take any name),
+# and this one and its ancestors. So nothing a run started acts between tool calls (the
+# final review of #41: a daemon raced `read`).
+REAP_SOURCE = """
+import os, signal, time
+
+
+def stat(pid):
+    with open(f"/proc/{pid}/stat") as fh:
+        return fh.read().rsplit(")", 1)[1].split()
+
+
+me = os.getpid()
+keep = {1, me}
+children = []
+for name in os.listdir("/proc"):
+    if name.isdigit():
+        try:
+            fields = stat(name)
+        except OSError:
+            continue
+        if fields[1] == "1":
+            children.append((int(fields[19]), int(name)))
+if children:
+    keep.add(min(children)[1])
+pid = me
+while pid > 1:
+    pid = int(stat(pid)[1])
+    keep.add(pid)
+killed = set()
+for _ in range(20):
+    left = []
+    for name in os.listdir("/proc"):
+        if name.isdigit() and int(name) not in keep:
+            try:
+                zombie = stat(name)[0] == "Z"
+            except OSError:
+                continue
+            if not zombie:
+                left.append(int(name))
+    if not left:
+        break
+    for pid in left:
+        try:
+            os.kill(pid, signal.SIGKILL)
+            killed.add(pid)
+        except OSError:
+            pass
+    # A kill lands a moment later: look again only once it has.
+    time.sleep(0.1)
+print("CAD_EVAL_REAPED", len(killed), len(left))
+"""
+REAP_TIMEOUT = 30
+
+
+def copy_plain(source: Path, target: Path) -> None:
+    """The part's directory's regular files, into `target`: never a link, to a file or a
+    folder, and nothing of the sandbox's home (`.crew-home`)."""
+    for root, folders, files in os.walk(source, followlinks=False):
+        here = Path(root)
+        folders[:] = [
+            f
+            for f in folders
+            if not (here / f).is_symlink() and not (here == source and f.lower() == ".crew-home")
+        ]
+        for name in files:
+            found = here / name
+            if found.is_symlink() or not found.is_file():
+                continue
+            copied = target / found.relative_to(source)
+            copied.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(found, copied, follow_symlinks=False)
+
+
+def at_judge(request: dict[str, Any]) -> dict[str, Any]:
+    """A measure request with its files where the judging mounts them, read-only at
+    /work/judge: relative, as `measure.py` takes a path."""
+
+    def moved(entry: Any) -> Any:
+        if isinstance(entry, dict) and "path" in entry:
+            return {**entry, "path": f"judge/{entry['path']}"}
+        return entry
+
+    found = moved(request)
+    if "against" in found:
+        found["against"] = [moved(a) for a in found["against"]]
+    if "regions" in found:
+        found["regions"] = [{**r, "other": moved(r["other"])} for r in found["regions"]]
+    return found
 
 
 class PartTools:
@@ -199,28 +621,150 @@ class PartTools:
         workspace: Any,
         outputs: list[str] | None = None,
         arm: str | None = None,
+        spec: str = "",
     ) -> None:
         self.directory = directory
+        # The spec's text: what `plan`'s quotes are checked against.
+        self.spec = spec
+        # The plan stage (the base arm's): plans checked, whether one held, its misses.
+        self.planned = arm == BASE
+        self.plans = 0
+        self.plan_passed = False
+        self.plan_misses = 0
         self.workspace = workspace
         self.outputs = outputs or [OUTPUT]
         self.arm = arm
         self.specs = specs_for(self.outputs) + (arm_specs(arm) if arm else [])
+        if arm == BASE:
+            self.specs = base_specs(self.specs)
         self.accepted = {s["function"]["name"]: s["function"]["parameters"] for s in self.specs}
         # Whether a `run` has exited 0 with every output written: a first compiling part.
         self.compiled = False
         self.runs: list[dict[str, Any]] = []
+        # The processes a run left, killed after it: one count per reap.
+        self.reaped: list[int] = []
         # The tools' own failures, by kind, that weren't the model's: a measure that
         # didn't finish. `run.py` reads them to say whose a failure is.
         self.troubles: dict[str, int] = {}
 
     def call(self, name: str, raw: Any) -> Judged:
         args = parse(raw)
+        if (
+            name in ("write", "edit")
+            and isinstance(args, dict)
+            and isinstance(args.get("run"), str)
+        ):
+            said = args["run"].strip().lower()
+            if said in BOOLEAN_TEXT:
+                args = {**args, "run": BOOLEAN_TEXT[said]}
         bad = well_formed(name, args, self.accepted)
         if bad is not None:
             return bad
         if name in ("done", "blocked"):
             return self._ending(name, args)
+        if name in ("write", "edit", "run") and self.planned and not self.plan_open:
+            reply = (
+                "Send your plan with `plan` first: `write`, `edit` and `run` open once it holds."
+            )
+            return self._failed(name, "no_plan", reply, args)
         return getattr(self, f"_{name}")(args)
+
+    @property
+    def plan_open(self) -> bool:
+        """Whether the gate's open: a plan held, or `plan.ATTEMPTS` of them missed."""
+        return self.plan_passed or self.plans >= plan.ATTEMPTS
+
+    def _plan(self, args: dict[str, Any]) -> Judged:
+        """The `plan` tool: its quotes against the spec and the references (`plan.py`)."""
+        checked = plan.check(self.spec, self.outputs, args["plan"])
+        self.plans += 1
+        self.plan_misses += len(checked.said())
+        detail = {
+            "attempt": self.plans,
+            "wrong": checked.wrong,
+            "misses": [{"entry": m.entry, "why": m.why} for m in checked.misses],
+        }
+        if checked.passed:
+            self.plan_passed = True
+            reply = "The plan holds: `write`, `edit` and `run` are open."
+            return Judged("plan", "ok", reply, detail=detail)
+        said = "\n".join(f"- {m}" for m in checked.said())
+        after = (
+            "`write`, `edit` and `run` are open now."
+            if self.plan_open
+            else "Send the plan again with these fixed."
+        )
+        judged = self._failed("plan", "misses", f"The plan doesn't hold:\n{said}\n{after}", args)
+        judged.detail = detail
+        return judged
+
+    def _measure(self, args: dict[str, Any]) -> Judged:
+        """The `measure` tool: the model's own file and query, and nothing of the case's.
+
+        The request carries only the path and the query: no probes, bounds, volumes or
+        mates, so the model checks its part against what the spec states, never against
+        the evaluation's checks (mqucifer/model-performance#28)."""
+        missing = self._existing("measure", args)
+        if missing is not None:
+            return missing
+        if len(args["query"]) > MAX_PATH or not args["query"].strip():
+            reply = "`query` is one line, such as `hole 0,0,5` or `distance >Z <Z`."
+            return self._failed("measure", "not_a_query", reply, args)
+        began = time.monotonic()
+        found = self.measure_request({"path": args["path"], "query": args["query"]})
+        # How long, against its limit: whether the model is ever cut off.
+        took = {"seconds": round(time.monotonic() - began, 2), "limit": MEASURE_TIMEOUT}
+        error = str(found.get("error", ""))
+        if error.startswith("query:"):
+            judged = self._failed("measure", "not_a_query", error, args)
+        elif error.startswith(TOOL_FAILURES):
+            judged = self._failed("measure", "unfinished", error, args)
+        else:
+            judged = Judged("measure", "ok", json.dumps(found))
+        judged.detail = {**(judged.detail or {}), **took}
+        return judged
+
+    def _view(self, args: dict[str, Any]) -> Judged:
+        """The `view` tool: the model's own files, and only its own, drawn by VTK."""
+        files = args["files"].split()
+        keepouts = str(args.get("keepouts") or "").split()
+        if not files:
+            return self._failed("view", "not_a_query", "Name at least one STEP file.", args)
+        for name in files + keepouts:
+            missing = self._existing("view", {"path": name})
+            if missing is not None:
+                return missing
+        words = args["view"].split()
+        plane = None
+        if not words or words[0] not in VIEWS:
+            reply = f"`view` is one of {', '.join(VIEWS[:-1])}, or `section x=40`."
+            return self._failed("view", "not_a_query", reply, args)
+        if words[0] == "section":
+            axis, _, at = (words[1] if len(words) == 2 else "").partition("=")
+            try:
+                plane = {"axis": axis, "at": float(at)}
+            except ValueError:
+                plane = None
+            if plane is None or axis not in ("x", "y", "z"):
+                reply = "A section names its plane: `section x=40`, `section z=12.5`."
+                return self._failed("view", "not_a_query", reply, args)
+        request = {"files": files, "view": words[0], "plane": plane, "keepouts": keepouts}
+        done = self.execute(
+            ["python", "-I", "-", json.dumps(request)], RENDER_TIMEOUT, stdin=RENDER_SOURCE
+        )
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(render_module.MARK):
+                found = json.loads(line[len(render_module.MARK) :])
+                if "error" in found:
+                    why = "not_a_query" if found["error"].startswith("query:") else "unfinished"
+                    return self._failed("view", why, found["error"], args)
+                caption = "; ".join(found.get("caption", []))
+                reply = f"The {words[0]} view follows, in a picture of its own. {caption}."
+                return Judged("view", "ok", reply, image=found["png"], painted=found.get("painted"))
+        self.troubles["view_unfinished"] = self.troubles.get("view_unfinished", 0) + 1
+        return self._failed(
+            "view", "unfinished", f"The view didn't finish (exit {done.code}).", args
+        )
 
     def _failed(self, name: str, why: str, reply: str, args: Any) -> Judged:
         return Judged(name, "failed", reply, why, args)
@@ -230,17 +774,122 @@ class PartTools:
             return self._not_a_path("write", args, "path")
         target = inside(self.directory, args["path"])
         if target is None:
-            return self._failed("write", "outside", "Write only inside the part's directory.", args)
+            reply = "Write only inside the part's directory, and never through a link."
+            return self._failed("write", "outside", reply, args)
         if len(args["content"]) > MAX_CONTENT:
             return self._failed(
                 "write", "too_large", f"A file is at most {MAX_CONTENT} characters.", args
             )
+        script, wrong = self._run_after("write", args)
+        if wrong is not None:
+            return wrong
         try:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(args["content"], encoding="utf-8")
+            write_inside(self.directory, args["path"], args["content"])
+        except Outside:
+            reply = "Write only inside the part's directory, and never through a link."
+            return self._failed("write", "outside", reply, args)
         except OSError as exc:
             return self._failed("write", "not_written", f"It couldn't be written: {exc}", args)
-        return Judged("write", "ok", f"Wrote {args['path']} ({len(args['content'])} characters).")
+        said = f"Wrote {args['path']} ({len(args['content'])} characters)."
+        return self._then_run("write", said, script)
+
+    def _run_after(self, name: str, args: dict[str, Any]) -> tuple[str | None, Judged | None]:
+        """The script a `write` or `edit` runs after (`run`): the file itself for `true`,
+        a path as given, none for `false` or none; or why `run` can't be done."""
+        script = args.get("run_script")
+        if script is not None:
+            if script != args["path"]:
+                missing = self._existing(name, args, "run_script")
+                if missing is not None:
+                    return None, missing
+            return script, None
+        return (args["path"], None) if args.get("run") is True else (None, None)
+
+    def _then_run(self, name: str, said: str, script: str | None) -> Judged:
+        """A change's reply, and the run after it when one was asked for."""
+        if script is None:
+            return Judged(name, "ok", said)
+        ran = self._run({"path": script})
+        return Judged(name, "ok", f"{said}\n\nRan {script}: {ran.reply}")
+
+    def _read(self, args: dict[str, Any]) -> Judged:
+        """A file of the part's directory, its lines numbered: the model's own copy of its
+        script, whatever compaction has done to the conversation."""
+        from crew_org.session.tools import numbered  # noqa: PLC0415
+
+        missing = self._existing("read", args)
+        if missing is not None:
+            return missing
+        try:
+            text = read_inside(self.directory, args["path"])
+        except Outside:
+            reply = "Only files inside the part's directory, and never through a link."
+            return self._failed("read", "outside", reply, args)
+        except (OSError, UnicodeDecodeError):
+            return self._failed("read", "not_text", f"`{args['path']}` isn't a text file.", args)
+        lines = text.splitlines()
+        start = max(1, int(args.get("start") or 1))
+        end = min(
+            len(lines), int(args.get("end") or start + READ_LINES - 1), start + READ_LINES - 1
+        )
+        shown = "\n".join(numbered(lines, start - 1, end))
+        head = f"`{args['path']}`, lines {start}-{end} of {len(lines)}:"
+        more = f"\n(more: `start` {end + 1})" if end < len(lines) else ""
+        # Whether it's the whole file: only then is it the file's full text to compaction.
+        whole = start == 1 and end >= len(lines)
+        return Judged("read", "ok", f"{head}\n{shown}{more}", detail={"whole": whole})
+
+    def _edit(self, args: dict[str, Any]) -> Judged:
+        """crew's `replace_text`, as `edit`: each refusal its own rule, and nothing run."""
+        if not a_path(args["path"]):
+            return self._not_a_path("edit", args, "path")
+        target = inside(self.directory, args["path"])
+        if target is None or not target.is_file():
+            reply = f"There's no file `{args['path']}`: `write` makes a new one."
+            return self._failed("edit", "edit.no_file", reply, args)
+        script, wrong = self._run_after("edit", args)
+        if wrong is not None:
+            return wrong
+        try:
+            text = read_inside(self.directory, args["path"])
+        except Outside:
+            reply = "Only files inside the part's directory, and never through a link."
+            return self._failed("edit", "outside", reply, args)
+        except (OSError, UnicodeDecodeError):
+            return self._failed("edit", "not_text", f"`{args['path']}` isn't a text file.", args)
+        old, new = _trim(args["old"]), _trim(args["new"])
+        refused = _refusal(args["path"], text, old, new)
+        if refused is not None:
+            return self._failed("edit", refused[0], refused[1], args)
+        lines = text.splitlines()
+        want = old.split("\n")
+        i = next(k for k in range(len(lines)) if lines[k : k + len(want)] == want)
+        changed = lines[:i] + (new.split("\n") if new else []) + lines[i + len(want) :]
+        after = "\n".join(changed) + ("\n" if text.endswith("\n") else "")
+        from crew_org.session.tools import changed_lines  # noqa: PLC0415
+
+        broken = ""
+        if args["path"].endswith(".py"):
+            error = _parse_error(after)
+            if error is not None and _parse_error(text) is None:
+                reply = (
+                    f"Your changes have NOT been applied: `{args['path']}` would stop parsing "
+                    f"({error[0]}, line {error[1]}).\n\nThe lines as they would have been:\n"
+                    f"{changed_lines(text, after)}\n\nThe lines as they are:\n"
+                    f"{changed_lines(text, after, side='old')}"
+                )
+                return self._failed("edit", "edit.parse_guard", reply, args)
+            if error is not None:
+                broken = f" It doesn't parse: {error[0]} on line {error[1]}."
+        try:
+            write_inside(self.directory, args["path"], after)
+        except Outside:
+            reply = "Only files inside the part's directory, and never through a link."
+            return self._failed("edit", "outside", reply, args)
+        except OSError as exc:
+            return self._failed("edit", "not_written", f"It couldn't be written: {exc}", args)
+        said = f"Replaced lines in `{args['path']}`.{broken}\nIt now reads:\n"
+        return self._then_run("edit", said + changed_lines(text, after), script)
 
     def _not_a_path(self, name: str, args: dict[str, Any], key: str) -> Judged:
         said = f"`{key}` is a file's path, of at most {MAX_PATH} characters on one line."
@@ -251,7 +900,8 @@ class PartTools:
             return self._not_a_path(name, args, key)
         target = inside(self.directory, args[key])
         if target is None:
-            return self._failed(name, "outside", "Only files inside the part's directory.", args)
+            reply = "Only files inside the part's directory, and never through a link."
+            return self._failed(name, "outside", reply, args)
         if not target.is_file():
             return self._failed(name, "no_file", f"There's no file {args[key]}.", args)
         return None
@@ -260,11 +910,51 @@ class PartTools:
         missing = self._existing("run", args)
         if missing is not None:
             return missing
-        done = self.execute(["python", args["path"]], RUN_TIMEOUT)
-        self.runs.append({"path": args["path"], "code": done.code, "seconds": done.seconds})
+        done = self.execute(["python", args["path"]], RUN_TIMEOUT, model=True)
+        left = self.reap()
+        self.runs.append(
+            {"path": args["path"], "code": done.code, "seconds": done.seconds, "reaped": left}
+        )
         if done.code == 0 and all((self.directory / o).is_file() for o in self.outputs):
             self.compiled = True
-        return Judged("run", "ok", f"exit {done.code} after {done.seconds}s\n{done.output[-TAIL:]}")
+        reply = f"exit {done.code} after {done.seconds}s\n{done.output[-TAIL:]}"
+        if done.code != 0 and self.arm == BASE:
+            hinted = self.hint(done.output)
+            reply += f"\n\n{hinted}" if hinted else ""
+        return Judged("run", "ok", reply, detail={"reaped": left})
+
+    def reap(self) -> int:
+        """Every process a run left in the container, killed; how many. A reap that can't
+        finish (something still running, or no answer) is `Tampered`: never carried on
+        from (the race review of #41)."""
+        done = self.execute(["python", "-I", "-"], REAP_TIMEOUT, stdin=REAP_SOURCE)
+        for line in reversed(done.output.splitlines()):
+            if line.startswith("CAD_EVAL_REAPED "):
+                killed, still = (int(n) for n in line.split()[1:3])
+                self.reaped.append(killed)
+                if still:
+                    self.troubles["reap_unfinished"] = self.troubles.get("reap_unfinished", 0) + 1
+                    raise Tampered(f"{still} processes still running after the reap")
+                return killed
+        self.troubles["reap_unfinished"] = self.troubles.get("reap_unfinished", 0) + 1
+        self.reaped.append(-1)
+        raise Tampered(f"the reap didn't answer (exit {done.code}): {done.output[-TAIL:]}")
+
+    def hint(self, output: str) -> str:
+        """For a run's last AttributeError, where the name is (`hint.py`), or nothing."""
+        found = list(NO_ATTRIBUTE.finditer(output))
+        if not found:
+            return ""
+        last = found[-1]
+        owner = last.group(1) or last.group(2) or last.group(3)
+        done = self.execute(
+            ["python", "-I", "-", owner, last.group(4)], LOOKUP_TIMEOUT, stdin=HINT_SOURCE
+        )
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(hint_module.MARK):
+                said = json.loads(line[len(hint_module.MARK) :])
+                return "" if "error" in said else hint_module.said(said)
+        return ""
 
     def _inspect(self, args: dict[str, Any]) -> Judged:
         missing = self._existing("inspect", args)
@@ -281,8 +971,34 @@ class PartTools:
             return self._failed("skill", "unknown", f"No skill `{args['name']}`: {named}.", args)
         return Judged("skill", "ok", found.body())
 
+    def _docs(self, args: dict[str, Any]) -> Judged:
+        return self._search("docs", args)
+
+    def _search(self, name: str, args: dict[str, Any]) -> Judged:
+        """`lookup` or `docs` in the base arm: `search.py` over the image's indexes."""
+        if not args["query"].strip() or len(args["query"]) > MAX_PATH:
+            reply = f"`query` is a name or some words, of at most {MAX_PATH} characters."
+            return self._failed(name, "not_a_query", reply, args)
+        page = args.get("page", 1)
+        if page < 1:
+            return self._failed(name, "not_a_page", "`page` is a page number, from 1.", args)
+        request = {"tool": name, "query": args["query"], "page": page}
+        done = self.execute(
+            ["python", "-I", "-", json.dumps(request)], LOOKUP_TIMEOUT, stdin=SEARCH_SOURCE
+        )
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(search_module.MARK):
+                return Judged(name, "ok", line[len(search_module.MARK) :])
+        self.troubles[f"{name}_unfinished"] = self.troubles.get(f"{name}_unfinished", 0) + 1
+        return self._failed(
+            name, "unfinished", f"The {name} didn't finish (exit {done.code}).", args
+        )
+
     def _lookup(self, args: dict[str, Any]) -> Judged:
-        """`lookup.py` on the query, run from stdin in the container, as the measure is."""
+        """`lookup.py` on the query, run from stdin in the container, as the measure is.
+        The base arm's searches the v2 image's index instead (`_search`)."""
+        if self.arm == BASE:
+            return self._search("lookup", args)
         if not args["query"].strip() or len(args["query"]) > MAX_PATH:
             reply = f"`query` is a name or a fragment, of at most {MAX_PATH} characters."
             return self._failed("lookup", "not_a_query", reply, args)
@@ -297,6 +1013,19 @@ class PartTools:
             "lookup", "unfinished", f"The lookup didn't finish (exit {done.code}).", args
         )
 
+    def versions(self) -> dict[str, str | None]:
+        """CadQuery's and OCP's versions in this container, or none if it can't say. A
+        container already gone is the session's to end, as `workspace_gone`."""
+        try:
+            done = self.execute(["python", "-I", "-c", VERSIONS], LOOKUP_TIMEOUT)
+        except Gone:
+            return {"cadquery": None, "ocp": None}
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(VERSIONS_MARK):
+                found = json.loads(line[len(VERSIONS_MARK) :])
+                return {"cadquery": found.get("cadquery"), "ocp": found.get("ocp")}
+        return {"cadquery": None, "ocp": None}
+
     def _ending(self, name: str, args: dict[str, Any]) -> Judged:
         if name == "done":
             missing = self._existing("done", args, "script")
@@ -304,32 +1033,41 @@ class PartTools:
                 return missing
         return Judged(name, "ok", "", args=args)
 
-    def execute(self, command: list[str], timeout: int, stdin: str | None = None) -> Any:
-        done = self.workspace.exec(command, timeout=timeout, stdin=stdin)
+    def execute(
+        self, command: list[str], timeout: int, stdin: str | None = None, model: bool = False
+    ) -> Any:
+        """A command in the session's container. The harness's own (every one but the
+        model's `run`) by absolute binaries under `env -i` (`container.fixed`), so
+        nothing a run planted on the sandbox's PATH can stand in for them."""
+        fixed = None if model else getattr(self.workspace, "run_fixed", None)
+        run = fixed or self.workspace.exec
+        done = run(command, timeout=timeout, stdin=stdin)
         if getattr(self.workspace, "lost", False):
             raise Gone(done.output[-TAIL:])
         return done
 
     def measure(
-        self, path: str, probes: list[Any] | None = None, mate: str | None = None
+        self,
+        path: str,
+        probes: list[Any] | None = None,
+        mate: str | None = None,
+        timeout: int = MEASURE_TIMEOUT,
     ) -> dict[str, Any]:
         """What `measure.py` finds, run from stdin in the container, never from /work."""
         request = {"path": path, "probes": probes or [], "mate": mate}
-        done = self.execute(
-            ["python", "-I", "-", json.dumps(request)], MEASURE_TIMEOUT, stdin=MEASURE_SOURCE
-        )
+        done = self.execute(["python", "-I", "-"], timeout, stdin=measure_stdin(request))
         for line in reversed(done.output.splitlines()):
             if line.startswith(measure.MARK):
                 return json.loads(line[len(measure.MARK) :])
         self.troubles["measure_unfinished"] = self.troubles.get("measure_unfinished", 0) + 1
         return {"path": path, "error": f"the measure didn't finish (exit {done.code})"}
 
-    def measure_request(self, request: dict[str, Any]) -> dict[str, Any]:
+    def measure_request(
+        self, request: dict[str, Any], timeout: int = MEASURE_TIMEOUT
+    ) -> dict[str, Any]:
         """`measure.py` on a whole request: the harder cases' `against`, `self`,
         `cylinders` and `section` beside the probes."""
-        done = self.execute(
-            ["python", "-I", "-", json.dumps(request)], MEASURE_TIMEOUT, stdin=MEASURE_SOURCE
-        )
+        done = self.execute(["python", "-I", "-"], timeout, stdin=measure_stdin(request))
         for line in reversed(done.output.splitlines()):
             if line.startswith(measure.MARK):
                 return json.loads(line[len(measure.MARK) :])
@@ -338,22 +1076,128 @@ class PartTools:
 
     def final(self, script: str, probes: list[Any], mate: str | None) -> dict[str, Any]:
         """`done`'s script, run again from a clean start, and what it wrote, measured."""
-        output = self.directory / OUTPUT
-        output.unlink(missing_ok=True)
-        ran = self.execute(["python", script], RUN_TIMEOUT)
-        result: dict[str, Any] = {"script": script, "code": ran.code, "tail": ran.output[-TAIL:]}
-        if ran.code != 0 or not output.is_file():
-            result["measured"] = {"path": OUTPUT, "error": f"no {OUTPUT} after exit {ran.code}"}
-            return result
-        result["measured"] = self.measure(OUTPUT, probes, mate)
+        request = {"path": OUTPUT, "probes": probes or [], "mate": mate}
+        result = self.final_case(script, {"part": request}, outputs=[OUTPUT])
+        result["measured"] = result["measured"]["part"]
         return result
 
-    def final_case(self, script: str, requests: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    def final_case(
+        self,
+        script: str,
+        requests: dict[str, dict[str, Any]],
+        outputs: list[str] | None = None,
+    ) -> dict[str, Any]:
         """`done`'s script, run again from a clean start, and each file it wrote, measured
-        by its own request (`cad_eval/run.py` makes them from the case's members)."""
-        for name in self.outputs:
+        by its own request (`cad_eval/run.py` makes them from the case's members).
+
+        Never in the model's container (the race review of #41: a run could plant the
+        `python` the judging ran, and forge the measure). The script runs again in a
+        fresh container over a copy of the part's directory, with nothing of its home,
+        and that container is removed, with whatever it started; then what it wrote is
+        measured in another fresh one, where no model code has run, mounted read-only.
+        """
+        outputs = outputs if outputs is not None else self.outputs
+        if getattr(self.workspace, "run_fixed", None) is None:
+            return self._final_here(script, requests, outputs)
+        from cad_eval import container  # noqa: PLC0415
+
+        image = self.workspace.sandbox.image
+        tag = f"judge-{os.getpid()}-{time.monotonic_ns()}"
+        work = Path(tempfile.mkdtemp(prefix="judge-", dir=self.directory.parent))
+        try:
+            rerun = work / "run"
+            copy_plain(self.directory, rerun)
+            for name in outputs:
+                (rerun / name).unlink(missing_ok=True)
+            runner = container.held(rerun, f"{tag}-run", image=image)
+            started = runner.start()
+            try:
+                if started.ok:
+                    ran = runner.run_fixed(["python", script], timeout=RUN_TIMEOUT)
+                    code, tail = ran.code, ran.output[-TAIL:]
+                else:
+                    code, tail = 125, f"the judging's container didn't start: {started.output}"
+            finally:
+                runner.stop()
+            result: dict[str, Any] = {"script": script, "code": code, "tail": tail}
+            judged = work / "out"
+            judged.mkdir()
+            for request in requests.values():
+                found = rerun / request["path"]
+                if found.is_file() and not found.is_symlink():
+                    shutil.copyfile(found, judged / request["path"])
+            result["measured"] = self._measure_fresh(work, judged, image, tag, code, requests)
+            return result
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+    def _measure_fresh(
+        self,
+        work: Path,
+        judged: Path,
+        image: str,
+        tag: str,
+        code: int,
+        requests: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Each request, measured in a fresh container with `judged` read-only at
+        /work/judge."""
+        from cad_eval import container  # noqa: PLC0415
+
+        measured: dict[str, Any] = {}
+        waiting = {}
+        for name, request in requests.items():
+            written = (judged / request["path"]).is_file()
+            if code != 0 or not written:
+                error = f"no {request['path']} after exit {code}"
+                if written:
+                    error = f"exit {code}: {request['path']} was written, but the script failed"
+                measured[name] = {"path": request["path"], "error": error}
+            else:
+                waiting[name] = request
+        if not waiting:
+            return measured
+        (work / "empty").mkdir()
+        measurer = container.held(
+            work / "empty", f"{tag}-measure", image=image, readonly={judged: "/work/judge"}
+        )
+        started = measurer.start()
+        try:
+            for name, request in waiting.items():
+                if not started.ok:
+                    self.troubles["measure_unfinished"] = (
+                        self.troubles.get("measure_unfinished", 0) + 1
+                    )
+                    error = "the measure didn't finish (its container didn't start)"
+                    measured[name] = {"path": request["path"], "error": error}
+                    continue
+                done = measurer.run_fixed(
+                    ["python", "-I", "-"],
+                    timeout=JUDGE_TIMEOUT,
+                    stdin=measure_stdin(at_judge(request)),
+                )
+                measured[name] = self._measured(done, request["path"])
+        finally:
+            measurer.stop()
+        return measured
+
+    def _measured(self, done: Any, path: str) -> dict[str, Any]:
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(measure.MARK):
+                found = json.loads(line[len(measure.MARK) :])
+                # The paths as the case names them, not where the judging mounted them.
+                return {**found, "path": path} if "path" in found else found
+        self.troubles["measure_unfinished"] = self.troubles.get("measure_unfinished", 0) + 1
+        return {"path": path, "error": f"the measure didn't finish (exit {done.code})"}
+
+    def _final_here(
+        self, script: str, requests: dict[str, dict[str, Any]], outputs: list[str]
+    ) -> dict[str, Any]:
+        """The judging in the session's own workspace: only for a workspace with no
+        containers to start (the tests' fakes)."""
+        for name in outputs:
             (self.directory / name).unlink(missing_ok=True)
-        ran = self.execute(["python", script], RUN_TIMEOUT)
+        ran = self.execute(["python", script], RUN_TIMEOUT, model=True)
         result: dict[str, Any] = {"script": script, "code": ran.code, "tail": ran.output[-TAIL:]}
         measured: dict[str, Any] = {}
         for name, request in requests.items():
@@ -364,6 +1208,6 @@ class PartTools:
                     error = f"exit {ran.code}: {request['path']} was written, but the script failed"
                 measured[name] = {"path": request["path"], "error": error}
             else:
-                measured[name] = self.measure_request(request)
+                measured[name] = self.measure_request(request, timeout=JUDGE_TIMEOUT)
         result["measured"] = measured
         return result

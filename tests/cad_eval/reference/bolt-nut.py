@@ -16,7 +16,7 @@ def threaded(z0, z1, grow=0.0):
     """A threaded rod from z0 to z1, its profile `grow` mm out; every turn in one phase."""
     major, minor = R_MAJOR + grow, R_MINOR + grow
     h = major - minor + SINK
-    root = P / 8 + h * T30
+    root = P / 16 + h * T30  # the crest's half-flat, P/16, and the 60° flank below it
     profile = (
         cq.Workplane("XZ")
         .polyline([(minor - SINK, -root), (major, -P / 16), (major, P / 16), (minor - SINK, root)])

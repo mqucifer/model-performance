@@ -1,6 +1,6 @@
 import cadquery as cq
 
-SPINDLE = 12
+SPINDLE = 26.0  # the 53 mm hole rests on it, the spool on its axis
 back = cq.Workplane("XY").box(5, 50, 80, centered=(False, True, True))
 spindle = cq.Workplane("YZ").circle(SPINDLE).extrude(85)
 cap = cq.Workplane("YZ").workplane(offset=85).circle(30).extrude(3)

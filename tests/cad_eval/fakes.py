@@ -7,6 +7,14 @@ from typing import Any
 
 from cad_eval import measure
 
+# A few of the lookup index's entries, as `hint.py` reads them in the image.
+HINT_INDEX = [
+    {"name": "cq.Shape.isValid", "on": ["cq.Compound", "cq.Shape", "cq.Solid"]},
+    {"name": "cq.Workplane.union", "on": ["cq.Workplane"]},
+    {"name": "cq.Face.makeFromWires", "on": ["cq.Face"]},
+    {"name": "cq.Face.makeNSidedSurface", "on": ["cq.Face"]},
+]
+
 
 @dataclass
 class Ran:
@@ -43,16 +51,45 @@ class FakeWorkspace:
         self.stopped = True
 
     def exec(self, command: list[str], timeout: int = 0, stdin: str | None = None) -> Ran:
+        if stdin and "CAD_EVAL_REAPED" in stdin:
+            # The reap after each run, counted apart from the commands it follows.
+            self.reaps = getattr(self, "reaps", 0) + 1
+            left, still = getattr(self, "left", 0), getattr(self, "still", 0)
+            return Ran("reap", 0, f"CAD_EVAL_REAPED {left} {still}")
         self.commands.append(command)
+        self.timeouts = [*getattr(self, "timeouts", []), timeout]
+        if command[:3] == ["python", "-I", "-c"] and "CAD_EVAL_VERSIONS" in command[3]:
+            import json  # noqa: PLC0415
+
+            found = {"cadquery": "2.8.0", "ocp": "7.9.3.1.1"}
+            return Ran("versions", 0, "CAD_EVAL_VERSIONS " + json.dumps(found))
+        if command[:3] == ["python", "-I", "-"] and stdin and "CAD_EVAL_SEARCH" in stdin:
+            import json  # noqa: PLC0415
+
+            asked = json.loads(command[3])
+            found = {"query": asked["query"], "matches": 0, "page": 1, "pages": 1, "found": []}
+            return Ran("search", 0, "CAD_EVAL_SEARCH " + json.dumps(found))
+        if command[:3] == ["python", "-I", "-"] and stdin and "CAD_EVAL_HINT" in stdin:
+            import json  # noqa: PLC0415
+
+            from cad_eval import hint  # noqa: PLC0415
+
+            found = hint.find(HINT_INDEX, command[3], command[4])
+            return Ran("hint", 0, hint.MARK + json.dumps(found))
         if command[:3] == ["python", "-I", "-"] and stdin and "CAD_EVAL_LOOKUP" in stdin:
             import json  # noqa: PLC0415
 
             found = {"query": command[3], "matches": 1, "found": [{"name": "cq.Wire.makeHelix"}]}
             return Ran("lookup", 0, "CAD_EVAL_LOOKUP " + json.dumps(found))
-        if command[:3] == ["python", "-I", "-"]:
+        if command == ["python", "-I", "-"] and stdin and measure.MARK in stdin:
+            import ast  # noqa: PLC0415
             import json  # noqa: PLC0415
 
-            path = json.loads(command[3])["path"]
+            # The request, as the call after the source (`tools.measure_stdin`).
+            call = stdin.rstrip().rsplit("\n", 1)[-1]
+            asked = json.loads(ast.literal_eval(call[len("main(") : -1]))
+            self.requests = [*getattr(self, "requests", []), asked]
+            path = asked["path"]
             found = self.measured_by.get(path, self.measured)
             return Ran("measure", 0, measure.MARK + json.dumps({"path": path, **found}))
         code = self.exits.pop(0) if self.exits else 0

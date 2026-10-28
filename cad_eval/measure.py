@@ -131,6 +131,44 @@ def against(others: list) -> dict:
     return found
 
 
+def clipped(shape, box: list):  # noqa: ANN001, ANN201
+    """Only the material of `shape` inside the box ((x0, x1), (y0, y1), (z0, z1))."""
+    import cadquery as cq  # noqa: PLC0415
+
+    (x0, x1), (y0, y1), (z0, z1) = box
+    return shape.intersect(cq.Solid.makeBox(x1 - x0, y1 - y0, z1 - z0, pnt=cq.Vector(x0, y0, z0)))
+
+
+def region(shape, request: dict) -> dict:  # noqa: ANN001
+    """The closest distance, within a box, to another part or between the shape's own
+    solids: one face pair's clearance."""
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # noqa: PLC0415
+
+    try:
+        here = clipped(shape, request["box"])
+        if request["other"] == "self":
+            solids = here.Solids()
+            if len(solids) < 2:
+                return {"distance": None, "error": "fewer than two solids in the box"}
+            pairs = [(a, b) for i, a in enumerate(solids) for b in solids[i + 1 :]]
+        else:
+            other = against([request["other"]])[request["other"]["name"]]
+            if isinstance(other, str):
+                return {"distance": None, "error": other}
+            there = clipped(other, request["box"])
+            if not here.Solids() or not there.Solids():
+                return {"distance": None, "error": "no material in the box"}
+            pairs = [(here, there)]
+        found = []
+        for a, b in pairs:
+            d = BRepExtrema_DistShapeShape(a.wrapped, b.wrapped)
+            if d.IsDone():
+                found.append(d.Value())
+        return {"distance": round(min(found), 4) if found else None}
+    except Exception as exc:  # noqa: BLE001
+        return {"distance": None, "error": f"{type(exc).__name__}: {exc}"[:300]}
+
+
 def own(shape) -> dict:  # noqa: ANN001
     """The largest overlap and the smallest gap between a shape's own solids."""
     solids = shape.Solids()
@@ -191,6 +229,14 @@ def section(shape, request: dict) -> dict:  # noqa: ANN001
     origin[index] = float(request["at"])
     plane = cq.Face.makePlane(10_000, 10_000, cq.Vector(*origin), cq.Vector(*normal))
     cut = shape.intersect(plane)
+    if request.get("clip"):
+        # Only the cut within `span` along `axis`: one of two cheeks a plane cuts both of.
+        clip_axis, (low, high) = request["clip"]["axis"], request["clip"]["span"]
+        corner = [-5_000.0, -5_000.0, -5_000.0]
+        size = [10_000.0, 10_000.0, 10_000.0]
+        k = "xyz".index(clip_axis)
+        corner[k], size[k] = float(low), float(high) - float(low)
+        cut = cut.intersect(cq.Solid.makeBox(*size, pnt=cq.Vector(*corner)))
     props = GProp_GProps()
     BRepGProp.SurfaceProperties_s(cut.wrapped, props)
     area = props.Mass()
@@ -277,6 +323,178 @@ def rays(shape, request: dict) -> list[bool]:  # noqa: ANN001
     return hits
 
 
+def _point(text: str) -> tuple[float, float, float] | None:
+    parts = text.split(",")
+    if len(parts) != 3:
+        return None
+    try:
+        return tuple(float(p) for p in parts)  # type: ignore[return-value]
+    except ValueError:
+        return None
+
+
+def _faces(shape, name: str) -> list:  # noqa: ANN001
+    """Faces named by a selector (`>Z`, `<X`, `%CYLINDER`) or the one nearest a point."""
+    import cadquery as cq  # noqa: PLC0415
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # noqa: PLC0415
+
+    point = _point(name)
+    if point is None:
+        return cq.Workplane().add(shape).faces(name).vals()
+    vertex = cq.Vertex.makeVertex(*point)
+    best, found = None, []
+    for face in shape.Faces():
+        d = BRepExtrema_DistShapeShape(face.wrapped, vertex.wrapped).Value()
+        if best is None or d < best - 1e-9:
+            best, found = d, [face]
+    return found
+
+
+def _none_found(what: str, shape, cylinders: list, holes: list) -> str:  # noqa: ANN001
+    """Why `hole` or `diameter` found nothing, naming the faces the part does have: it
+    never says there's no cylinder when there is one (#40, V5's review)."""
+    from collections import Counter  # noqa: PLC0415
+
+    kinds = Counter(f.geomType() for f in shape.Faces())
+    faces = ", ".join(f"{n} {k.lower()}" for k, n in sorted(kinds.items()))
+    if what == "hole" and cylinders:
+        outer = sorted({_describe(f).get("diameter") for f in cylinders if f not in holes})
+        sizes = ", ".join(f"Ø{d}" for d in outer)
+        return (
+            f"no hole (an inner cylindrical face) in the part; it has {len(cylinders)} outer "
+            f"cylindrical face(s), {sizes}: `diameter x,y,z` measures one. Its faces: {faces}."
+        )
+    return f"no cylindrical face in the part. Its faces: {faces}."
+
+
+def _brief(face) -> dict:  # noqa: ANN001
+    """A face in a few words: its kind, centre and normal or diameter."""
+    found = _describe(face)
+    return {k: found[k] for k in ("type", "centre", "normal", "diameter") if k in found}
+
+
+def _describe(face) -> dict:  # noqa: ANN001
+    from OCP.BRepAdaptor import BRepAdaptor_Surface  # noqa: PLC0415
+    from OCP.GeomAbs import GeomAbs_Cylinder, GeomAbs_Plane  # noqa: PLC0415
+
+    box = face.BoundingBox()
+    out = {
+        "type": face.geomType(),
+        "centre": [round(v, 4) for v in face.Center().toTuple()],
+        "area": round(face.Area(), 3),
+        "bbox": [
+            [round(box.xmin, 4), round(box.xmax, 4)],
+            [round(box.ymin, 4), round(box.ymax, 4)],
+            [round(box.zmin, 4), round(box.zmax, 4)],
+        ],
+    }
+    surface = BRepAdaptor_Surface(face.wrapped)
+    if surface.GetType() == GeomAbs_Plane:
+        normal = face.normalAt(face.Center())
+        out["normal"] = [round(v, 4) for v in normal.toTuple()]
+    elif surface.GetType() == GeomAbs_Cylinder:
+        cylinder = surface.Cylinder()
+        axis = cylinder.Axis().Direction()
+        out["diameter"] = round(2 * cylinder.Radius(), 4)
+        out["axis"] = [round(axis.X(), 4), round(axis.Y(), 4), round(axis.Z(), 4)]
+    return out
+
+
+def gauge(shape, query: str) -> dict:  # noqa: ANN001
+    """The `measure` tool's answer, on the model's own part only: never the case's
+    checks (mqucifer/model-performance#28).
+
+    - `diameter x,y,z`: the cylindrical face nearest the point, a hole or an outer one (a
+      pin, a shaft): its diameter, axis and which kind;
+    - `hole x,y,z`: the hole (an inner cylindrical face) nearest the point;
+    - `distance A B`: the closest distance between faces A and B, and for two parallel
+      planes the gap along their normal;
+    - `clearance FILE`: the overlap's volume and the closest distance to another of
+      the model's own STEP files;
+    - `position A`: where faces A are: centre, area, box, normal or diameter.
+
+    A and B are a selector (`>Z`, `<X`, `|Z`, `%CYLINDER`, `>Z[1]`) or a point `x,y,z`
+    (the face nearest it).
+    """
+    import cadquery as cq  # noqa: PLC0415
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape  # noqa: PLC0415
+
+    words = query.split()
+    if not words:
+        return {"error": "query: name what to measure: hole, distance, clearance or position"}
+    what, args = words[0], words[1:]
+    try:
+        if what in ("hole", "diameter") and len(args) == 1 and _point(args[0]):
+            from OCP.TopAbs import TopAbs_REVERSED  # noqa: PLC0415
+
+            cylinders = [f for f in shape.Faces() if f.geomType() == "CYLINDER"]
+            holes = [f for f in cylinders if f.wrapped.Orientation() == TopAbs_REVERSED]
+            pool = holes if what == "hole" else cylinders
+            near = _faces(cq.Compound.makeCompound(pool), args[0]) if pool else []
+            if not near:
+                return {"error": _none_found(what, shape, cylinders, holes)}
+            found = _describe(near[0])
+            found["kind"] = "hole" if near[0].wrapped.Orientation() == TopAbs_REVERSED else "outer"
+            return {what: found}
+        if what == "distance" and len(args) == 2:
+            a, b = _faces(shape, args[0]), _faces(shape, args[1])
+            if not a or not b:
+                return {"error": f"no faces for {args[0] if not a else args[1]}"}
+            ca, cb = cq.Compound.makeCompound(a), cq.Compound.makeCompound(b)
+            between = BRepExtrema_DistShapeShape(ca.wrapped, cb.wrapped)
+            out: dict = {"distance": round(between.Value(), 4)}
+            # What it measured (V5 at 3706cd8: `distance >Z <Z` read 12.06 on a part 32
+            # tall, and the model took it for wrong): the closest distance between which
+            # two faces, at which two points, and every face a selector picked.
+            if between.IsDone() and between.NbSolution() > 0:
+                pa, pb = between.PointOnShape1(1), between.PointOnShape2(1)
+                out["points"] = [
+                    [round(pa.X(), 4), round(pa.Y(), 4), round(pa.Z(), 4)],
+                    [round(pb.X(), 4), round(pb.Y(), 4), round(pb.Z(), 4)],
+                ]
+                out["measured"] = (
+                    "the closest distance between the faces A and B name, at these two "
+                    "points: not a part's size unless A and B are its two ends"
+                )
+                closest = []
+                for faces, compound in ((a, cb), (b, ca)):
+                    near = min(
+                        faces,
+                        key=lambda f: BRepExtrema_DistShapeShape(
+                            f.wrapped, compound.wrapped
+                        ).Value(),
+                    )
+                    closest.append(_brief(near))
+                out["between"] = {args[0]: closest[0], args[1]: closest[1]}
+            for name, faces in ((args[0], a), (args[1], b)):
+                if len(faces) > 1:
+                    out.setdefault("picked", {})[name] = {
+                        "count": len(faces),
+                        "faces": [_brief(f) for f in faces[:8]],
+                    }
+            if len(a) == 1 and len(b) == 1 and a[0].geomType() == "PLANE" == b[0].geomType():
+                na, nb = a[0].normalAt(a[0].Center()), b[0].normalAt(b[0].Center())
+                if abs(abs(na.dot(nb)) - 1) < 1e-6:
+                    out["gap_along_normal"] = round(abs((b[0].Center() - a[0].Center()).dot(na)), 4)
+            return out
+        if what == "clearance" and len(args) == 1:
+            other = Path(args[0])
+            if other.is_absolute() or ".." in other.parts or not other.is_file():
+                return {"error": f"query: no file {args[0]} in the part's directory"}
+            return {"clearance": gap(shape, solids_from_shells(load(other))[0])}
+        if what == "position" and len(args) == 1:
+            faces = _faces(shape, args[0])
+            if not faces:
+                return {"error": f"no faces for {args[0]}"}
+            return {"faces": [_describe(f) for f in faces[:8]], "count": len(faces)}
+    except Exception as exc:  # noqa: BLE001 - a bad selector is said, not raised
+        return {"error": f"{type(exc).__name__}: {exc}"[:300]}
+    return {
+        "error": "query: one of `diameter x,y,z`, `hole x,y,z`, `distance A B`, "
+        "`clearance FILE` or `position A`"
+    }
+
+
 def measure(request: dict) -> dict:
     out: dict = {"path": request["path"]}
     path = Path(request["path"])
@@ -303,10 +521,17 @@ def measure(request: dict) -> dict:
             }
         if request.get("self"):
             out["self"] = own(shape)
+        if request.get("regions"):
+            out["regions"] = {r["name"]: region(shape, r) for r in request["regions"]}
         if request.get("cylinders"):
             out["cylinders"] = cylinders(shape)
         if request.get("section"):
             out["section"] = section(shape, request["section"])
+        if request.get("sections"):
+            out["sections"] = [section(shape, s) for s in request["sections"]]
+        if request.get("query"):
+            out = {"path": out["path"], **gauge(shape, request["query"])}
+            return out
         if request.get("rays"):
             out["rays"] = rays(shape, request["rays"])
         if request.get("print"):
@@ -316,9 +541,11 @@ def measure(request: dict) -> dict:
     return out
 
 
-def main() -> None:
-    print(MARK + json.dumps(measure(json.loads(sys.argv[1]))))
+def main(raw: str | None = None) -> None:
+    """The request from the harness, appended to this source on stdin as `main(...)`:
+    a request can outgrow one argument's 128 KiB. By hand, from the first argument."""
+    print(MARK + json.dumps(measure(json.loads(raw if raw is not None else sys.argv[1]))))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and len(sys.argv) > 1:
     main()

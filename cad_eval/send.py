@@ -29,21 +29,22 @@ class StreamingSender(Sender):
     def __call__(self, body: dict[str, Any]) -> dict[str, Any]:
         if self.calls >= self.cap:
             raise CallCapReached(f"the run's cap of {self.cap} calls is reached")
-        if self.alias:
-            body = {**body, "model": self.alias}
+        body = self.wire(body)
         self.models.add(str(body.get("model")))
         self.calls += 1
         if self.ticking():
             self.tick_calls += 1
-        body = {**body, "stream": True, "stream_options": {"include_usage": True}}
         content: list[str] = []
         thinking: list[str] = []
         calls: dict[int, dict[str, Any]] = {}
         usage: dict[str, Any] = {}
         finish: str | None = None
         response_id = ""
+        # The model the response names: what served the call, as LiteLLM reports it.
+        served = ""
         run = 0
         with self._client.stream("POST", "/chat/completions", json=body) as response:
+            self.served = served_headers(response.headers)
             if response.status_code >= 400:
                 # The status only: a body can echo the request, and this text reaches the record.
                 raise httpx.HTTPStatusError(
@@ -59,6 +60,7 @@ class StreamingSender(Sender):
                     break
                 chunk = json.loads(data)
                 response_id = chunk.get("id") or response_id
+                served = chunk.get("model") or served
                 usage = chunk.get("usage") or usage
                 for choice in chunk.get("choices") or []:
                     delta = choice.get("delta") or {}
@@ -83,9 +85,28 @@ class StreamingSender(Sender):
             message["tool_calls"] = [calls[i] for i in sorted(calls)]
         return {
             "id": response_id,
+            "model": served,
             "choices": [{"message": message, "finish_reason": finish}],
             "usage": usage,
         }
+
+    def wire(self, body: dict[str, Any]) -> dict[str, Any]:
+        """The body as it's sent: streamed, with the usage in its last chunk."""
+        return {**super().wire(body), "stream": True, "stream_options": {"include_usage": True}}
+
+
+# LiteLLM's headers that say which deployment served a call: never the key's, the
+# spend's or the budget's.
+PRIVATE = ("key", "spend", "cost", "budget", "user", "team")
+
+
+def served_headers(headers: Any) -> dict[str, str]:
+    """The `x-litellm-*` response headers, as LiteLLM names the deployment it used."""
+    return {
+        k.lower(): str(v)
+        for k, v in headers.items()
+        if k.lower().startswith("x-litellm-") and not any(p in k.lower() for p in PRIVATE)
+    }
 
 
 def assemble(calls: dict[int, dict[str, Any]], part: dict[str, Any]) -> None:

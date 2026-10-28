@@ -646,3 +646,88 @@ on some arm at least once, and the passes ran long: a median of 15 calls, with 4
 - **So the next question is the budget,** not training. Recommended to the Sponsor,
   not run yet: gear-pair and bolt-nut with skill-refs at cap 40, n = 3, under the
   same rule.
+
+## Question 2, the v2 base (mqucifer/model-performance#40): the baseline
+
+**The harness:** #41 at `1eed467`, the base arm.
+- **What it gives the model:** the full toolset: write and edit, read, run, `measure`, `view`, `plan`, the skills, `lookup` and `docs`. The cap is 50 calls, never told to the model.
+- **Where the runs ran:** a clean detached checkout, `--parallel 2`, beside the crew's tick (28 of the 53 rows record one).
+- **How it's judged:** in fresh containers.
+- **What each row records:** the call's serving, compared with infra's record, and the processes a run left, killed and counted.
+
+**Every row:**
+- `served_mismatch` and `served_unverified` are false, so every call's model group and api base matched infra's record.
+- `reaped` is 0, so no run left anything running.
+- No row has a harness fault.
+
+**Every figure here is computed from the rows,** with no running tally.
+
+### The 21 cases, twice
+
+Each cell gives the checks passed and the calls used. Bold marks a run with misses.
+
+| case | tier | sample 1 | sample 2 |
+|---|---|---|---|
+| living-hinge | 6 | 27/27, 12 | 27/27, 8 |
+| press-fit-pin | 6 | 33/33, 7 | 33/33, 6 |
+| snap-hook | 6 | 36/36, 12 | 36/36, 11 |
+| dovetail-slider | 6 | 39/39, 10 | 39/39, 16 |
+| print-in-place-hinge | 6 | 64/64, 37 | 64/64, 21 |
+| spur-gear | 6 | 26/26, 29 | **21/26**, 46 |
+| m8-bolt | 6 | **28/30**, 9 | **29/30**, 10 |
+| pin-clevis | 7 | 98/98, 8 | 98/98, 11 |
+| shaft-bushing-collar | 7 | 65/65, 11 | 65/65, 10 |
+| drawer-cabinet | 7 | 83/83, 12 | 83/83, 15 |
+| gear-pair | 7 | 82/82, 14 | 82/82, 25 |
+| bolt-nut | 7 | 52/52, 10 | infra (call_failed), 29 |
+| snap-enclosure | 7 | 97/97, 24 | 97/97, 30 |
+| caster-wheel | 7 | 121/121, 8 | 121/121, 8 |
+| shelf-bracket | 8 | 9/9, 11 | 9/9, 11 |
+| tube-clip | 8 | 10/10, 12 | **9/10**, 16 |
+| d-shaft-knob | 8 | **13/14**, 22 | 14/14, 10 |
+| wall-hook | 8 | **7/9**, 19 | **8/9**, 13 |
+| cable-comb | 8 | **9/10**, 8 | **8/10**, 12 |
+| spool-holder | 8 | 9/9, 14 | **8/9**, 14 |
+| pi5-nvme-case | 8 | budget (call_cap), 50 | **32/34**, 14 |
+
+**Of the 42 runs:**
+- **29 passed every check,** and 12 of the 21 cases passed in both samples.
+- **11 had misses.** Nine are the model's own:
+  - **m8-bolt, both samples:** a flank angle of about 50°, and in sample 1 a pitch of 1.16.
+  - **spur-gear's sample 2:** no involute, with the teeth far too thick.
+  - **d-shaft-knob's sample 1:** an interference with the shaft.
+  - **tube-clip's sample 2:** material in the tube's line.
+  - **cable-comb, both samples:** slots 4.6 wide where 5 to 6 are stated, and in sample 2 a comb 80 wide that doesn't open at the top.
+  - **spool-holder's sample 2:** nothing under the hub.
+  - **pi5-nvme-case's sample 2:** an interference with the NVMe board.
+- **The other two are wall-hook's `centre.z`, the spec's wording, not the model's.** "Centre it on Y = 0 and Z = 0" read two ways. Both runs centred the plate, as the operator found in the transcripts, while the check takes the whole hook's box.
+  - **Still the model's:** sample 1's `section.strap_seat`, 30 where 35 to 80 is stated.
+- **1 infra fault:** bolt-nut's sample 2 (`call_failed` at call 30). LiteLLM logged one `ServerDisconnectedError` from upstream, the only 5xx since 03:00.
+  - **The rerun:** once, from the same checkout. Run `20261028T114111Z` reruns `20261028T060937Z`, which is kept. It got 42/52, the model's: a bolt far too small, with no thread profile to speak of.
+  - **Follow-up on #41:** retry a dropped call before ending a run.
+- **1 budget fault:** pi5-nvme-case's sample 1 used its 50 calls without a `done`.
+
+**The median calls of a passing run is 11.** The plan gate's fix (`7ff1909`) took press-fit-pin from V5's 13 calls to 7 and 6.
+
+### wall-hook on its new text
+
+At `fb61883` the line says "Centre the whole hook, plate and arm together, on Y = 0 and Z = 0", and the check is unchanged. This is the case's baseline from here on; the old rows stay as evidence.
+- **Sample 2:** passed 9/9 in 21 calls.
+- **Sample 1:** 7/9 in 21 calls, the model's. It got `centre.z` −2.5 against 0 ± 0.1, and `section.strap_seat` 12 against 35 to 80.
+
+### The holdout, once
+
+The 8 sealed cases, run through the same runner from their own `case.py`. Their specs, checks and solutions weren't read by this session.
+
+| holdout case | tier | checks, calls |
+|---|---|---|
+| din-rail-clip | 8 | 25/25, 16 |
+| cell-holder-18650 | 8 | **10/12**, 13 |
+| filament-hinge | 7 | 50/50, 14 |
+| m3-nut-trap | 6 | 33/33, 15 |
+| nema17-bracket | 8 | **20/21**, 8 |
+| pi5-m2hat-case | 8 | **30/32**, 22 |
+| tripod-screw | 6 | **18/21**, 9 |
+| rack-pinion | 7 | 40/40, 30 |
+
+**Four passed every check,** and four had misses, all the model's.

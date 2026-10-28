@@ -4,6 +4,7 @@ with a scripted model and a fake container."""
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,26 @@ def measured(m: Member, **override: Any) -> dict[str, Any]:
         "inside": inside,
         "mesh": {"watertight": True, "winding_consistent": True, "is_volume": True},
     }
+    if m.section_spans:
+        mid = {s.name: sum(s.span) / 2 for s in m.section_spans}
+        # A section read less another is that much wider, so the difference is to spec.
+        wide = {s.name: mid[s.name] + (mid[s.less] if s.less else 0.0) for s in m.section_spans}
+        found["sections"] = [
+            {"area": 1.0, "bbox": [[0.0, wide[s.name] if a == s.across else 0.0] for a in "xyz"]}
+            for s in m.section_spans
+        ]
+    if m.region_gaps:
+        found["regions"] = {g.name: {"distance": sum(g.distance) / 2} for g in m.region_gaps}
+    if m.cylinders:
+        found["cylinders"] = [
+            {
+                "radius": sum(c.radius) / 2,
+                "axis": [1.0 if a == c.axis else 0.0 for a in "xyz"],
+                "origin": list(c.through),
+                "hole": c.kind == "hole",
+            }
+            for c in m.cylinders
+        ]
     return {**found, **override}
 
 
@@ -65,11 +86,19 @@ def test_assemblies_have_two_to_five_members_and_the_others_one() -> None:
             assert case.outputs() == ["part.step"]
 
 
-@pytest.mark.parametrize("name", list(CASES))
-def test_each_measure_request_fits_on_the_command_line(name: str) -> None:
-    # Linux takes one argument of at most 128 KiB.
-    for request in cad.requests(CASES[name]).values():
-        assert len(json.dumps(request)) < 120_000
+def test_a_measure_request_goes_on_stdin_whatever_its_size(tmp_path) -> None:
+    """Linux takes one argument of at most 128 KiB, and gear-pair's request is 107: the
+    request goes after the source on stdin, never as an argument (the operator)."""
+    from cad_eval.tools import PartTools  # noqa: PLC0415
+    from tests.cad_eval.fakes import FakeWorkspace  # noqa: PLC0415
+
+    (tmp_path / "part.step").write_text("step")
+    t = PartTools(tmp_path, FakeWorkspace(directory=tmp_path, measured={"valid": True}))
+    big = {"path": "part.step", "probes": [[k * 0.001, 0.0, 0.0] for k in range(20_000)]}
+    assert len(json.dumps(big)) > 128 * 1024
+    t.measure_request(big)
+    assert t.workspace.commands[-1] == ["python", "-I", "-"]
+    assert t.workspace.requests[-1] == big
 
 
 def test_a_request_asks_only_for_what_the_members_checks_need() -> None:
@@ -107,7 +136,9 @@ def test_samples_count_their_share_changes_and_gaps() -> None:
     assert comb.spacing == 1.0
     inside = [False, True, False, True, True, False, False, True, False, False, False]
     assert checks.gap_widths(inside, 1.0) == [2.0, 3.0]
-    assert not checks.sampled(comb, inside)[1].ok
+    # Its share's window is 0 to 1, so no share check: only its gaps (#40 V2).
+    assert [c.name for c in checks.sampled(comb, inside)] == ["gaps.cables"]
+    assert not checks.sampled(comb, inside)[0].ok
 
 
 def test_a_hole_cut_in_halves_counts_once() -> None:
@@ -212,9 +243,11 @@ def test_the_pi_case_checks_only_what_the_drawings_publish() -> None:
                 "closed_mesh": True,
                 "within_tolerance": False,
             },
+            # The judging's measure cut off (time or memory): the infrastructure's, never
+            # the model's (the operator, the second review of #41).
             {"part": {"error": "the measure didn't finish (exit 137)"}},
             {},
-            "tool",
+            "infra",
         ),
         ({"ending": "blocked", "stop": "said"}, {}, {}, "model"),
         ({"ending": "blocked", "stop": "no_tool_call"}, {}, {"measure_unfinished": 2}, "tool"),
@@ -256,7 +289,7 @@ def go(r: Run, name: str, **kw: Any) -> dict[str, Any]:
         image_id=lambda: "sha256:abc",
         results_dir=r.results,
         read_spend=lambda _sql: "",
-        **kw,
+        **{"serving_record": lambda: {"serving_image": "lmsysorg/sglang:test"}, **kw},
     )
 
 
@@ -398,3 +431,123 @@ def test_a_case_is_capped_by_calls_never_by_model_time(tmp_path: Path) -> None:
     finally:
         time.monotonic = original
     assert row["stop"] != "backstop" and row["calls"] == 6
+
+
+def test_a_lines_period_is_its_mean_rise_to_rise() -> None:
+    """A thread's pitch, measured (the second review of #41: 1.15 and 1.3 passed)."""
+    pitch = line("pitch", (0, 0, 0), (0, 0, 10), n=101, period=(1.23, 1.27))
+    # In for 6 points, out for 6.5 on average: rises 12.5 points apart, 0.1 mm each.
+    inside = [(k * 2) % 25 < 12 for k in range(101)]
+    found = checks.sampled(pitch, inside)
+    assert [c.name for c in found] == ["period.pitch"]
+    assert abs(found[0].found - 1.25) < 0.01 and found[0].ok
+    short = [(k % 12) < 6 for k in range(101)]  # 1.2 mm
+    assert not checks.sampled(pitch, short)[0].ok
+
+
+def test_a_cylinder_holds_its_radius_and_its_place_apart() -> None:
+    """The second review of #41: one probe held a bore's size and place together, and
+    failed a correct bore moved 0.04 mm."""
+    from cad_eval.cases import Cylinder  # noqa: PLC0415
+
+    bore = Cylinder("bore", "z", (0, 0, 4), (2.975, 3.025), offset=0.1)
+
+    def face(radius: float, x: float, hole: bool = True) -> dict:
+        return {"radius": radius, "axis": [0, 0, 1], "origin": [x, 0, 0], "hole": hole}
+
+    moved = checks.cylinder(bore, [face(3.0, 0.04)])
+    assert all(c.ok for c in moved)
+    assert [c.name for c in checks.cylinder(bore, [face(3.06, 0.0)]) if not c.ok] == [
+        "cylinder.bore.radius"
+    ]
+    assert [c.name for c in checks.cylinder(bore, [face(3.0, 0.15)]) if not c.ok] == [
+        "cylinder.bore.position"
+    ]
+    # An outer face isn't a hole, and nothing near is a fail, never a pass.
+    assert not checks.cylinder(bore, [face(3.0, 0.0, hole=False)])[0].ok
+    # Of several on the axis (a pin inside a knuckle), the radius nearest the spec's.
+    pin = Cylinder("pin", "z", (0, 0, 0), (1.475, 1.525), kind="outer")
+    both = [face(1.5, 0, hole=False), face(3.0, 0, hole=False)]
+    assert all(c.ok for c in checks.cylinder(pin, both))
+
+
+def test_a_box_holds_each_size_to_its_own_tolerance() -> None:
+    m = Member("m", bbox=((0, 30), (0, 24), (0, 10)))
+    both_ends_off = measured(m, bbox=[[-0.09, 30.09], [0, 24], [0, 10]])
+    failed = [c.name for c in checks.member(m, both_ends_off) if not c.ok]
+    # Each end within its 0.1, but the size 0.18 over.
+    assert failed == ["size.x"]
+
+
+def test_a_cylinder_holds_every_face_near_its_radius() -> None:
+    """Two coaxial holes (a fork's): a wrong one fails though the other is right."""
+    from cad_eval.cases import Cylinder  # noqa: PLC0415
+
+    hole = Cylinder("hole", "y", (0, 0, 0), (2.625, 2.675))
+
+    def face(radius: float, z: float = 0.0) -> dict:
+        return {"radius": radius, "axis": [0, 1, 0], "origin": [0, 0, z], "hole": True}
+
+    assert all(c.ok for c in checks.cylinder(hole, [face(2.65), face(2.66)]))
+    assert not checks.cylinder(hole, [face(2.65), face(2.75)])[0].ok
+    assert not checks.cylinder(hole, [face(2.65), face(2.65, z=0.2)])[1].ok
+
+
+def test_a_centred_member_holds_its_middle_whatever_its_size() -> None:
+    """A worded case's "centred on Y = 0", where the size is the model's (round 2 of the
+    audit of #41: only `within` bounded it, so an off-centre part passed)."""
+    m = Member("m", within=((-50, 50), (-50, 50), (0, 40)), centred=(("y", 0.0),))
+    assert all(c.ok for c in checks.member(m, measured(m, bbox=[[0, 10], [-7, 7], [0, 5]])))
+    off = checks.member(m, measured(m, bbox=[[0, 10], [-6, 8], [0, 5]]))
+    assert [c.name for c in off if not c.ok] == ["centre.y"]
+
+
+def test_a_section_less_another_is_their_difference() -> None:
+    """A hook's overhang: its tip's section less the beam's thickness."""
+    from cad_eval.cases import SectionSpan  # noqa: PLC0415
+
+    m = Member(
+        "m",
+        bbox=((0, 10), (0, 10), (0, 10)),
+        section_spans=(
+            SectionSpan("beam", "z", 5, "x", (1.55, 1.65)),
+            SectionSpan("overhang", "y", 0, "x", (0.95, 1.05), less="beam"),
+        ),
+    )
+
+    def cut(width: float) -> dict:
+        return {"area": 1.0, "bbox": [[0, width], [0, 0], [0, 0]]}
+
+    good = measured(m, sections=[cut(1.6), cut(2.6)])
+    assert [c.found for c in checks.member(m, good) if c.name.startswith("section")] == [1.6, 1.0]
+    short = measured(m, sections=[cut(1.6), cut(2.5)])
+    assert [c.name for c in checks.member(m, short) if not c.ok] == ["section.overhang"]
+
+
+def test_each_run_round_a_ring_is_held_not_only_their_mean() -> None:
+    """Each tooth's own width (round 2 of #41's audit): one thin tooth among wide ones
+    keeps the mean, and fails."""
+    teeth = ring("teeth", (0, 0, 0), 10, n=200, runs=(1.2, 1.9))
+    spacing = 2 * math.pi * 10 / 200
+    even = [(k % 20) < 5 for k in range(200)]  # 10 teeth, 5 points each
+    assert checks.sampled(teeth, even)[0].ok
+    assert checks.sampled(teeth, even)[0].found == [round(5 * spacing, 4)] * 2
+    thin = [((k % 20) < 5) and k not in (0, 1, 2) for k in range(200)]
+    assert not checks.sampled(teeth, thin)[0].ok
+    # A run across the start is one run.
+    assert checks.runs([True, False, False, True, True]) == [3]
+
+
+def test_a_region_gap_is_its_own_check() -> None:
+    from cad_eval.cases import RegionGap  # noqa: PLC0415
+
+    m = Member(
+        "m",
+        bbox=((0, 1), (0, 1), (0, 1)),
+        region_gaps=(RegionGap("front", "self", ((0, 1), (0, 1), (0, 1)), (0.25, 0.35)),),
+    )
+    assert all(c.ok for c in checks.member(m, measured(m)))
+    wide = checks.member(m, measured(m, regions={"front": {"distance": 0.4}}))
+    assert [c.name for c in wide if not c.ok] == ["region.front"]
+    lost = checks.member(m, measured(m, regions={}))
+    assert [c.name for c in lost if not c.ok] == ["region.front"]

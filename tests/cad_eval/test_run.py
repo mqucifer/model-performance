@@ -58,7 +58,12 @@ class Run:
         def reply(request: httpx.Request) -> httpx.Response:
             self.bodies.append(json.loads(request.content))
             got = next(queue)
-            return got if isinstance(got, httpx.Response) else httpx.Response(200, json=got)
+            if isinstance(got, httpx.Response):
+                return got
+            # A reply's `served` is LiteLLM's response headers, as the proxy sends them.
+            headers = got.get("served") or {}
+            body = {k: v for k, v in got.items() if k != "served"}
+            return httpx.Response(200, json=body, headers=headers)
 
         self.send = Sender(
             self.settings,
@@ -76,6 +81,10 @@ class Run:
         kw.setdefault("image_id", lambda: "sha256:abc")
         # LiteLLM's spend log, read in a test as empty: never the proxy's database.
         kw.setdefault("read_spend", lambda _sql: "")
+        # infra's record of production's serving, as a test reads it: never infra's repo.
+        kw.setdefault("serving_record", lambda: {"serving_image": "lmsysorg/sglang:test"})
+        # Never the Mac's own hosts file in a test.
+        kw.setdefault("reached_host", lambda record: "a")
         return cad.evaluate(
             PARTS[name],
             self.settings,
@@ -245,3 +254,13 @@ def test_the_cli_refuses_a_bad_choice_of_parts(argv: list[str]) -> None:
     with pytest.raises(SystemExit) as exited:
         cad.main(argv)
     assert exited.value.code == 2
+
+
+def test_a_reap_that_cant_finish_ends_the_run_as_the_harnesss_fault(tmp_path: Path) -> None:
+    """The race review of #41: never carried on from silently. The batch stops on it too
+    (`main` writes its stop file)."""
+    r = Run(tmp_path, GOOD)
+    r.workspace.still = 1
+    row = r.go()
+    assert row["ending"] == "interrupted" and row["stop"] == "harness_fault"
+    assert cad.fault({"ending": "interrupted", "stop": "harness_fault"}, {}, {}) == "tool"
