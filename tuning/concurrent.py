@@ -2,6 +2,7 @@
 
     uv run concurrent 4
     uv run concurrent 6 --cap 150
+    uv run concurrent 6 --model crew-candidate --serving tensorfold-1.1.6-mlx4
     uv run tune --set mem-fraction-static=0.88 -- uv run concurrent 6
 
 Starts N `replay` sessions together, each in its own process (crew's event bridge is
@@ -9,6 +10,9 @@ one per process), a few seconds apart, as every run of this round did (`new_run`
 their ids apart). The benchmark's cases are taken in order and repeated to make N. Each
 workspace is capped at 1.5 GiB, the Sponsor's cap: Docker's free memory held 6 of them
 on 2026-10-26.
+
+With `--model`, every session calls that LiteLLM alias in place of the Developer's, such
+as the candidate a swap serves as `crew-candidate`; `--serving` still names what's served.
 
 Before it starts, it refuses while a `crew tick` runs, and when Docker's free memory
 can't hold N workspaces: the ceiling it reached is a finding, and nothing else on the
@@ -89,10 +93,13 @@ def chosen(n: int, names: Sequence[str] | None = None) -> list[str]:
     return list(islice(cycle(names or list(CASES)), n))
 
 
-def session_argv(case: str, n: int, serving: str, batch: str, cap: int | None) -> list[str]:
+def session_argv(
+    case: str, n: int, serving: str, batch: str, cap: int | None, model: str | None = None
+) -> list[str]:
     argv = [sys.executable, "-m", "tuning.session", "--memory", WORKSPACE, "--", case]
     argv += ["--sessions", str(n), "--serving", serving, "--batch", batch]
-    return argv + (["--cap", str(cap)] if cap is not None else [])
+    argv += ["--cap", str(cap)] if cap is not None else []
+    return argv + (["--model", model] if model else [])
 
 
 def start_all(
@@ -128,8 +135,8 @@ def batch_rows(batch: str, directory: Path = results.RESULTS) -> list[dict[str, 
     return [r for r in rows if r.get("batch") == batch]
 
 
-def summary(rows: list[dict[str, Any]], stories: int) -> dict[str, Any]:
-    """The run's numbers, from its sessions' rows."""
+def summary(rows: list[dict[str, Any]], stories: int, model: str | None = None) -> dict[str, Any]:
+    """The run's numbers, from its sessions' rows; `model` when none left a row."""
     walls = [r["wall_s"] for r in rows if r.get("wall_s") is not None]
     speeds = [
         r["completion_tokens"] / r["model_s"]
@@ -139,7 +146,7 @@ def summary(rows: list[dict[str, Any]], stories: int) -> dict[str, Any]:
     first = rows[0] if rows else {}
     return {
         "crew_commit": first.get("crew_commit"),
-        "model_alias": first.get("model_alias"),
+        "model_alias": first.get("model_alias") or model,
         "stories": stories,
         "done": sum(r.get("ending") == "done" for r in rows),
         "gate_green": sum(r.get("gate_green") is True for r in rows),
@@ -176,6 +183,7 @@ def concurrent(
     results_dir: Path = results.RESULTS,
     start: Callable[[list[list[str]], Path], list[Any]] = start_all,
     others: Callable[[datetime, datetime, set[str]], Any] = spend.others,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """One concurrent run end to end: its row, written once every session has ended."""
     from tuning import grafana  # noqa: PLC0415
@@ -184,14 +192,14 @@ def concurrent(
     batch, out = records.new_run(settings, SUITE, "concurrent")
     cases = chosen(n, names)
     (out / "plan.json").write_text(
-        json.dumps({"sessions": n, "serving": serving, "cases": cases, "cap": cap}),
+        json.dumps({"sessions": n, "serving": serving, "model": model, "cases": cases, "cap": cap}),
         encoding="utf-8",
     )
     began_wall, began = time.time(), time.monotonic()
     ending = "done"
     children: list[Any] = []
     try:
-        children = start([session_argv(c, n, serving, batch, cap) for c in cases], out)
+        children = start([session_argv(c, n, serving, batch, cap, model) for c in cases], out)
         for child in children:
             child.wait()
     except KeyboardInterrupt:
@@ -219,7 +227,7 @@ def concurrent(
         "docker_free_gib": free_gib,
         "ending": ending,
         "wall_s": round(time.monotonic() - began, 1),
-        **summary(rows, len(cases)),
+        **summary(rows, len(cases), model),
         "other_calls": None if overlapped is None else sum(overlapped.values()),
         "other_aliases": spend.keys(overlapped) if overlapped else None,
         **read_grafana(out, began_wall, ended_wall),
@@ -239,6 +247,9 @@ def main(argv: list[str] | None = None) -> int:
         "--serving",
         default=os.environ.get("TUNE_SERVING", "record"),
         help="the Spark's setting, as `tune` sets it (default: record)",
+    )
+    parser.add_argument(
+        "--model", help="a LiteLLM alias every session calls in place of the Developer's"
     )
     args = parser.parse_args(argv)
     if not 1 <= args.sessions <= 8:
@@ -273,9 +284,12 @@ def main(argv: list[str] | None = None) -> int:
     # SIGTERM (from `tune`, or a kill) ends the run as Ctrl-C does: each session cleans up.
     signal.signal(signal.SIGTERM, stop)
     settings = load()
-    row = concurrent(settings, args.sessions, args.serving, args.cap, args.cases, free)
+    row = concurrent(
+        settings, args.sessions, args.serving, args.cap, args.cases, free, model=args.model
+    )
     print(
-        f"concurrent {row['run']}: {row['sessions']} sessions on {row['serving']}:"
+        f"concurrent {row['run']}: {row['sessions']} sessions of {row['model_alias']}"
+        f" on {row['serving']}:"
         f" {row['done']} done, {row['gate_green']} gate green,"
         f" {row['story_wall_s_mean']} s per story (max {row['story_wall_s_max']}),"
         f" TTFT p50 {row['ttft_p50_s']} s p95 {row['ttft_p95_s']} s,"

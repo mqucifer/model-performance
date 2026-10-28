@@ -68,6 +68,16 @@ Starts N `replay` sessions together, each its own process, a few seconds apart. 
 cases are taken in order and repeated to make N. Each session's workspace is capped at
 **1.5 GiB** (`tuning/session.py`, the Sponsor's cap), where crew's sandbox has 2g. That override goes once crew has the setting (mqucifer/crew#821, step 2) and the pin moves.
 
+**`--model <alias>`** sends every session to that LiteLLM alias in place of the
+Developer's, such as the candidate a swap serves as `crew-candidate`
+(mqucifer/model-performance#35); without it, the sessions call the Developer's. The
+run's row records the alias the sessions used (`model_alias`), and `--serving` still
+labels what's served:
+
+```
+uv run swap <model> -- uv run concurrent 6 --model crew-candidate --serving tensorfold-1.1.6-mlx4
+```
+
 **Before it starts,** it refuses while a tick runs, and when Docker's free memory
 (`docker info`'s total less `docker stats`' use) can't hold N × 1.5 GiB plus 0.5 GiB
 in reserve. It prints the ceiling: that's a finding, and nothing else in Docker is

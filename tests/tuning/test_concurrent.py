@@ -53,6 +53,14 @@ def test_each_session_is_capped_and_tagged() -> None:
     assert argv[7:] == ["--sessions", "6", "--serving", "record", "--batch", "B1", "--cap", "150"]
 
 
+def test_the_model_reaches_each_session_only_when_given() -> None:
+    argv = conc.session_argv("sprint-metrics-662", 6, "record", "B1", None, "crew-candidate")
+    assert argv[7:] == [
+        "--sessions", "6", "--serving", "record", "--batch", "B1", "--model", "crew-candidate"
+    ]  # fmt: skip
+    assert "--model" not in conc.session_argv("sprint-metrics-662", 6, "record", "B1", 150)
+
+
 class Fake:
     """A session that has already ended, leaving its row."""
 
@@ -75,7 +83,9 @@ class Fake:
             "completion_tokens": 6000,
             "model_s": 300.0 if green else 600.0,
             "crew_commit": "abc",
-            "model_alias": "crew-code-think",
+            "model_alias": argv[argv.index("--model") + 1]
+            if "--model" in argv
+            else "crew-code-think",
             "concurrent_tick": False,
             "tick_calls": 0,
         }
@@ -138,6 +148,72 @@ def test_a_run_leaves_one_row_of_its_sessions_and_the_spark(tmp_path: Path) -> N
         / "plan.json"
     )
     assert json.loads(plan.read_text())["sessions"] == 6
+
+
+def run_with(tmp_path: Path, model: str | None) -> tuple[dict[str, Any], list[list[str]]]:
+    results = tmp_path / "results"
+    results.mkdir()
+    started: list[list[str]] = []
+
+    def start(argvs: list[list[str]], out: Path) -> list[Any]:
+        started.extend(argvs)
+        return [Fake(a, results, "done", True) for a in argvs]
+
+    row = conc.concurrent(
+        load(home=tmp_path),
+        4,
+        "tensorfold-1.1.6-mlx4",
+        None,
+        None,
+        10.6,
+        read_grafana=lambda out, a, b: SPARK,
+        others=lambda a, b, own: None,
+        results_dir=results,
+        start=start,
+        model=model,
+    )
+    return row, started
+
+
+def test_every_session_calls_the_model_and_the_row_names_it(tmp_path: Path) -> None:
+    row, started = run_with(tmp_path, "crew-candidate")
+    assert len(started) == 4
+    assert all(a[a.index("--model") + 1] == "crew-candidate" for a in started)
+    assert row["model_alias"] == "crew-candidate"
+    assert row["serving"] == "tensorfold-1.1.6-mlx4"
+    assert json.loads((tmp_path / "results/tuning.jsonl").read_text())["model_alias"] == (
+        "crew-candidate"
+    )
+
+
+def test_without_a_model_the_sessions_call_the_developers_alias(tmp_path: Path) -> None:
+    row, started = run_with(tmp_path, None)
+    assert not any("--model" in a for a in started)
+    assert row["model_alias"] == "crew-code-think"
+
+
+def test_the_row_names_the_model_when_no_session_left_a_row() -> None:
+    assert conc.summary([], 4, "crew-candidate")["model_alias"] == "crew-candidate"
+    assert conc.summary([], 4)["model_alias"] is None
+
+
+def test_main_passes_the_model_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    import swap.runners
+
+    monkeypatch.setattr(swap.runners, "ticks_running", lambda: False)
+    monkeypatch.setattr(conc, "docker_free_gib", lambda: 10.6)
+    monkeypatch.setattr(conc.signal, "signal", lambda *a: None)
+    monkeypatch.setattr(conc, "load", lambda: None)
+    seen: dict[str, Any] = {}
+
+    def fake(*a: Any, **k: Any) -> dict[str, Any]:
+        seen.update(k)
+        raise SystemExit(0)
+
+    monkeypatch.setattr(conc, "concurrent", fake)
+    with pytest.raises(SystemExit):
+        conc.main(["4", "--model", "crew-candidate", "--serving", "tensorfold-1.1.6-mlx4"])
+    assert seen["model"] == "crew-candidate"
 
 
 def test_another_runs_rows_arent_counted(tmp_path: Path) -> None:
