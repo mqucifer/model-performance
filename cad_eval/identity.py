@@ -119,33 +119,113 @@ def serving(alias: str = "crew-code-think", fetch: Any = gh) -> dict[str, Any]:
 # What a call's comparison can find: a difference from infra's record, or nothing to
 # compare with, which is never a match (the final review of #41).
 MISMATCHES = ("model_group", "api_port", "api_host")
-UNVERIFIED = ("unverified", "no_model_group", "no_api_base", "no_record_port", "no_record_host")
+UNVERIFIED = (
+    "unverified",
+    "no_model_group",
+    "no_api_base",
+    "no_record_port",
+    "no_record_host",
+    "unresolved_host",
+)
 HOSTS_ENV = Path.home() / ".config" / "infra" / "hosts.env"
 
 
-def reached_host(record: dict[str, Any], env: Path = HOSTS_ENV) -> str | None:
-    """The host SGLang is reached at, by the variable infra's record names
-    (`reached_by: SPARK_ADDR`), from the environment or infra's local hosts file. Kept in
-    memory only: no row or record holds an address."""
-    import os  # noqa: PLC0415
-
-    name = record.get("serving_reached_by")
-    if not name:
-        return None
-    if os.environ.get(name):
-        return os.environ[name]
+def ssh_hostname(alias: str, run: Any = subprocess.run) -> str | None:
+    """The host an SSH alias names, from the local SSH config (`ssh -G`: nothing is
+    connected to), or None when it names none of its own."""
     try:
-        for line in env.read_text(encoding="utf-8").splitlines():
-            key, _, value = line.partition("=")
-            if key.strip() == name and value.strip():
-                return value.strip().strip('"').strip("'")
-    except OSError:
+        found = run(["ssh", "-G", alias], capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
         return None
+    for line in found.stdout.splitlines():
+        if line.startswith("hostname "):
+            name = line.split(None, 1)[1].strip()
+            return name if name and name != alias else None
     return None
 
 
+def reached_host(
+    record: dict[str, Any],
+    env: Path = HOSTS_ENV,
+    resolve: Any = None,
+    alias: Any = ssh_hostname,
+) -> str | None:
+    """The host SGLang is reached at, by the variable infra's record names
+    (`reached_by: SPARK_ADDR`), from the environment or infra's local hosts file. Its
+    value is an SSH alias on the Mac, which no DNS knows: one that doesn't resolve is
+    the host its SSH config names. Kept in memory only: no row or record holds an
+    address."""
+    import os  # noqa: PLC0415
+
+    resolve = resolve or addresses
+    name = record.get("serving_reached_by")
+    if not name:
+        return None
+    value = os.environ.get(name)
+    if not value:
+        try:
+            for line in env.read_text(encoding="utf-8").splitlines():
+                key, _, found = line.partition("=")
+                if key.strip() == name and found.strip():
+                    value = found.strip().strip('"').strip("'")
+        except OSError:
+            return None
+    if not value:
+        return None
+    if resolve(value):
+        return value
+    return alias(value) or value
+
+
+def addresses(host: str) -> frozenset[str]:
+    """What a host name resolves to, or nothing: never raised."""
+    import socket  # noqa: PLC0415
+
+    try:
+        return frozenset(a[4][0] for a in socket.getaddrinfo(host, None))
+    except (OSError, UnicodeError):
+        return frozenset()
+
+
+_RESOLVED: dict[str, frozenset[str]] = {}
+
+
+def same_host(served: str, expected: str, resolve: Any = addresses) -> bool | None:
+    """Whether two hosts are one: the same name, or names whose addresses meet (LiteLLM's
+    base is configured by one form, infra's record by another: the race review of #41).
+    None when neither is the other and either can't be resolved."""
+    if served.lower() == expected.lower():
+        return True
+    found = []
+    for name in (served, expected):
+        if name not in _RESOLVED or resolve is not addresses:
+            _RESOLVED[name] = resolve(name)
+        found.append(_RESOLVED[name])
+    if not found[0] or not found[1]:
+        return None
+    return bool(found[0] & found[1])
+
+
+def logged(headers: dict[str, str], differs: list[str]) -> dict[str, str]:
+    """A call's served headers as its event keeps them: the api base's address replaced
+    by whether it matched infra's record (`matched`, `mismatched`, or `unverified`)."""
+    kept = {k: v for k, v in headers.items() if k != "x-litellm-model-api-base"}
+    if "x-litellm-model-api-base" in headers:
+        if {"api_host", "api_port"} & set(differs):
+            kept["x-litellm-model-api-base"] = "mismatched"
+        elif {"no_record_port", "no_record_host", "unresolved_host"} & set(differs):
+            kept["x-litellm-model-api-base"] = "unverified"
+        else:
+            kept["x-litellm-model-api-base"] = "matched"
+    return kept
+
+
 def mismatch(
-    headers: dict[str, str], alias: str, record: dict[str, Any], host: str | None = None
+    headers: dict[str, str],
+    alias: str,
+    record: dict[str, Any],
+    host: str | None = None,
+    resolve: Any = addresses,
 ) -> list[str]:
     """How a call's serving, as LiteLLM's headers say it, differs from infra's record:
     the model group isn't the alias asked for, or the api base isn't at the host and
@@ -179,8 +259,12 @@ def mismatch(
         found.append("api_port")
     if not host:
         found.append("no_record_host")
-    elif (parsed.hostname or "").lower() != host.lower():
-        found.append("api_host")
+    else:
+        same = same_host(parsed.hostname or "", host, resolve)
+        if same is None:
+            found.append("unresolved_host")
+        elif not same:
+            found.append("api_host")
     return found
 
 

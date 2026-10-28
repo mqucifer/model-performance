@@ -31,7 +31,7 @@ from typing import Any
 
 import httpx
 
-from cad_eval.tools import OUTPUT, Gone, PartTools
+from cad_eval.tools import OUTPUT, Gone, PartTools, Tampered
 from common.litellm import CallCapReached
 
 QUIET_LIMIT = 3
@@ -206,6 +206,9 @@ class Session:
                 ending = self._tools(tool_calls)
             except Gone as gone:
                 return self._ended(Ending("interrupted", "workspace_gone", {"error": str(gone)}))
+            except Tampered as tampered:
+                # Never carried on from: the harness's fault, and the batch stops.
+                return self._ended(Ending("interrupted", "harness_fault", {"error": str(tampered)}))
             if self.first_compile is None and self.tools.compiled:
                 self.first_compile = self.calls
             if ending is not None:
@@ -398,7 +401,8 @@ class Session:
             # The reasoning's size, beside its tokens in `usage` when the stream gives them.
             reasoning_chars=thought,
             served_model=served,
-            served=headers,
+            # The api base's address never in the records: whether it matched, as rows say.
+            served=identity.logged(headers, differs),
             served_mismatch=differs,
             finish=choices[0].get("finish_reason"),
             message=choices[0].get("message"),

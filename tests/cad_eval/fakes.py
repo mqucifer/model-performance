@@ -54,7 +54,8 @@ class FakeWorkspace:
         if stdin and "CAD_EVAL_REAPED" in stdin:
             # The reap after each run, counted apart from the commands it follows.
             self.reaps = getattr(self, "reaps", 0) + 1
-            return Ran("reap", 0, f"CAD_EVAL_REAPED {getattr(self, 'left', 0)} 0")
+            left, still = getattr(self, "left", 0), getattr(self, "still", 0)
+            return Ran("reap", 0, f"CAD_EVAL_REAPED {left} {still}")
         self.commands.append(command)
         self.timeouts = [*getattr(self, "timeouts", []), timeout]
         if command[:3] == ["python", "-I", "-c"] and "CAD_EVAL_VERSIONS" in command[3]:

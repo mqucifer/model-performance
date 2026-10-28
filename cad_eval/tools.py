@@ -30,7 +30,9 @@ import errno
 import json
 import os
 import re
+import shutil
 import stat
+import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -196,6 +198,12 @@ def specs_for(outputs: list[str]) -> list[dict[str, Any]]:
 
 
 TYPES = {"string": str, "number": (int, float), "integer": int, "boolean": bool, "object": dict}
+
+
+class Tampered(RuntimeError):
+    """A reap that couldn't finish: something a run left can't be stopped, so nothing the
+    session goes on to measure can be trusted. The run ends as the harness's fault, and
+    the batch stops (the race review of #41)."""
 
 
 class Gone(RuntimeError):
@@ -517,7 +525,7 @@ def write_inside(directory: Path, path: str, text: str) -> None:
 # and this one and its ancestors. So nothing a run started acts between tool calls (the
 # final review of #41: a daemon raced `read`).
 REAP_SOURCE = """
-import os, signal
+import os, signal, time
 
 
 def stat(pid):
@@ -561,9 +569,47 @@ for _ in range(20):
             killed.add(pid)
         except OSError:
             pass
+    # A kill lands a moment later: look again only once it has.
+    time.sleep(0.1)
 print("CAD_EVAL_REAPED", len(killed), len(left))
 """
 REAP_TIMEOUT = 30
+
+
+def copy_plain(source: Path, target: Path) -> None:
+    """The part's directory's regular files, into `target`: never a link, to a file or a
+    folder, and nothing of the sandbox's home (`.crew-home`)."""
+    for root, folders, files in os.walk(source, followlinks=False):
+        here = Path(root)
+        folders[:] = [
+            f
+            for f in folders
+            if not (here / f).is_symlink() and not (here == source and f.lower() == ".crew-home")
+        ]
+        for name in files:
+            found = here / name
+            if found.is_symlink() or not found.is_file():
+                continue
+            copied = target / found.relative_to(source)
+            copied.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(found, copied, follow_symlinks=False)
+
+
+def at_judge(request: dict[str, Any]) -> dict[str, Any]:
+    """A measure request with its files where the judging mounts them, read-only at
+    /work/judge: relative, as `measure.py` takes a path."""
+
+    def moved(entry: Any) -> Any:
+        if isinstance(entry, dict) and "path" in entry:
+            return {**entry, "path": f"judge/{entry['path']}"}
+        return entry
+
+    found = moved(request)
+    if "against" in found:
+        found["against"] = [moved(a) for a in found["against"]]
+    if "regions" in found:
+        found["regions"] = [{**r, "other": moved(r["other"])} for r in found["regions"]]
+    return found
 
 
 class PartTools:
@@ -864,7 +910,7 @@ class PartTools:
         missing = self._existing("run", args)
         if missing is not None:
             return missing
-        done = self.execute(["python", args["path"]], RUN_TIMEOUT)
+        done = self.execute(["python", args["path"]], RUN_TIMEOUT, model=True)
         left = self.reap()
         self.runs.append(
             {"path": args["path"], "code": done.code, "seconds": done.seconds, "reaped": left}
@@ -879,18 +925,20 @@ class PartTools:
 
     def reap(self) -> int:
         """Every process a run left in the container, killed; how many. A reap that can't
-        say is a trouble of the tools', never the model's."""
+        finish (something still running, or no answer) is `Tampered`: never carried on
+        from (the race review of #41)."""
         done = self.execute(["python", "-I", "-"], REAP_TIMEOUT, stdin=REAP_SOURCE)
         for line in reversed(done.output.splitlines()):
             if line.startswith("CAD_EVAL_REAPED "):
                 killed, still = (int(n) for n in line.split()[1:3])
+                self.reaped.append(killed)
                 if still:
                     self.troubles["reap_unfinished"] = self.troubles.get("reap_unfinished", 0) + 1
-                self.reaped.append(killed)
+                    raise Tampered(f"{still} processes still running after the reap")
                 return killed
         self.troubles["reap_unfinished"] = self.troubles.get("reap_unfinished", 0) + 1
         self.reaped.append(-1)
-        return -1
+        raise Tampered(f"the reap didn't answer (exit {done.code}): {done.output[-TAIL:]}")
 
     def hint(self, output: str) -> str:
         """For a run's last AttributeError, where the name is (`hint.py`), or nothing."""
@@ -985,8 +1033,15 @@ class PartTools:
                 return missing
         return Judged(name, "ok", "", args=args)
 
-    def execute(self, command: list[str], timeout: int, stdin: str | None = None) -> Any:
-        done = self.workspace.exec(command, timeout=timeout, stdin=stdin)
+    def execute(
+        self, command: list[str], timeout: int, stdin: str | None = None, model: bool = False
+    ) -> Any:
+        """A command in the session's container. The harness's own (every one but the
+        model's `run`) by absolute binaries under `env -i` (`container.fixed`), so
+        nothing a run planted on the sandbox's PATH can stand in for them."""
+        fixed = None if model else getattr(self.workspace, "run_fixed", None)
+        run = fixed or self.workspace.exec
+        done = run(command, timeout=timeout, stdin=stdin)
         if getattr(self.workspace, "lost", False):
             raise Gone(done.output[-TAIL:])
         return done
@@ -1021,25 +1076,128 @@ class PartTools:
 
     def final(self, script: str, probes: list[Any], mate: str | None) -> dict[str, Any]:
         """`done`'s script, run again from a clean start, and what it wrote, measured."""
-        output = self.directory / OUTPUT
-        output.unlink(missing_ok=True)
-        ran = self.execute(["python", script], RUN_TIMEOUT)
-        # Nothing the script left may change its files before they're measured.
-        self.reap()
-        result: dict[str, Any] = {"script": script, "code": ran.code, "tail": ran.output[-TAIL:]}
-        if ran.code != 0 or not output.is_file():
-            result["measured"] = {"path": OUTPUT, "error": f"no {OUTPUT} after exit {ran.code}"}
-            return result
-        result["measured"] = self.measure(OUTPUT, probes, mate, timeout=JUDGE_TIMEOUT)
+        request = {"path": OUTPUT, "probes": probes or [], "mate": mate}
+        result = self.final_case(script, {"part": request}, outputs=[OUTPUT])
+        result["measured"] = result["measured"]["part"]
         return result
 
-    def final_case(self, script: str, requests: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    def final_case(
+        self,
+        script: str,
+        requests: dict[str, dict[str, Any]],
+        outputs: list[str] | None = None,
+    ) -> dict[str, Any]:
         """`done`'s script, run again from a clean start, and each file it wrote, measured
-        by its own request (`cad_eval/run.py` makes them from the case's members)."""
-        for name in self.outputs:
+        by its own request (`cad_eval/run.py` makes them from the case's members).
+
+        Never in the model's container (the race review of #41: a run could plant the
+        `python` the judging ran, and forge the measure). The script runs again in a
+        fresh container over a copy of the part's directory, with nothing of its home,
+        and that container is removed, with whatever it started; then what it wrote is
+        measured in another fresh one, where no model code has run, mounted read-only.
+        """
+        outputs = outputs if outputs is not None else self.outputs
+        if getattr(self.workspace, "run_fixed", None) is None:
+            return self._final_here(script, requests, outputs)
+        from cad_eval import container  # noqa: PLC0415
+
+        image = self.workspace.sandbox.image
+        tag = f"judge-{os.getpid()}-{time.monotonic_ns()}"
+        work = Path(tempfile.mkdtemp(prefix="judge-", dir=self.directory.parent))
+        try:
+            rerun = work / "run"
+            copy_plain(self.directory, rerun)
+            for name in outputs:
+                (rerun / name).unlink(missing_ok=True)
+            runner = container.held(rerun, f"{tag}-run", image=image)
+            started = runner.start()
+            try:
+                if started.ok:
+                    ran = runner.run_fixed(["python", script], timeout=RUN_TIMEOUT)
+                    code, tail = ran.code, ran.output[-TAIL:]
+                else:
+                    code, tail = 125, f"the judging's container didn't start: {started.output}"
+            finally:
+                runner.stop()
+            result: dict[str, Any] = {"script": script, "code": code, "tail": tail}
+            judged = work / "out"
+            judged.mkdir()
+            for request in requests.values():
+                found = rerun / request["path"]
+                if found.is_file() and not found.is_symlink():
+                    shutil.copyfile(found, judged / request["path"])
+            result["measured"] = self._measure_fresh(work, judged, image, tag, code, requests)
+            return result
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+    def _measure_fresh(
+        self,
+        work: Path,
+        judged: Path,
+        image: str,
+        tag: str,
+        code: int,
+        requests: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Each request, measured in a fresh container with `judged` read-only at
+        /work/judge."""
+        from cad_eval import container  # noqa: PLC0415
+
+        measured: dict[str, Any] = {}
+        waiting = {}
+        for name, request in requests.items():
+            written = (judged / request["path"]).is_file()
+            if code != 0 or not written:
+                error = f"no {request['path']} after exit {code}"
+                if written:
+                    error = f"exit {code}: {request['path']} was written, but the script failed"
+                measured[name] = {"path": request["path"], "error": error}
+            else:
+                waiting[name] = request
+        if not waiting:
+            return measured
+        (work / "empty").mkdir()
+        measurer = container.held(
+            work / "empty", f"{tag}-measure", image=image, readonly={judged: "/work/judge"}
+        )
+        started = measurer.start()
+        try:
+            for name, request in waiting.items():
+                if not started.ok:
+                    self.troubles["measure_unfinished"] = (
+                        self.troubles.get("measure_unfinished", 0) + 1
+                    )
+                    error = "the measure didn't finish (its container didn't start)"
+                    measured[name] = {"path": request["path"], "error": error}
+                    continue
+                done = measurer.run_fixed(
+                    ["python", "-I", "-"],
+                    timeout=JUDGE_TIMEOUT,
+                    stdin=measure_stdin(at_judge(request)),
+                )
+                measured[name] = self._measured(done, request["path"])
+        finally:
+            measurer.stop()
+        return measured
+
+    def _measured(self, done: Any, path: str) -> dict[str, Any]:
+        for line in reversed(done.output.splitlines()):
+            if line.startswith(measure.MARK):
+                found = json.loads(line[len(measure.MARK) :])
+                # The paths as the case names them, not where the judging mounted them.
+                return {**found, "path": path} if "path" in found else found
+        self.troubles["measure_unfinished"] = self.troubles.get("measure_unfinished", 0) + 1
+        return {"path": path, "error": f"the measure didn't finish (exit {done.code})"}
+
+    def _final_here(
+        self, script: str, requests: dict[str, dict[str, Any]], outputs: list[str]
+    ) -> dict[str, Any]:
+        """The judging in the session's own workspace: only for a workspace with no
+        containers to start (the tests' fakes)."""
+        for name in outputs:
             (self.directory / name).unlink(missing_ok=True)
-        ran = self.execute(["python", script], RUN_TIMEOUT)
-        self.reap()
+        ran = self.execute(["python", script], RUN_TIMEOUT, model=True)
         result: dict[str, Any] = {"script": script, "code": ran.code, "tail": ran.output[-TAIL:]}
         measured: dict[str, Any] = {}
         for name, request in requests.items():

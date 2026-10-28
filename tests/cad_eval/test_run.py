@@ -254,3 +254,13 @@ def test_the_cli_refuses_a_bad_choice_of_parts(argv: list[str]) -> None:
     with pytest.raises(SystemExit) as exited:
         cad.main(argv)
     assert exited.value.code == 2
+
+
+def test_a_reap_that_cant_finish_ends_the_run_as_the_harnesss_fault(tmp_path: Path) -> None:
+    """The race review of #41: never carried on from silently. The batch stops on it too
+    (`main` writes its stop file)."""
+    r = Run(tmp_path, GOOD)
+    r.workspace.still = 1
+    row = r.go()
+    assert row["ending"] == "interrupted" and row["stop"] == "harness_fault"
+    assert cad.fault({"ending": "interrupted", "stop": "harness_fault"}, {}, {}) == "tool"

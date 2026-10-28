@@ -160,3 +160,55 @@ def test_the_open_itself_refuses_a_link_when_the_check_has_been_raced(
     edit = tools.call("edit", json.dumps({"path": path, "old": "ANSWER = 42", "new": "x"}))
     assert edit.outcome == "failed"
     assert (outside / "cases.py").read_text() == "ANSWER = 42\n"
+
+
+def test_the_harness_runs_its_commands_by_absolute_binaries_with_no_inherited_env() -> None:
+    """The race review of #41: a `python` or `timeout` planted first on the sandbox's
+    PATH stood in for the harness's own."""
+    from cad_eval import container  # noqa: PLC0415
+
+    argv = container.fixed(["python", "-I", "-"], 30, 10)
+    assert argv[:2] == ["/usr/bin/env", "-i"]
+    assert "PATH=/usr/local/bin:/usr/bin:/bin" in argv
+    assert argv[argv.index("/usr/bin/timeout") :] == [
+        "/usr/bin/timeout",
+        "-k",
+        "10",
+        "30",
+        "/usr/local/bin/python",
+        "-I",
+        "-",
+    ]
+    assert not any(".crew-home" in a for a in argv)
+
+
+def test_the_judging_copies_only_plain_files_and_names_them_under_its_mount(
+    tmp_path: Path,
+) -> None:
+    from cad_eval.tools import at_judge, copy_plain  # noqa: PLC0415
+
+    part = tmp_path / "part"
+    (part / ".crew-home" / ".local" / "bin").mkdir(parents=True)
+    (part / ".crew-home" / ".local" / "bin" / "python").write_text("planted")
+    (part / "make.py").write_text("x = 1\n")
+    (part / "sub").mkdir()
+    (part / "sub" / "b.py").write_text("y = 1\n")
+    (part / "link.py").symlink_to(tmp_path / "elsewhere.py")
+    copy_plain(part, tmp_path / "copy")
+    copied = sorted(
+        p.relative_to(tmp_path / "copy").as_posix() for p in (tmp_path / "copy").rglob("*")
+    )
+    assert copied == ["make.py", "sub", "sub/b.py"]
+    request = {
+        "path": "a.step",
+        "against": [{"name": "b", "path": "b.step"}, {"name": "m", "source": "mate = 1"}],
+        "regions": [{"name": "r", "other": {"name": "b", "path": "b.step"}, "box": []}],
+    }
+    moved = at_judge(request)
+    assert moved["path"] == "judge/a.step"
+    assert moved["against"] == [
+        {"name": "b", "path": "judge/b.step"},
+        {"name": "m", "source": "mate = 1"},
+    ]
+    assert moved["regions"][0]["other"]["path"] == "judge/b.step"
+    assert request["path"] == "a.step"

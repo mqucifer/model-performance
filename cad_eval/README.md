@@ -965,3 +965,33 @@ The api base's host is now compared too. The expected host is the address of the
 variable infra's record names (`reached_by: SPARK_ADDR`), read from the environment or
 `~/.config/infra/hosts.env`. It's kept in memory only: rows hold the variable's name,
 never the address.
+
+**The harness's own commands can't be stood in for** (the race review of #41). A `run`
+could plant a `python` or `timeout` in `/work/.crew-home/.local/bin`, first on the
+sandbox's PATH, and so fake the reap and forge the measure.
+- **Every harness command in the model's container** runs by absolute binaries under
+  `env -i` with the image's system PATH only (`container.fixed`): the reaper, `measure`,
+  `inspect`, `view`'s render, the hint, the searches and the versions. Only the model's
+  own `run` keeps the sandbox's environment. The image's filesystem is read-only and
+  the user isn't root, so its binaries can't be replaced.
+- **The final judging never runs in the model's container.** `done`'s script runs again
+  in a fresh container over a plain copy of the part's directory: no links and nothing
+  of `.crew-home`. That container is then removed, with whatever the script started.
+  What it wrote is measured in a second fresh container where no model code has run,
+  with the files mounted read-only.
+- **The model's own `measure` stays in its container.** There a planted command can
+  fool only the model itself, never the judging.
+- **A reap that can't finish** (something still running after it, or no answer) raises
+  `Tampered`. The run ends as `harness_fault`, the fault is the harness's (`tool`), and
+  the batch writes its stop file and starts nothing more.
+- **Tested in the image** by replaying the review's attacks: a planted `python` and a
+  planted `timeout`, each with a daemon behind it; a daemon that kills every `python`
+  it sees; and a script that plants a `python` during the judging's own re-run.
+
+**The api base's host stays out of the records.** A call's event keeps only whether it
+`matched`, was `mismatched` or was `unverified`.
+- **Hosts are compared by address** when their names differ. LiteLLM's base names the
+  Spark by its `.local` name, while infra's `SPARK_ADDR` is an SSH alias, read through
+  the Mac's SSH config (`ssh -G`, which connects to nothing). A name that won't
+  resolve reads as `unresolved_host`, which is unverified.
+- **A run with no calls** reads `served_unverified`.

@@ -94,7 +94,10 @@ def test_each_call_records_its_time_and_the_deployment_that_served_it(tmp_path: 
     events = [json.loads(line) for line in (r.records(row) / "events.jsonl").open()]
     calls = [e for e in events if e["kind"] == "call"]
     assert [c["served_model"] for c in calls] == ["dep-a", "dep-a", "dep-b", "dep-b"]
-    assert calls[0]["served"]["x-litellm-model-api-base"] == "http://spark/v1"
+    # The address itself never in the records (the race review of #41): here the
+    # record gave no port, so unverified.
+    assert calls[0]["served"]["x-litellm-model-api-base"] == "unverified"
+    assert "spark" not in json.dumps(calls)
     assert all(c["seconds"] >= 0 and c["at"].endswith("+00:00") for c in calls)
     assert row["served_model"] == "dep-a"
     assert (row["served_models"], row["served_changed"]) == (2, True)
@@ -274,7 +277,20 @@ def test_each_calls_serving_is_compared_with_infras_record() -> None:
     wrong_port = {**good, "x-litellm-model-api-base": "http://a:9999/v1"}
     assert identity.mismatch(wrong_port, alias, record, "a") == ["api_port"]
     wrong_host = {**good, "x-litellm-model-api-base": "http://b:8888/v1"}
-    assert identity.mismatch(wrong_host, alias, record, "a") == ["api_host"]
+
+    def resolve(name: str) -> frozenset[str]:
+        # As getaddrinfo: a name to its address, an address to itself.
+        known = {"a": "addr-one", "b": "addr-two"}
+        if name in known.values():
+            return frozenset({name})
+        return frozenset({known[name]}) if name in known else frozenset()
+
+    assert identity.mismatch(wrong_host, alias, record, "a", resolve) == ["api_host"]
+    # One host by its address, the other by its name: the same, so a match.
+    by_address = {**good, "x-litellm-model-api-base": "http://addr-one:8888/v1"}
+    assert identity.mismatch(by_address, alias, record, "a", resolve) == []
+    nowhere = {**good, "x-litellm-model-api-base": "http://c:8888/v1"}
+    assert identity.mismatch(nowhere, alias, record, "a", resolve) == ["unresolved_host"]
     assert identity.mismatch({}, alias, record, "a") == ["unverified"]
     # One header alone, and a record with no port or host, say they can't compare.
     only_group = {"x-litellm-model-group": alias}
@@ -298,9 +314,35 @@ def test_the_host_is_read_by_the_name_infra_records_never_kept(tmp_path: Path) -
         "SPARK_ADDR"
     )
     record = {"serving_reached_by": "SPARK_ADDR"}
-    assert identity.reached_host(record, hosts) == "a.example"
+
+    def nowhere(name: str) -> frozenset[str]:
+        return frozenset()
+
+    def known(name: str) -> frozenset[str]:
+        return frozenset({"addr-one"})
+
+    def ssh(name: str) -> str | None:
+        return "alias-target.example" if name == "a.example" else None
+
+    # A name DNS knows is the host; an SSH alias it doesn't is the host its config names.
+    assert identity.reached_host(record, hosts, resolve=known, alias=ssh) == "a.example"
+    assert identity.reached_host(record, hosts, resolve=nowhere, alias=ssh) == "alias-target.example"
+    hosts.write_text("SPARK_ADDR=other\n")
+    assert identity.reached_host(record, hosts, resolve=nowhere, alias=ssh) == "other"
+    hosts.write_text("SPARK_ADDR=a.example\n")
     assert identity.reached_host({}, hosts) is None
     assert identity.reached_host(record, tmp_path / "none.env") is None
+    assert (
+        identity.ssh_hostname(
+            "spark",
+            run=lambda *a, **k: type("R", (), {"stdout": "user q\nhostname alias-target.example\n"})(),
+        )
+        == "alias-target.example"
+    )
+    assert (
+        identity.ssh_hostname("x", run=lambda *a, **k: type("R", (), {"stdout": "hostname x\n"})())
+        is None
+    )
 
 
 def test_a_failed_fetch_reads_unverified_on_the_row(tmp_path: Path) -> None:
@@ -339,3 +381,19 @@ def test_the_row_flags_a_served_mismatch(tmp_path: Path) -> None:
     assert row["served_mismatch"] is True and row["served_unverified"] is False
     events = [json.loads(x) for x in (r.records(row) / "events.jsonl").open()]
     assert [e["served_mismatch"] for e in events if e["kind"] == "call"][0] == ["model_group"]
+
+
+def test_a_calls_event_never_holds_the_api_bases_address() -> None:
+    headers = {"x-litellm-model-id": "d", "x-litellm-model-api-base": "http://a:8888/v1"}
+    assert identity.logged(headers, []) == {
+        "x-litellm-model-id": "d",
+        "x-litellm-model-api-base": "matched",
+    }
+    assert identity.logged(headers, ["api_host"])["x-litellm-model-api-base"] == "mismatched"
+    assert identity.logged(headers, ["no_record_host"])["x-litellm-model-api-base"] == "unverified"
+
+
+def test_a_run_with_no_calls_reads_unverified(tmp_path: Path) -> None:
+    r = Run(tmp_path, [], measured=measured("spacer"))
+    row = r.go()
+    assert row["served_unverified"] is True

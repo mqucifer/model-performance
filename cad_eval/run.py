@@ -140,7 +140,7 @@ def fault(row: dict[str, Any], measured: dict[str, Any], troubles: dict[str, int
     records, is read by hand in the write-up, since a missing tool may be what it
     says (`cad_eval/README.md`).
     """
-    if row["ending"] == "crashed":
+    if row["ending"] == "crashed" or row["stop"] == "harness_fault":
         return "tool"
     if row["ending"] == "refused" or row["stop"] in INFRA_STOPS:
         return "infra"
@@ -409,7 +409,10 @@ def evaluate(
         row["served_changed"] = len(served) > 1
         found = session.mismatches if session else []
         row["served_mismatch"] = any(set(m) & set(identity.MISMATCHES) for m in found)
-        row["served_unverified"] = any(set(m) & set(identity.UNVERIFIED) for m in found)
+        # A run with no calls has nothing that says what served it.
+        row["served_unverified"] = not found or any(
+            set(m) & set(identity.UNVERIFIED) for m in found
+        )
         # Every process the runs left, killed after each (the final review of #41).
         row["reaped"] = sum(max(0, n) for n in tools.reaped) if tools is not None else None
         serving_end = serving_record()
@@ -679,7 +682,12 @@ def main(argv: list[str] | None = None) -> int:
             send.close()
         with lock:
             budget["failed"] += row["ending"] in ("refused", "crashed")
+            budget["failed"] += row["stop"] == "harness_fault"
             print(summary(p, row, settings), flush=True)
+            if row["stop"] == "harness_fault":
+                # A reap that couldn't finish: nothing more starts (the race review of #41).
+                stop.write_text(f"{p.name}: a harness fault, the reap couldn't finish\n")
+                print(f"{p.name}: a harness fault; the batch stops", flush=True)
 
     # The crew's sandbox keeps its uv cache under the current directory: the work's.
     with contextlib.chdir(settings.work_dir), ThreadPoolExecutor(args.parallel) as pool:
